@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo-git.png" width="96" alt="Resona">
+  <img src="assets/logo-git.png" width="128" alt="Resona">
 </p>
 
 <h1 align="center">Resona</h1>

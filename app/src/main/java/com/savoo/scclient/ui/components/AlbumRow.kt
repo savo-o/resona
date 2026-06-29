@@ -59,7 +59,7 @@ fun AlbumRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             AsyncImage(
-                model = playlist.artworkUrl?.replace("-large", "-t200x200"),
+                model = playlist.artworkUrl?.replace("-large", "-t500x500"),
                 contentDescription = playlist.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

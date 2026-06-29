@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,6 +70,7 @@ fun LibraryScreen(
     onFavorites: () -> Unit = {},
     onPlaylists: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onImportExport: () -> Unit = {},
     onFavoriteArtists: () -> Unit = {},
     onFavoritePlaylists: () -> Unit = {},
     playerController: PlayerController? = null,
@@ -89,6 +91,9 @@ fun LibraryScreen(
         TopAppBar(
             title = { Text("Library") },
             actions = {
+                IconButton(onClick = onImportExport) {
+                    Icon(Icons.Filled.SwapHoriz, contentDescription = "Import / Export")
+                }
                 IconButton(onClick = onSettings) {
                     Icon(Icons.Filled.Settings, contentDescription = "Settings")
                 }
@@ -320,7 +325,7 @@ private fun RecentlyPlayedItem(
             contentAlignment = Alignment.Center,
         ) {
             AsyncImage(
-                model = track.artworkUrl?.replace(Regex("-large$"), "-t200x200"),
+                model = track.artworkUrl?.replace("-large", "-t500x500"),
                 contentDescription = track.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

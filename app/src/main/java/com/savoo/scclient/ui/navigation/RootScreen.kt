@@ -45,6 +45,7 @@ import com.savoo.scclient.ui.screens.artist.ArtistScreen
 import com.savoo.scclient.ui.screens.favorites.FavoriteArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritePlaylistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritesScreen
+import com.savoo.scclient.ui.screens.importexport.ImportExportScreen
 import com.savoo.scclient.ui.screens.library.LibraryScreen
 import com.savoo.scclient.ui.screens.player.PlayerSheet
 import com.savoo.scclient.ui.screens.playlist.PlaylistScreen
@@ -162,6 +163,7 @@ fun RootScreen() {
                         viewModel = libraryViewModel,
                         onFavorites = { navController.navigate(Screen.Favorites.route) },
                         onSettings = { navController.navigate(Screen.Settings.route) },
+                        onImportExport = { navController.navigate(Screen.ImportExport.route) },
                         onFavoriteArtists = { navController.navigate(Screen.FavoriteArtists.route) },
                         onFavoritePlaylists = { navController.navigate(Screen.FavoritePlaylists.route) },
                     )
@@ -186,6 +188,9 @@ fun RootScreen() {
                 }
                 composable(Screen.Settings.route) {
                     SettingsScreen(onBack = { navController.popBackStack() })
+                }
+                composable(Screen.ImportExport.route) {
+                    ImportExportScreen(onBack = { navController.popBackStack() })
                 }
                 composable(
                     route = Screen.Artist.route,

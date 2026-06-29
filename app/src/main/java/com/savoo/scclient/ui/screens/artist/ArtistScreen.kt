@@ -290,7 +290,7 @@ private fun ArtistHeader(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AsyncImage(
-            model = user.avatarUrl?.replace("-large", "-t200x200"),
+            model = user.avatarUrl?.replace("-large", "-t500x500"),
             contentDescription = user.username,
             contentScale = ContentScale.Crop,
             modifier = Modifier

@@ -181,7 +181,7 @@ private fun MiniPlayer(
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             AsyncImage(
-                model = track.artworkUrl?.replace("-large", "-t200x200"),
+                model = track.artworkUrl?.replace("-large", "-t500x500"),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

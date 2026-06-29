@@ -188,7 +188,7 @@ private fun LoggedInContent(
         Spacer(Modifier.height(16.dp))
 
         AsyncImage(
-            model = user?.avatarUrl?.replace("-large", "-t200x200"),
+            model = user?.avatarUrl?.replace("-large", "-t500x500"),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier

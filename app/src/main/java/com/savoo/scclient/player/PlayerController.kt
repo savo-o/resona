@@ -406,7 +406,7 @@ class PlayerController @Inject constructor(
             try {
                 val loader = ImageLoader(context)
                 val request = ImageRequest.Builder(context)
-                    .data(artworkUrl.replace("-large", "-t200x200"))
+                    .data(artworkUrl.replace("-large", "-t500x500"))
                     .allowHardware(false)
                     .build()
                 val result = loader.execute(request)

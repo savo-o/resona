@@ -1,9 +1,6 @@
 package com.savoo.scclient.ui.screens.settings
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,7 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,7 +41,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -73,6 +68,18 @@ class SettingsViewModel @Inject constructor(
     fun setAutoplayNext(value: Boolean) = viewModelScope.launch { repository.setAutoplayNext(value) }
     fun setDynamicFromTrack(value: Boolean) = viewModelScope.launch { repository.setDynamicFromTrack(value) }
     fun setDeveloperMode(value: Boolean) = viewModelScope.launch { repository.setDeveloperMode(value) }
+}
+
+@Composable
+private fun RoundedDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(2.dp)
+            .clip(RoundedCornerShape(1.dp))
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -151,7 +158,7 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(20.dp))
-            HorizontalDivider()
+            RoundedDivider()
 
             Text(
                 "Dark Theme",
@@ -175,7 +182,7 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(20.dp))
-            HorizontalDivider()
+            RoundedDivider()
 
             SwitchItem(
                 title = "Dynamic Color from Track",
@@ -184,7 +191,7 @@ fun SettingsScreen(
                 onCheckedChange = { viewModel.setDynamicFromTrack(it) }
             )
 
-            HorizontalDivider()
+            RoundedDivider()
 
             SwitchItem(
                 title = "Autoplay Next Track",
@@ -192,7 +199,7 @@ fun SettingsScreen(
                 onCheckedChange = { viewModel.setAutoplayNext(it) }
             )
 
-            HorizontalDivider()
+            RoundedDivider()
 
             SwitchItem(
                 title = "Developer Mode",

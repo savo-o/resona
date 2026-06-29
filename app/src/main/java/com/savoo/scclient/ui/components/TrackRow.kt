@@ -83,7 +83,7 @@ fun TrackRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             AsyncImage(
-                model = track.artworkUrl?.replace("-large", "-t200x200"),
+                model = track.artworkUrl?.replace("-large", "-t500x500"),
                 contentDescription = track.title,
                 modifier = Modifier
                     .size(56.dp)

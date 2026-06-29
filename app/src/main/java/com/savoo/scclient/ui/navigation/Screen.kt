@@ -14,6 +14,7 @@ sealed class Screen(val route: String, val label: String) {
     }
     data object FavoriteArtists : Screen("favorite_artists", "Favorite Artists")
     data object FavoritePlaylists : Screen("favorite_playlists", "Favorite Playlists")
+    data object ImportExport : Screen("import_export", "Import / Export")
 }
 
 val bottomNavScreens = listOf(Screen.Search, Screen.Library, Screen.Account)

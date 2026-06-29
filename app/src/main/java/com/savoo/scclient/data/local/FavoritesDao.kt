@@ -55,4 +55,13 @@ interface FavoritesDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM favorite_playlists WHERE playlistId = :playlistId)")
     suspend fun isPlaylistFavoriteSync(playlistId: Long): Boolean
+
+    @Query("SELECT * FROM favorites ORDER BY addedAt DESC")
+    suspend fun getAllTracksSync(): List<FavoriteTrack>
+
+    @Query("SELECT * FROM favorite_artists ORDER BY addedAt DESC")
+    suspend fun getAllArtistsSync(): List<FavoriteArtist>
+
+    @Query("SELECT * FROM favorite_playlists ORDER BY addedAt DESC")
+    suspend fun getAllPlaylistsSync(): List<FavoritePlaylist>
 }
