@@ -175,8 +175,8 @@
             text-align: center;
             padding: 120px 24px 80px;
             position: relative;
-            overflow: clip;
             width: 100%;
+            z-index: 1;
         }
 
         .hero::before {
@@ -471,6 +471,8 @@
             padding: 100px 24px;
             max-width: 1200px;
             margin: 0 auto;
+            position: relative;
+            z-index: 1;
         }
 
         .section-label {
@@ -658,6 +660,7 @@
             text-align: center;
             padding: 120px 24px;
             position: relative;
+            z-index: 1;
         }
 
         .cta-section::before {
@@ -700,6 +703,8 @@
             border-top: 1px solid var(--md-sys-color-surface-container-highest);
             color: var(--md-sys-color-on-surface-variant);
             font-size: 13px;
+            position: relative;
+            z-index: 1;
         }
 
         footer a {
@@ -750,10 +755,6 @@
             .cta-section { padding: 60px 16px; }
             .cta-section h2 { font-size: 32px; }
             .cta-section p { font-size: 15px; }
-            .bg-orb { filter: blur(60px); }
-            .bg-orb-1 { width: 250px; height: 250px; }
-            .bg-orb-2 { width: 200px; height: 200px; }
-            .bg-orb-3 { width: 150px; height: 150px; }
         }
 
         @media (max-width: 380px) {
@@ -778,50 +779,9 @@
             50% { opacity: 0.9; transform: scale(0.9); }
         }
 
-        @keyframes drift1 {
-            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.12; }
-            33% { transform: translate(60px, -40px) scale(1.1); opacity: 0.18; }
-            66% { transform: translate(-30px, 20px) scale(0.95); opacity: 0.1; }
-        }
 
-        @keyframes drift2 {
-            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.08; }
-            50% { transform: translate(-50px, 30px) scale(1.2); opacity: 0.15; }
-        }
 
-        .bg-orb {
-            position: absolute;
-            border-radius: 50%;
-            pointer-events: none;
-            filter: blur(80px);
-        }
 
-        .bg-orb-1 {
-            width: 500px;
-            height: 500px;
-            background: var(--md-sys-color-primary);
-            top: 0%;
-            left: 10%;
-            animation: drift1 12s ease-in-out infinite;
-        }
-
-        .bg-orb-2 {
-            width: 450px;
-            height: 450px;
-            background: var(--md-sys-color-tertiary);
-            bottom: 5%;
-            right: 5%;
-            animation: drift2 10s ease-in-out infinite;
-        }
-
-        .bg-orb-3 {
-            width: 300px;
-            height: 300px;
-            background: var(--md-sys-color-secondary);
-            top: 40%;
-            left: 40%;
-            animation: drift1 14s ease-in-out infinite reverse;
-        }
 
         @keyframes fadeUp {
             from { opacity: 0; transform: translateY(30px); }
@@ -859,9 +819,6 @@
     </nav>
 
     <section class="hero">
-        <div class="bg-orb bg-orb-1"></div>
-        <div class="bg-orb bg-orb-2"></div>
-        <div class="bg-orb bg-orb-3"></div>
         <h1 class="fade-up d2">Music,<br><span class="gradient">your way.</span></h1>
         <p class="fade-up d3">Resona is a beautifully crafted, open-source SoundCloud client for Android. No account required. Just press play.</p>
         <div class="hero-actions fade-up d4">
