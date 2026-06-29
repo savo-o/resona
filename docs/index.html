@@ -61,7 +61,7 @@
             --md-sys-color-surface-container-highest: #36343B;
         }
 
-        html { scroll-behavior: smooth; }
+        html { scroll-behavior: smooth; overflow-x: hidden; }
 
         body {
             font-family: 'Google Sans Flex', system-ui, -apple-system, sans-serif;
@@ -69,7 +69,7 @@
             color: var(--md-sys-color-on-surface);
             line-height: 1.6;
             overflow-x: hidden;
-            overflow-y: visible;
+            max-width: 100vw;
         }
 
         .material-symbols-rounded {
@@ -83,7 +83,6 @@
             left: 0;
             right: 0;
             z-index: 100;
-            background: var(--md-sys-color-surface);
             border-bottom: 1px solid var(--md-sys-color-surface-container-highest);
             padding: 0 24px;
             height: 64px;
@@ -176,7 +175,8 @@
             text-align: center;
             padding: 120px 24px 80px;
             position: relative;
-            overflow: visible;
+            overflow: clip;
+            width: 100%;
         }
 
         .hero::before {
@@ -711,11 +711,55 @@
 
         /* RESPONSIVE */
         @media (max-width: 768px) {
+            nav { padding: 0 12px; height: 48px; }
+            .nav-brand img { width: 28px; height: 28px; }
+            .nav-brand span { font-size: 16px; }
+            .nav-links { gap: 4px; }
             .nav-links a:not(.btn-filled) { display: none; }
-            .hero { padding: 100px 20px 60px; }
-            .hero-mockup { width: 220px; height: 440px; }
-            section { padding: 60px 20px; }
-            .features-grid { grid-template-columns: 1fr; }
+            .nav-links a.nav-github span:last-child { display: none; }
+            .nav-links a.nav-github { padding: 8px 12px !important; }
+            .nav-links a.nav-github .material-symbols-rounded { font-size: 20px; }
+            .theme-toggle { width: 36px; height: 36px; }
+            .hero { padding: 72px 16px 40px; min-height: auto; }
+            .hero h1 { font-size: 38px; letter-spacing: -1px; margin-bottom: 16px; }
+            .hero p { font-size: 15px; margin-bottom: 28px; padding: 0 8px; }
+            .hero-actions { flex-direction: column; width: 100%; padding: 0 8px; }
+            .hero-actions a { width: 100%; justify-content: center; }
+            .hero-mockup { width: 200px; height: 400px; margin-top: 40px; border-radius: 28px; border-width: 3px; }
+            .mockup-statusbar { height: 22px; font-size: 10px; }
+            .mockup-content { padding: 10px; gap: 8px; }
+            .mockup-search { height: 36px; font-size: 11px; border-radius: 18px; padding: 0 12px; }
+            .mockup-card { padding: 10px; border-radius: 14px; }
+            .mockup-card-art { width: 36px; height: 36px; border-radius: 10px; }
+            .mockup-card-title { height: 10px; }
+            .mockup-card-sub { height: 8px; }
+            .mockup-row { gap: 6px; }
+            .mockup-small-card { height: 70px; border-radius: 12px; }
+            .mockup-player { height: 52px; padding: 0 8px; gap: 8px; border-radius: 12px; }
+            .mockup-player-art { width: 32px; height: 32px; border-radius: 8px; }
+            .mockup-player-title { height: 8px; }
+            section { padding: 48px 16px; }
+            .section-title { font-size: 28px; letter-spacing: -0.5px; }
+            .section-desc { font-size: 15px; margin-bottom: 36px; }
+            .features-grid { grid-template-columns: 1fr; gap: 12px; }
+            .feature-card { padding: 24px; }
+            .feature-card h3 { font-size: 18px; }
+            .specs-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .spec-card { padding: 16px; }
+            .spec-card .value { font-size: 18px; }
+            .cta-section { padding: 60px 16px; }
+            .cta-section h2 { font-size: 32px; }
+            .cta-section p { font-size: 15px; }
+            .bg-orb { filter: blur(60px); }
+            .bg-orb-1 { width: 250px; height: 250px; }
+            .bg-orb-2 { width: 200px; height: 200px; }
+            .bg-orb-3 { width: 150px; height: 150px; }
+        }
+
+        @media (max-width: 380px) {
+            .hero h1 { font-size: 34px; }
+            .hero-mockup { width: 180px; height: 360px; }
+            .specs-grid { grid-template-columns: 1fr 1fr; }
         }
 
         /* ANIMATIONS */
@@ -756,8 +800,8 @@
             width: 500px;
             height: 500px;
             background: var(--md-sys-color-primary);
-            top: 5%;
-            left: 0%;
+            top: 0%;
+            left: 10%;
             animation: drift1 12s ease-in-out infinite;
         }
 
@@ -765,8 +809,8 @@
             width: 450px;
             height: 450px;
             background: var(--md-sys-color-tertiary);
-            bottom: 10%;
-            right: 0%;
+            bottom: 5%;
+            right: 5%;
             animation: drift2 10s ease-in-out infinite;
         }
 
@@ -774,8 +818,8 @@
             width: 300px;
             height: 300px;
             background: var(--md-sys-color-secondary);
-            top: 45%;
-            left: 45%;
+            top: 40%;
+            left: 40%;
             animation: drift1 14s ease-in-out infinite reverse;
         }
 
@@ -808,7 +852,7 @@
                 <span class="material-symbols-rounded" style="font-size: 18px;">code</span>
                 GitHub
             </a>
-            <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+            <button class="theme-toggle" onclick="toggleTheme()" ondblclick="event.preventDefault(); resetTheme()" aria-label="Toggle theme">
                 <span class="material-symbols-rounded" id="themeIcon">dark_mode</span>
             </button>
         </div>
@@ -1013,11 +1057,38 @@
             }
         }
 
-        if (localStorage.getItem('theme') === 'dark' ||
-            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        function resetTheme() {
+            localStorage.removeItem('theme');
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.body.setAttribute('data-theme', 'dark');
+                document.getElementById('themeIcon').textContent = 'light_mode';
+            } else {
+                document.body.removeAttribute('data-theme');
+                document.getElementById('themeIcon').textContent = 'dark_mode';
+            }
+        }
+
+        if (!localStorage.getItem('theme')) {
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                document.body.setAttribute('data-theme', 'dark');
+                document.getElementById('themeIcon').textContent = 'light_mode';
+            }
+        } else if (localStorage.getItem('theme') === 'dark') {
             document.body.setAttribute('data-theme', 'dark');
             document.getElementById('themeIcon').textContent = 'light_mode';
         }
+
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            if (!localStorage.getItem('theme')) {
+                if (e.matches) {
+                    document.body.setAttribute('data-theme', 'dark');
+                    document.getElementById('themeIcon').textContent = 'light_mode';
+                } else {
+                    document.body.removeAttribute('data-theme');
+                    document.getElementById('themeIcon').textContent = 'dark_mode';
+                }
+            }
+        });
 
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
