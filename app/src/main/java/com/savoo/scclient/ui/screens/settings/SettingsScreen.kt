@@ -1,6 +1,12 @@
 package com.savoo.scclient.ui.screens.settings
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,9 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -38,6 +41,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -165,18 +169,47 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(16.dp)
             )
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            FlowRow(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val modes = DarkModeOption.entries
                 val labels = listOf("System", "Light", "Dark")
                 modes.forEachIndexed { index, mode ->
-                    SegmentedButton(
-                        selected = settings.darkMode == mode,
-                        onClick = { viewModel.setDarkMode(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index, modes.size),
+                    val selected = settings.darkMode == mode
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.92f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+                        label = "darkChip",
+                    )
+                    val bgColor by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        label = "darkBg"
+                    )
+                    val textColor by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                        label = "darkText"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .graphicsLayer { scaleX = scale; scaleY = scale }
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(bgColor)
+                            .then(
+                                if (!selected) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                                else Modifier
+                            )
+                            .clickable(interactionSource = interactionSource, indication = null) { viewModel.setDarkMode(mode) }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(labels[index])
+                        Text(
+                            labels[index],
+                            color = textColor,
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                 }
             }
