@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resona — Open Source SoundCloud Client</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --md-sys-color-primary: #5B5DF0;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-primary-container: #E0DEFF;
+            --md-sys-color-on-primary-container: #1705A3;
+            --md-sys-color-secondary: #5C5D72;
+            --md-sys-color-on-secondary: #FFFFFF;
+            --md-sys-color-secondary-container: #E1E0F9;
+            --md-sys-color-on-secondary-container: #191A2C;
+            --md-sys-color-tertiary: #7A5368;
+            --md-sys-color-tertiary-container: #FFD7EC;
+            --md-sys-color-surface: #FFFBFF;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-surface-variant: #E6E0EC;
+            --md-sys-color-on-surface-variant: #49454E;
+            --md-sys-color-outline: #7A757F;
+            --md-sys-color-surface-container-lowest: #FFFFFF;
+            --md-sys-color-surface-container-low: #F7F2FA;
+            --md-sys-color-surface-container: #F1ECF4;
+            --md-sys-color-surface-container-high: #ECE6EF;
+            --md-sys-color-surface-container-highest: #E6E0E9;
+            --md-sys-shape-corner-extra-large: 28px;
+            --md-sys-shape-corner-large: 16px;
+            --md-sys-shape-corner-medium: 12px;
+            --md-sys-shape-corner-small: 8px;
+        }
+
+        [data-theme="dark"] {
+            --md-sys-color-primary: #C3C1FF;
+            --md-sys-color-on-primary: #2700C3;
+            --md-sys-color-primary-container: #3F3DC4;
+            --md-sys-color-on-primary-container: #E0DEFF;
+            --md-sys-color-secondary: #C5C4DD;
+            --md-sys-color-on-secondary: #2E2F42;
+            --md-sys-color-secondary-container: #444559;
+            --md-sys-color-on-secondary-container: #E1E0F9;
+            --md-sys-color-tertiary: #E9B8D0;
+            --md-sys-color-tertiary-container: #613B50;
+            --md-sys-color-surface: #141218;
+            --md-sys-color-on-surface: #E6E0E9;
+            --md-sys-color-surface-variant: #49454E;
+            --md-sys-color-on-surface-variant: #CAC4D0;
+            --md-sys-color-outline: #948F99;
+            --md-sys-color-surface-container-lowest: #0F0D13;
+            --md-sys-color-surface-container-low: #1D1B20;
+            --md-sys-color-surface-container: #211F26;
+            --md-sys-color-surface-container-high: #2B2930;
+            --md-sys-color-surface-container-highest: #36343B;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Google Sans Flex', system-ui, -apple-system, sans-serif;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            line-height: 1.6;
+            overflow-x: hidden;
+            overflow-y: visible;
+        }
+
+        .material-symbols-rounded {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        /* NAV */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: var(--md-sys-color-surface);
+            border-bottom: 1px solid var(--md-sys-color-surface-container-highest);
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .nav-brand img {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+        }
+
+        .nav-brand span {
+            font-weight: 600;
+            font-size: 22px;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--md-sys-color-on-surface-variant);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-links a:hover {
+            background: var(--md-sys-color-surface-container-high);
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .nav-links a.nav-github {
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary) !important;
+        }
+
+        .nav-links a.nav-github:hover {
+            background: var(--md-sys-color-primary);
+            filter: brightness(1.1);
+        }
+
+        .theme-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface-variant);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--md-sys-color-surface-container-high);
+        }
+
+        .theme-toggle .material-symbols-rounded { font-size: 22px; }
+
+        /* HERO */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 120px 24px 80px;
+            position: relative;
+            overflow: visible;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 15%, transparent) 0%, transparent 70%);
+            pointer-events: none;
+            animation: breathe 6s ease-in-out infinite;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -100px;
+            right: -100px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-tertiary) 10%, transparent) 0%, transparent 70%);
+            pointer-events: none;
+            animation: breathe 8s ease-in-out infinite reverse;
+        }
+
+        .hero-chip {
+            display: none;
+        }
+
+        .hero-chip .material-symbols-rounded { font-size: 16px; }
+
+        .hero h1 {
+            font-size: clamp(48px, 8vw, 88px);
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: -2px;
+            margin-bottom: 24px;
+            max-width: 700px;
+        }
+
+        .hero h1 .gradient {
+            background: linear-gradient(135deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: var(--md-sys-color-on-surface-variant);
+            max-width: 480px;
+            margin-bottom: 40px;
+            line-height: 1.7;
+            font-weight: 400;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-filled {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            border-radius: 20px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06);
+        }
+
+        .btn-filled:hover {
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15), 0 8px 16px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+        }
+
+        .btn-filled .material-symbols-rounded { font-size: 20px; }
+
+        .btn-tonal {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            background: var(--md-sys-color-secondary-container);
+            color: var(--md-sys-color-on-secondary-container);
+            border: none;
+            border-radius: 20px;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        .btn-tonal:hover {
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transform: translateY(-1px);
+        }
+
+        .btn-tonal .material-symbols-rounded { font-size: 20px; }
+
+        .hero-mockup {
+            margin-top: 64px;
+            width: 280px;
+            height: 560px;
+            background: var(--md-sys-color-surface-container);
+            border-radius: 36px;
+            border: 4px solid var(--md-sys-color-outline);
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.08);
+            animation: float 6s ease-in-out infinite;
+            cursor: pointer;
+            transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.4s cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        .hero-mockup:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 32px 64px rgba(0,0,0,0.18), 0 12px 24px rgba(0,0,0,0.12);
+        }
+
+        .hero-mockup:active {
+            transform: translateY(-2px) scale(0.98);
+            transition-duration: 0.1s;
+        }
+
+        .mockup-screen {
+            width: 100%;
+            height: 100%;
+            background: var(--md-sys-color-surface);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mockup-statusbar {
+            height: 28px;
+            background: var(--md-sys-color-surface-container);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .mockup-content {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow: hidden;
+            justify-content: flex-start;
+        }
+
+        .mockup-search {
+            height: 44px;
+            background: var(--md-sys-color-surface-container-highest);
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--md-sys-color-on-surface-variant);
+        }
+
+        .mockup-search .material-symbols-rounded { font-size: 20px; }
+
+        .mockup-card {
+            background: var(--md-sys-color-primary-container);
+            border-radius: 20px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .mockup-card-art {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: var(--md-sys-color-primary);
+            opacity: 0.6;
+        }
+
+        .mockup-card-text {
+            flex: 1;
+        }
+
+        .mockup-card-title {
+            height: 12px;
+            width: 80%;
+            background: var(--md-sys-color-on-primary-container);
+            border-radius: 6px;
+            opacity: 0.5;
+            margin-bottom: 6px;
+        }
+
+        .mockup-card-sub {
+            height: 10px;
+            width: 50%;
+            background: var(--md-sys-color-on-primary-container);
+            border-radius: 5px;
+            opacity: 0.3;
+        }
+
+        .mockup-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .mockup-small-card {
+            flex: 1;
+            height: 100px;
+            background: var(--md-sys-color-secondary-container);
+            border-radius: 16px;
+        }
+
+        .mockup-player {
+            height: 64px;
+            background: var(--md-sys-color-surface-container-high);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .mockup-player-art {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--md-sys-color-primary);
+            opacity: 0.5;
+        }
+
+        .mockup-player-bars {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .mockup-player-title {
+            height: 10px;
+            width: 60%;
+            background: var(--md-sys-color-on-surface);
+            border-radius: 5px;
+            opacity: 0.4;
+        }
+
+        .mockup-player-progress {
+            height: 3px;
+            width: 100%;
+            background: var(--md-sys-color-surface-container-highest);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .mockup-player-progress-fill {
+            width: 40%;
+            height: 100%;
+            background: var(--md-sys-color-primary);
+            border-radius: 2px;
+            animation: progressPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes progressPulse {
+            0% { width: 20%; }
+            50% { width: 70%; }
+            100% { width: 20%; }
+        }
+
+        /* SECTIONS */
+        section {
+            padding: 100px 24px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--md-sys-color-primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .section-label .material-symbols-rounded { font-size: 18px; }
+
+        .section-title {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 1.15;
+            margin-bottom: 16px;
+        }
+
+        .section-desc {
+            font-size: 17px;
+            color: var(--md-sys-color-on-surface-variant);
+            max-width: 560px;
+            line-height: 1.7;
+            margin-bottom: 56px;
+        }
+
+        /* FEATURES GRID */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .feature-card {
+            background: var(--md-sys-color-surface-container-low);
+            border-radius: var(--md-sys-shape-corner-extra-large);
+            padding: 32px;
+            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        }
+
+        .feature-card:hover::before { opacity: 1; }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: var(--md-sys-color-primary-container);
+            color: var(--md-sys-color-on-primary-container);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .feature-icon .material-symbols-rounded { font-size: 28px; }
+
+        .feature-card h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.3px;
+        }
+
+        .feature-card p {
+            font-size: 14px;
+            color: var(--md-sys-color-on-surface-variant);
+            line-height: 1.65;
+        }
+
+        .feature-card.accent .feature-icon {
+            background: var(--md-sys-color-tertiary-container);
+            color: var(--md-sys-color-tertiary);
+        }
+
+        .feature-card.secondary .feature-icon {
+            background: var(--md-sys-color-secondary-container);
+            color: var(--md-sys-color-on-secondary-container);
+        }
+
+        /* SPECS */
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .spec-card {
+            background: var(--md-sys-color-surface-container);
+            border-radius: var(--md-sys-shape-corner-large);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .spec-card .material-symbols-rounded {
+            font-size: 32px;
+            color: var(--md-sys-color-primary);
+            margin-bottom: 12px;
+        }
+
+        .spec-card h4 {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--md-sys-color-on-surface-variant);
+            margin-bottom: 4px;
+        }
+
+        .spec-card .value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        /* SCREENSHOTS */
+        .screenshots-scroll {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding-bottom: 16px;
+            scroll-snap-type: x mandatory;
+        }
+
+        .screenshots-scroll::-webkit-scrollbar { height: 6px; }
+        .screenshots-scroll::-webkit-scrollbar-track { background: transparent; }
+        .screenshots-scroll::-webkit-scrollbar-thumb {
+            background: var(--md-sys-color-outline);
+            border-radius: 3px;
+        }
+
+        .screenshot-item {
+            flex: 0 0 auto;
+            width: 260px;
+            scroll-snap-align: start;
+        }
+
+        .screenshot-frame {
+            width: 260px;
+            height: 520px;
+            background: var(--md-sys-color-surface-container);
+            border-radius: 28px;
+            border: 3px solid var(--md-sys-color-outline);
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .screenshot-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .screenshot-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--md-sys-color-on-surface);
+            text-align: center;
+        }
+
+        /* CTA */
+        .cta-section {
+            text-align: center;
+            padding: 120px 24px;
+            position: relative;
+        }
+
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent) 0%, transparent 70%);
+            pointer-events: none;
+            animation: breatheCta 7s ease-in-out infinite;
+        }
+
+        @keyframes breatheCta {
+            0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.2); }
+        }
+
+        .cta-section h2 {
+            font-size: clamp(36px, 6vw, 56px);
+            font-weight: 700;
+            letter-spacing: -1.5px;
+            margin-bottom: 16px;
+        }
+
+        .cta-section p {
+            font-size: 17px;
+            color: var(--md-sys-color-on-surface-variant);
+            max-width: 440px;
+            margin: 0 auto 40px;
+            line-height: 1.7;
+        }
+
+        /* FOOTER */
+        footer {
+            text-align: center;
+            padding: 40px 24px;
+            border-top: 1px solid var(--md-sys-color-surface-container-highest);
+            color: var(--md-sys-color-on-surface-variant);
+            font-size: 13px;
+        }
+
+        footer a {
+            color: var(--md-sys-color-primary);
+            text-decoration: none;
+        }
+
+        footer a:hover { text-decoration: underline; }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .nav-links a:not(.btn-filled) { display: none; }
+            .hero { padding: 100px 20px 60px; }
+            .hero-mockup { width: 220px; height: 440px; }
+            section { padding: 60px 20px; }
+            .features-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ANIMATIONS */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        @keyframes breathe {
+            0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.15); }
+        }
+
+        @keyframes breatheReverse {
+            0%, 100% { opacity: 0.5; transform: scale(1.1); }
+            50% { opacity: 0.9; transform: scale(0.9); }
+        }
+
+        @keyframes drift1 {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.12; }
+            33% { transform: translate(60px, -40px) scale(1.1); opacity: 0.18; }
+            66% { transform: translate(-30px, 20px) scale(0.95); opacity: 0.1; }
+        }
+
+        @keyframes drift2 {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.08; }
+            50% { transform: translate(-50px, 30px) scale(1.2); opacity: 0.15; }
+        }
+
+        .bg-orb {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            filter: blur(80px);
+        }
+
+        .bg-orb-1 {
+            width: 500px;
+            height: 500px;
+            background: var(--md-sys-color-primary);
+            top: 5%;
+            left: 0%;
+            animation: drift1 12s ease-in-out infinite;
+        }
+
+        .bg-orb-2 {
+            width: 450px;
+            height: 450px;
+            background: var(--md-sys-color-tertiary);
+            bottom: 10%;
+            right: 0%;
+            animation: drift2 10s ease-in-out infinite;
+        }
+
+        .bg-orb-3 {
+            width: 300px;
+            height: 300px;
+            background: var(--md-sys-color-secondary);
+            top: 45%;
+            left: 45%;
+            animation: drift1 14s ease-in-out infinite reverse;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-up {
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards;
+        }
+
+        .fade-up.d1 { animation-delay: 0.1s; }
+        .fade-up.d2 { animation-delay: 0.2s; }
+        .fade-up.d3 { animation-delay: 0.3s; }
+        .fade-up.d4 { animation-delay: 0.4s; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="#" class="nav-brand">
+            <img src="../logo.png" alt="Resona">
+            <span>Resona</span>
+        </a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#specs">Specs</a>
+            <a href="https://github.com/savo-o/resona" target="_blank" class="btn-filled nav-github" style="padding: 10px 20px; font-size: 13px;">
+                <span class="material-symbols-rounded" style="font-size: 18px;">code</span>
+                GitHub
+            </a>
+            <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+                <span class="material-symbols-rounded" id="themeIcon">dark_mode</span>
+            </button>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+        <h1 class="fade-up d2">Music,<br><span class="gradient">your way.</span></h1>
+        <p class="fade-up d3">Resona is a beautifully crafted, open-source SoundCloud client for Android. No account required. Just press play.</p>
+        <div class="hero-actions fade-up d4">
+            <a href="https://github.com/savo-o/resona/releases" target="_blank" class="btn-filled">
+                <span class="material-symbols-rounded">download</span>
+                Download v0.1.1
+            </a>
+            <a href="https://github.com/savo-o/resona" target="_blank" class="btn-tonal">
+                <span class="material-symbols-rounded">star</span>
+                Star on GitHub
+            </a>
+        </div>
+
+        <div class="hero-mockup fade-up d4" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">
+            <div class="mockup-screen">
+                <div class="mockup-statusbar">12:00</div>
+                <div class="mockup-content">
+                    <div class="mockup-search">
+                        <span class="material-symbols-rounded">search</span>
+                        Search tracks, artists...
+                    </div>
+                    <div class="mockup-card">
+                        <div class="mockup-card-art"></div>
+                        <div class="mockup-card-text">
+                            <div class="mockup-card-title"></div>
+                            <div class="mockup-card-sub"></div>
+                        </div>
+                    </div>
+                    <div class="mockup-row">
+                        <div class="mockup-small-card"></div>
+                        <div class="mockup-small-card"></div>
+                    </div>
+                    <div class="mockup-card" style="background: var(--md-sys-color-tertiary-container);">
+                        <div class="mockup-card-art" style="background: var(--md-sys-color-tertiary);"></div>
+                        <div class="mockup-card-text">
+                            <div class="mockup-card-title"></div>
+                            <div class="mockup-card-sub"></div>
+                        </div>
+                    </div>
+                    <div class="mockup-player">
+                        <div class="mockup-player-art"></div>
+                        <div class="mockup-player-bars">
+                            <div class="mockup-player-title"></div>
+                            <div class="mockup-player-progress">
+                                <div class="mockup-player-progress-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features">
+        <div class="section-label">
+            <span class="material-symbols-rounded">auto_awesome</span>
+            Features
+        </div>
+        <h2 class="section-title">Everything you need,<br>nothing you don't.</h2>
+        <p class="section-desc">Built with modern Android technologies. Clean, fast, and respectful of your privacy.</p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <span class="material-symbols-rounded">person_off</span>
+                </div>
+                <h3>No Account Required</h3>
+                <p>Start listening instantly. No sign-up, no tracking, no strings attached. Just open and play.</p>
+            </div>
+            <div class="feature-card accent">
+                <div class="feature-icon">
+                    <span class="material-symbols-rounded">palette</span>
+                </div>
+                <h3>Material Expressive</h3>
+                <p>Dynamic colors that adapt to album art. Beautiful light and dark themes with smooth animations.</p>
+            </div>
+            <div class="feature-card secondary">
+                <div class="feature-icon">
+                    <span class="material-symbols-rounded">favorite</span>
+                </div>
+                <h3>Local Favorites</h3>
+                <p>Save tracks, artists, and playlists locally. Export and import your collection as JSON anytime.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <span class="material-symbols-rounded">cloud_off</span>
+                </div>
+                <h3>Offline Cache</h3>
+                <p>Tracks are cached for seamless playback. Listen again without re-downloading, even on slow connections.</p>
+            </div>
+            <div class="feature-card accent">
+                <div class="feature-icon">
+                    <span class="material-symbols-rounded">code</span>
+                </div>
+                <h3>100% Open Source</h3>
+                <p>Built in the open. Every line of code is auditable on GitHub. GPL v3 licensed.</p>
+            </div>
+            <div class="feature-card secondary">
+                <div class="feature-icon">
+                    <span class="material-symbols-rounded">graphic_eq</span>
+                </div>
+                <h3>Background Playback</h3>
+                <p>Full media session support with notification controls. Lock screen and Bluetooth ready.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="specs">
+        <div class="section-label">
+            <span class="material-symbols-rounded">memory</span>
+            Tech Stack
+        </div>
+        <h2 class="section-title">Built with modern<br>Android stack.</h2>
+        <p class="section-desc">Powered by Kotlin, Jetpack Compose, and the latest Android libraries.</p>
+
+        <div class="specs-grid">
+            <div class="spec-card">
+                <span class="material-symbols-rounded">phone_android</span>
+                <h4>Min Android</h4>
+                <div class="value">8.0+</div>
+            </div>
+            <div class="spec-card">
+                <span class="material-symbols-rounded">code</span>
+                <h4>Language</h4>
+                <div class="value">Kotlin</div>
+            </div>
+            <div class="spec-card">
+                <span class="material-symbols-rounded">brush</span>
+                <h4>UI</h4>
+                <div class="value">Compose</div>
+            </div>
+            <div class="spec-card">
+                <span class="material-symbols-rounded">database</span>
+                <h4>Local DB</h4>
+                <div class="value">Room</div>
+            </div>
+            <div class="spec-card">
+                <span class="material-symbols-rounded">dns</span>
+                <h4>Network</h4>
+                <div class="value">Retrofit</div>
+            </div>
+            <div class="spec-card">
+                <span class="material-symbols-rounded">smart_toy</span>
+                <h4>DI</h4>
+                <div class="value">Hilt</div>
+            </div>
+            <div class="spec-card">
+                <span class="material-symbols-rounded">play_circle</span>
+                <h4>Player</h4>
+                <div class="value">Media3</div>
+            </div>
+            <div class="spec-card">
+                <span class="material-symbols-rounded">image</span>
+                <h4>Images</h4>
+                <div class="value">Coil</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- screenshots removed -->
+
+    <section class="cta-section">
+        <h2>Ready to listen?</h2>
+        <p>Download Resona today and experience SoundCloud the way it should be.</p>
+        <div class="hero-actions">
+            <a href="https://github.com/savo-o/resona/releases" target="_blank" class="btn-filled">
+                <span class="material-symbols-rounded">download</span>
+                Download v0.1.1
+            </a>
+            <a href="https://github.com/savo-o/resona" target="_blank" class="btn-tonal">
+                <span class="material-symbols-rounded">code</span>
+                View Source
+            </a>
+        </div>
+    </section>
+
+    <footer>
+        <p>Resona is open source under <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3</a>. Made with care by <a href="https://github.com/savo-o" target="_blank">savo-o</a>.</p>
+    </footer>
+
+    <script>
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('themeIcon');
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                icon.textContent = 'dark_mode';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                icon.textContent = 'light_mode';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        if (localStorage.getItem('theme') === 'dark' ||
+            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.body.setAttribute('data-theme', 'dark');
+            document.getElementById('themeIcon').textContent = 'light_mode';
+        }
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.feature-card, .spec-card, .screenshot-item').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
