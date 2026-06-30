@@ -110,6 +110,8 @@ fun FavoritesScreen(
                         track = track,
                         onClick = { viewModel.playTrack(track) },
                         isLoading = playerState.loadingTrackId == track.id,
+                        isFavorite = true,
+                        onToggleFavorite = { viewModel.toggleFavorite(track.id) },
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
                 }
