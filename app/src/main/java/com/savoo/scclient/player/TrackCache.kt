@@ -112,10 +112,10 @@ class TrackCache @Inject constructor(
 
     fun prefetchNearby(tracks: List<Track>, currentIndex: Int, scope: CoroutineScope) {
         val indices = buildList {
-            for (i in 1..2) {
-                val idx = currentIndex + i
-                if (idx in tracks.indices) add(idx)
-            }
+            val nextIdx = currentIndex + 1
+            if (nextIdx in tracks.indices) add(nextIdx)
+            val nextNextIdx = currentIndex + 2
+            if (nextNextIdx in tracks.indices) add(nextNextIdx)
             val prevIdx = currentIndex - 1
             if (prevIdx in tracks.indices) add(prevIdx)
         }

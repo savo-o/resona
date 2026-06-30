@@ -60,11 +60,11 @@ fun AboutBottomSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Image(
-                painter = painterResource(id = com.savoo.scclient.R.mipmap.ic_launcher),
+                painter = painterResource(id = com.savoo.scclient.R.drawable.logo_git),
                 contentDescription = "Resona",
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(14.dp)),
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(24.dp)),
             )
 
             Spacer(Modifier.height(12.dp))

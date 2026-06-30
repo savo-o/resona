@@ -100,11 +100,40 @@ class PlayerController @Inject constructor(
                     queueIndex = idx
                     updateQueueState()
                 }
+                _state.update { it.copy(currentTrack = track, durationMs = track.durationMs, loadingTrackId = null) }
+                extractSeedColor(track.artworkUrl)
+
                 if (mediaItem.localConfiguration?.uri?.toString() == "pending") {
-                    resolveAndReplace(mediaId)
-                } else {
-                    _state.update { it.copy(currentTrack = track, durationMs = track.durationMs, loadingTrackId = null) }
-                    extractSeedColor(track.artworkUrl)
+                    scope.launch {
+                        val cachedPath = trackCache.getCachedFilePath(mediaId)
+                        val fullTrack = if (cachedPath != null) track
+                            else if (track.media == null) {
+                                runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
+                            } else track
+                        val url = if (cachedPath != null) cachedPath
+                            else trackRepository.resolvePlayableUrl(fullTrack) ?: return@launch
+
+                        val i = queue.indexOf(track)
+                        if (i < 0) return@launch
+
+                        val item = MediaItem.Builder()
+                            .setUri(url)
+                            .setMediaId(fullTrack.id.toString())
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(fullTrack.title)
+                                    .setArtist(fullTrack.user.username)
+                                    .setArtworkUri(fullTrack.artworkUrl?.replace("-large", "-t500x500")?.let { Uri.parse(it) })
+                                    .build()
+                            )
+                            .build()
+
+                        controller?.replaceMediaItem(i, item)
+
+                        if (cachedPath == null && url != "pending") {
+                            trackCache.cacheAudioFile(fullTrack, url)
+                        }
+                    }
                 }
             }
         }
@@ -227,6 +256,7 @@ class PlayerController @Inject constructor(
             for (i in queue.indices) {
                 val t = queue[i]
                 val isCurrent = i == queueIndex
+                val isNext = i == queueIndex + 1
                 val isNearby = kotlin.math.abs(i - queueIndex) <= 2
 
                 if (isCurrent || isNearby) {
