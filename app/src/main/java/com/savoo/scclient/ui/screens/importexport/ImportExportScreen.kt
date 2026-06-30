@@ -57,6 +57,7 @@ import androidx.lifecycle.viewModelScope
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.remote.ScProfile
 import com.savoo.scclient.data.remote.SoundCloudImportRepository
 import com.savoo.scclient.data.repository.FavoritesExporter
@@ -122,6 +123,7 @@ class ImportExportViewModel @Inject constructor(
                 _scState.value = ScImportState.Preview(
                     profile = result.profile,
                     tracks = result.tracks,
+                    playlists = result.playlists,
                 )
             }.onFailure { e ->
                 _scState.value = ScImportState.Error(e.message ?: context.getString(R.string.msg_sc_fetch_failed))
@@ -129,14 +131,16 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
-    fun scImport(tracks: List<FavoriteTrack>, replace: Boolean) {
+    fun scImport(tracks: List<FavoriteTrack>, playlists: List<FavoritePlaylist> = emptyList(), replace: Boolean) {
         viewModelScope.launch {
             _scState.value = ScImportState.Importing
             try {
                 if (replace) {
                     favoritesDao.getAllTracksSync().forEach { favoritesDao.removeTrack(it.trackId) }
+                    favoritesDao.getAllPlaylistsSync().forEach { favoritesDao.removePlaylist(it.playlistId) }
                 }
                 tracks.forEach { favoritesDao.addTrack(it) }
+                playlists.forEach { favoritesDao.addPlaylist(it) }
                 _message.value = context.getString(R.string.msg_sc_import_result, tracks.size)
                 _scState.value = ScImportState.Idle
             } catch (e: Exception) {
@@ -158,10 +162,11 @@ sealed class ScImportState {
     data object Idle : ScImportState()
     data object Resolving : ScImportState()
     data class ProfileFound(val profile: ScProfile) : ScImportState()
-    data class Fetching(val progress: Int) : ScImportState()
+    data class Fetching(val progress: Int, val isPlaylists: Boolean = false) : ScImportState()
     data class Preview(
         val profile: ScProfile,
         val tracks: List<FavoriteTrack>,
+        val playlists: List<FavoritePlaylist> = emptyList(),
     ) : ScImportState()
     data object Importing : ScImportState()
     data class Error(val message: String) : ScImportState()
@@ -273,7 +278,7 @@ fun ImportExportScreen(
                 onInputChange = { scInput = it },
                 onResolve = { viewModel.scResolveProfile(scInput) },
                 onFetchAndPreview = { viewModel.scFetchAndPreview(it) },
-                onImport = { tracks, replace -> viewModel.scImport(tracks, replace) },
+                onImport = { tracks, playlists, replace -> viewModel.scImport(tracks, playlists, replace) },
                 onReset = { scInput = ""; viewModel.scReset() },
                 onErrorDismiss = { viewModel.scReset() },
             )
@@ -290,7 +295,7 @@ private fun SoundCloudImportSection(
     onInputChange: (String) -> Unit,
     onResolve: () -> Unit,
     onFetchAndPreview: (com.savoo.scclient.data.remote.ScProfile) -> Unit,
-    onImport: (List<FavoriteTrack>, Boolean) -> Unit,
+    onImport: (List<FavoriteTrack>, List<FavoritePlaylist>, Boolean) -> Unit,
     onReset: () -> Unit,
     onErrorDismiss: () -> Unit,
 ) {
@@ -386,7 +391,11 @@ private fun SoundCloudImportSection(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.import_sc_fetched, scState.progress), style = MaterialTheme.typography.bodyMedium)
+                    if (scState.isPlaylists) {
+                        Text(stringResource(R.string.import_sc_fetching_playlists, scState.progress), style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        Text(stringResource(R.string.import_sc_fetched, scState.progress), style = MaterialTheme.typography.bodyMedium)
+                    }
                     Spacer(Modifier.height(4.dp))
                     Text(
                         stringResource(R.string.import_sc_slow),
@@ -412,13 +421,20 @@ private fun SoundCloudImportSection(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (preview.playlists.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.import_sc_preview_playlists, preview.playlists.size),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Spacer(Modifier.height(12.dp))
                     TextButton(
-                        onClick = { onImport(preview.tracks, true) },
+                        onClick = { onImport(preview.tracks, preview.playlists, true) },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.import_sc_replace)) }
                     TextButton(
-                        onClick = { onImport(preview.tracks, false) },
+                        onClick = { onImport(preview.tracks, preview.playlists, false) },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.import_sc_merge)) }
                     Spacer(Modifier.height(4.dp))

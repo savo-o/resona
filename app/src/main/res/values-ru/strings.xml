@@ -50,6 +50,7 @@
     <string name="player_collapse">Свернуть</string>
     <string name="player_favorite">В избранное</string>
     <string name="player_play">Воспроизвести</string>
+    <string name="player_share">Поделиться</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Треки</string>
@@ -114,6 +115,9 @@
     <string name="import_sc_slow">Это может занять время для профилей с большим количеством лайков</string>
     <string name="import_sc_preview">Предпросмотр</string>
     <string name="import_sc_preview_count">%d лайкнутых треков от %s</string>
+    <string name="import_sc_preview_playlists">%d лайкнутых плейлистов</string>
+    <string name="import_sc_fetch_playlists">Загрузить плейлисты</string>
+    <string name="import_sc_fetching_playlists">Загружено %d плейлистов…</string>
     <string name="import_sc_replace">Заменить текущее избранное</string>
     <string name="import_sc_merge">Объединить с текущим избранным</string>
     <string name="import_sc_importing">Импорт…</string>

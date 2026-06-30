@@ -39,6 +39,15 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="resona" android:host="oauth" android:path="/callback" />
             </intent-filter>
+
+            <!-- Deep link: soundcloud.com -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="soundcloud.com" />
+                <data android:scheme="https" android:host="m.soundcloud.com" />
+            </intent-filter>
         </activity>
 
         <service

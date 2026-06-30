@@ -1,18 +1,23 @@
 package com.savoo.scclient
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.navigation.DeepLinkTarget
 import com.savoo.scclient.ui.navigation.RootScreen
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.ui.theme.ResonaTheme
@@ -66,13 +71,36 @@ class MainActivity : ComponentActivity() {
                 settings.colorTheme
             }
 
+            val deepLinkTarget = remember { parseDeepLink(intent) }
+
             ResonaTheme(
                 colorTheme = effectiveTheme,
                 darkTheme = isDark,
                 overrideSeedColor = if (settings.dynamicFromTrack) trackSeedColor else null,
             ) {
-                RootScreen()
+                RootScreen(initialDeepLink = deepLinkTarget)
             }
+        }
+    }
+
+    private fun parseDeepLink(intent: Intent): DeepLinkTarget? {
+        val data = intent.data ?: return null
+        val host = data.host ?: return null
+        val path = data.pathSegments ?: return null
+
+        if (host != "soundcloud.com" && host != "www.soundcloud.com") return null
+        if (path.isEmpty()) return null
+
+        return when (path[0]) {
+            "users" -> {
+                val userId = path.getOrNull(1)?.toLongOrNull()
+                if (userId != null) DeepLinkTarget.Artist(userId) else null
+            }
+            "playlists" -> {
+                val playlistId = path.getOrNull(1)?.toLongOrNull()
+                if (playlistId != null) DeepLinkTarget.Playlist(playlistId) else null
+            }
+            else -> null
         }
     }
 

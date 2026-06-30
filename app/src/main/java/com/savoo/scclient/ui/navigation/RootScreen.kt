@@ -26,7 +26,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -53,6 +55,7 @@ import com.savoo.scclient.ui.screens.player.PlayerSheet
 import com.savoo.scclient.ui.screens.playlist.PlaylistScreen
 import com.savoo.scclient.ui.screens.search.SearchScreen
 import com.savoo.scclient.ui.screens.settings.SettingsScreen
+import com.savoo.scclient.ui.navigation.DeepLinkTarget
 
 private val navOrder = listOf(Screen.Search.route, Screen.Library.route, Screen.Account.route)
 
@@ -87,10 +90,49 @@ private fun slideTransition(
 
 @UnstableApi
 @Composable
-fun RootScreen() {
+fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(initialDeepLink) {
+        when (initialDeepLink) {
+            is DeepLinkTarget.Artist -> {
+                navController.navigate(Screen.Artist.createRoute(initialDeepLink.userId))
+            }
+            is DeepLinkTarget.Playlist -> {
+                navController.navigate(Screen.Playlist.createRoute(initialDeepLink.playlistId))
+            }
+            is DeepLinkTarget.ResolveUrl -> {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val scRepo = dagger.hilt.android.EntryPointAccessors
+                            .fromApplication(
+                                navController.context.applicationContext,
+                                com.savoo.scclient.ui.navigation.DeepLinkEntryPoint::class.java
+                            ).soundCloudImportRepository()
+                        scRepo.resolveUrl(initialDeepLink.url).onSuccess { result ->
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                when (result) {
+                                    is com.savoo.scclient.data.remote.DeepLinkResult.User -> {
+                                        navController.navigate(Screen.Artist.createRoute(result.userId))
+                                    }
+                                    is com.savoo.scclient.data.remote.DeepLinkResult.Playlist -> {
+                                        navController.navigate(Screen.Playlist.createRoute(result.playlistId))
+                                    }
+                                    is com.savoo.scclient.data.remote.DeepLinkResult.Track -> {
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            is DeepLinkTarget.None -> {}
+            null -> {}
+        }
+    }
 
     Scaffold(
         bottomBar = {

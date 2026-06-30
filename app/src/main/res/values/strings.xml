@@ -50,6 +50,7 @@
     <string name="player_collapse">Collapse</string>
     <string name="player_favorite">Favorite</string>
     <string name="player_play">Play</string>
+    <string name="player_share">Share</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Tracks</string>
@@ -114,6 +115,9 @@
     <string name="import_sc_slow">This may take a while for profiles with many likes</string>
     <string name="import_sc_preview">Preview</string>
     <string name="import_sc_preview_count">%d liked tracks from %s</string>
+    <string name="import_sc_preview_playlists">%d liked playlists</string>
+    <string name="import_sc_fetch_playlists">Fetch Playlists</string>
+    <string name="import_sc_fetching_playlists">Fetched %d playlists…</string>
     <string name="import_sc_replace">Replace current favorites</string>
     <string name="import_sc_merge">Merge with current favorites</string>
     <string name="import_sc_importing">Importing…</string>

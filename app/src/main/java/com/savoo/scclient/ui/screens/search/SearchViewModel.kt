@@ -66,7 +66,15 @@ class SearchViewModel @Inject constructor(
         queryFlow.value = query
     }
 
+    fun onQuerySubmit() {
+        val query = _uiState.value.query.trim()
+        if (query.isNotBlank()) {
+            viewModelScope.launch { searchHistory.add(query) }
+        }
+    }
+
     fun onTabChange(tab: SearchTab) {
+        onQuerySubmit()
         _uiState.value = _uiState.value.copy(activeTab = tab)
         if (_uiState.value.query.isNotBlank()) runSearch(_uiState.value.query)
     }
@@ -80,7 +88,6 @@ class SearchViewModel @Inject constructor(
     private fun runSearch(query: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            searchHistory.add(query)
             runCatching {
                 val tracks = repository.searchTracks(query)
                 val artists = repository.searchUsers(query)
