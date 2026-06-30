@@ -47,6 +47,10 @@ Debug:
 ./gradlew assembleDebug
 ```
 
+## Philosophy
+
+Resona will always be free and open source. No subscriptions, no paywalls, no telemetry, no analytics - ever.
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0.
