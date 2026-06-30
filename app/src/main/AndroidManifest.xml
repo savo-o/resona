@@ -47,6 +47,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="soundcloud.com" />
                 <data android:scheme="https" android:host="m.soundcloud.com" />
+                <data android:scheme="https" android:host="on.soundcloud.com" />
             </intent-filter>
         </activity>
 

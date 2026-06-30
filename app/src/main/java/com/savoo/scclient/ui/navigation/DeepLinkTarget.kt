@@ -1,7 +1,6 @@
 package com.savoo.scclient.ui.navigation
 
 import android.content.Intent
-import android.net.Uri
 
 sealed class DeepLinkTarget {
     data class Artist(val userId: Long) : DeepLinkTarget()
@@ -10,7 +9,9 @@ sealed class DeepLinkTarget {
     data object None : DeepLinkTarget()
 
     companion object {
-        private val VALID_HOSTS = setOf("soundcloud.com", "m.soundcloud.com", "www.soundcloud.com")
+        private val VALID_HOSTS = setOf(
+            "soundcloud.com", "m.soundcloud.com", "www.soundcloud.com", "on.soundcloud.com"
+        )
 
         fun fromIntent(intent: Intent): DeepLinkTarget {
             val data = intent.data ?: return None
@@ -24,16 +25,19 @@ sealed class DeepLinkTarget {
                 .replace("m.soundcloud.com", "soundcloud.com")
                 .replace("www.soundcloud.com", "soundcloud.com")
 
-            return when (path[0]) {
-                "users" -> {
-                    val userId = path.getOrNull(1)?.toLongOrNull()
-                    if (userId != null) Artist(userId) else ResolveUrl(normalizedUrl)
+            return when (host) {
+                "on.soundcloud.com" -> ResolveUrl(data.toString())
+                else -> when (path[0]) {
+                    "users" -> {
+                        val userId = path.getOrNull(1)?.toLongOrNull()
+                        if (userId != null) Artist(userId) else ResolveUrl(normalizedUrl)
+                    }
+                    "playlists" -> {
+                        val playlistId = path.getOrNull(1)?.toLongOrNull()
+                        if (playlistId != null) Playlist(playlistId) else ResolveUrl(normalizedUrl)
+                    }
+                    else -> ResolveUrl(normalizedUrl)
                 }
-                "playlists" -> {
-                    val playlistId = path.getOrNull(1)?.toLongOrNull()
-                    if (playlistId != null) Playlist(playlistId) else ResolveUrl(normalizedUrl)
-                }
-                else -> ResolveUrl(normalizedUrl)
             }
         }
     }

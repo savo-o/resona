@@ -1,5 +1,6 @@
 package com.savoo.scclient.data.remote
 
+import android.util.Log
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
@@ -50,7 +51,11 @@ class SoundCloudImportRepository @Inject constructor(
 ) {
     suspend fun resolveProfile(input: String): Result<ScProfile> = withContext(Dispatchers.IO) {
         try {
-            val url = buildResolveUrl(input)
+            Log.d("SCImport", "Resolving profile: $input")
+            val resolvedUrl = resolveRedirectUrl(input.trim()) ?: input.trim()
+            Log.d("SCImport", "Resolved URL: $resolvedUrl")
+            val url = buildResolveUrl(resolvedUrl)
+            Log.d("SCImport", "API URL: $url")
             val clientId = getFreshClientId()
 
             val request = Request.Builder()
@@ -273,7 +278,9 @@ class SoundCloudImportRepository @Inject constructor(
     suspend fun resolveUrl(url: String): Result<DeepLinkResult> = withContext(Dispatchers.IO) {
         try {
             val clientId = getFreshClientId()
-            val resolveUrl = "https://api-v2.soundcloud.com/resolve?url=$url&client_id=$clientId"
+            val resolvedUrl = resolveRedirectUrl(url) ?: url
+            val encodedUrl = java.net.URLEncoder.encode(resolvedUrl, "UTF-8")
+            val resolveUrl = "https://api-v2.soundcloud.com/resolve?url=$encodedUrl&client_id=$clientId"
 
             val request = Request.Builder().url(resolveUrl).build()
             val body = client.newCall(request).execute().use { response ->
@@ -304,6 +311,33 @@ class SoundCloudImportRepository @Inject constructor(
         }
     }
 
+    private fun resolveRedirectUrl(url: String): String? {
+        if (!url.contains("on.soundcloud.com")) return null
+        return try {
+            Log.d("SCImport", "Resolving redirect: $url")
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
+                .build()
+            client.newBuilder()
+                .followRedirects(true)
+                .build()
+                .newCall(request).execute().use { response ->
+                    val finalUrl = response.request.url.toString()
+                    Log.d("SCImport", "Final URL: $finalUrl (code: ${response.code})")
+                    if (finalUrl != url && finalUrl.contains("soundcloud.com")) {
+                        val cleanUrl = finalUrl.substringBefore("?")
+                        cleanUrl
+                    } else {
+                        null
+                    }
+                }
+        } catch (e: Exception) {
+            Log.d("SCImport", "Redirect resolve failed: ${e.message}")
+            null
+        }
+    }
+
     private fun buildResolveUrl(input: String): String {
         val cleanInput = input.trim()
             .replace("m.soundcloud.com", "soundcloud.com")
@@ -311,6 +345,7 @@ class SoundCloudImportRepository @Inject constructor(
         val profileUrl = when {
             cleanInput.startsWith("http") -> cleanInput
             cleanInput.startsWith("soundcloud.com/") -> "https://$cleanInput"
+            cleanInput.startsWith("on.soundcloud.com/") -> "https://$cleanInput"
             cleanInput.contains("/") -> "https://soundcloud.com/$cleanInput"
             else -> "https://soundcloud.com/$cleanInput"
         }
