@@ -66,7 +66,7 @@
     <!-- Account -->
     <string name="account_title">Аккаунт</string>
     <string name="account_sign_in_soundcloud">Войти через SoundCloud</string>
-    <string name="account_sign_in_title">Войти в SoundCloud</string>
+    <string name="account_sign_in_title">Войти в Resona</string>
     <string name="account_sign_in_desc">Доступ к избранному, профилю и не только</string>
     <string name="account_sign_out">Выйти</string>
     <string name="account_settings">Настройки</string>
