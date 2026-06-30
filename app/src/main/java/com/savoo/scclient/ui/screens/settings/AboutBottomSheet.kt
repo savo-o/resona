@@ -27,9 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.savoo.scclient.BuildConfig
+import com.savoo.scclient.R
 
 data class AboutLink(
     val icon: ImageVector,
@@ -60,8 +62,8 @@ fun AboutBottomSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Image(
-                painter = painterResource(id = com.savoo.scclient.R.drawable.logo_git),
-                contentDescription = "Resona",
+                painter = painterResource(id = R.drawable.logo_git),
+                contentDescription = stringResource(R.string.app_name),
                 modifier = Modifier
                     .size(80.dp)
                     .clip(RoundedCornerShape(24.dp)),
@@ -70,13 +72,13 @@ fun AboutBottomSheet(
             Spacer(Modifier.height(12.dp))
 
             Text(
-                text = "Resona",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
 
             Text(
-                text = "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                text = stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -104,7 +106,10 @@ fun AboutBottomSheet(
                     )
                     Spacer(Modifier.width(14.dp))
                     Text(
-                        text = link.title,
+                        text = when (link.title) {
+                            "GitHub" -> stringResource(R.string.about_github)
+                            else -> link.title
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )

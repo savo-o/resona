@@ -59,15 +59,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.ImageLoader
+import com.savoo.scclient.R
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
+import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.BuildConfig
@@ -103,6 +107,11 @@ class SettingsViewModel @Inject constructor(
     fun setAutoplayNext(value: Boolean) = viewModelScope.launch { repository.setAutoplayNext(value) }
     fun setDynamicFromTrack(value: Boolean) = viewModelScope.launch { repository.setDynamicFromTrack(value) }
     fun setDeveloperMode(value: Boolean) = viewModelScope.launch { repository.setDeveloperMode(value) }
+    fun setLanguage(language: LanguageOption) = viewModelScope.launch {
+        repository.setLanguage(language)
+        context.getSharedPreferences("sc_settings", android.content.Context.MODE_PRIVATE)
+            .edit().putString("language", language.name).commit()
+    }
 
     fun calculateCacheSize() {
         viewModelScope.launch {
@@ -178,11 +187,12 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val activity = context as? Activity
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -199,7 +209,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Text(
-                "Color Theme",
+                stringResource(R.string.settings_color_theme),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(16.dp)
             )
@@ -252,7 +262,7 @@ fun SettingsScreen(
             RoundedDivider()
 
             Text(
-                "Dark Theme",
+                stringResource(R.string.settings_dark_theme),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(16.dp)
             )
@@ -261,7 +271,7 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val modes = DarkModeOption.entries
-                val labels = listOf("System", "Light", "Dark")
+                val labelResIds = listOf(R.string.settings_dark_system, R.string.settings_dark_light, R.string.settings_dark_dark)
                 modes.forEachIndexed { index, mode ->
                     val selected = settings.darkMode == mode
                     val interactionSource = remember { MutableInteractionSource() }
@@ -293,7 +303,65 @@ fun SettingsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            labels[index],
+                            stringResource(labelResIds[index]),
+                            color = textColor,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            RoundedDivider()
+
+            Text(
+                stringResource(R.string.settings_language),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(16.dp)
+            )
+            FlowRow(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val languages = LanguageOption.entries
+                val langLabelResIds = listOf(R.string.settings_language_en, R.string.settings_language_ru)
+                languages.forEachIndexed { index, lang ->
+                    val selected = settings.language == lang
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.92f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+                        label = "langChip",
+                    )
+                    val bgColor by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        label = "langBg"
+                    )
+                    val textColor by animateColorAsState(
+                        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                        label = "langText"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .graphicsLayer { scaleX = scale; scaleY = scale }
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(bgColor)
+                            .then(
+                                if (!selected) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                                else Modifier
+                            )
+                            .clickable(interactionSource = interactionSource, indication = null) {
+                                viewModel.setLanguage(lang)
+                                context.getSharedPreferences("sc_settings", android.content.Context.MODE_PRIVATE)
+                                    .edit().putString("language", lang.name).commit()
+                                activity?.recreate()
+                            }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            stringResource(langLabelResIds[index]),
                             color = textColor,
                             style = MaterialTheme.typography.labelLarge
                         )
@@ -305,8 +373,8 @@ fun SettingsScreen(
             RoundedDivider()
 
             SwitchItem(
-                title = "Dynamic Color from Track",
-                subtitle = "Accent color changes based on the current track",
+                title = stringResource(R.string.settings_dynamic_color),
+                subtitle = stringResource(R.string.settings_dynamic_color_desc),
                 checked = settings.dynamicFromTrack,
                 onCheckedChange = { viewModel.setDynamicFromTrack(it) }
             )
@@ -314,7 +382,7 @@ fun SettingsScreen(
             RoundedDivider()
 
             SwitchItem(
-                title = "Autoplay Next Track",
+                title = stringResource(R.string.settings_autoplay),
                 checked = autoplay,
                 onCheckedChange = { viewModel.setAutoplayNext(it) }
             )
@@ -322,8 +390,8 @@ fun SettingsScreen(
             RoundedDivider()
 
             SwitchItem(
-                title = "Developer Mode",
-                subtitle = "Show user IDs in profiles",
+                title = stringResource(R.string.settings_developer_mode),
+                subtitle = stringResource(R.string.settings_developer_mode_desc),
                 checked = settings.developerMode,
                 onCheckedChange = { viewModel.setDeveloperMode(it) }
             )
@@ -331,7 +399,7 @@ fun SettingsScreen(
             RoundedDivider()
 
             Text(
-                "Storage",
+                stringResource(R.string.settings_storage),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(16.dp)
             )
@@ -350,7 +418,7 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Cache", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.settings_cache), style = MaterialTheme.typography.bodyLarge)
                     Text(
                         cacheSize,
                         style = MaterialTheme.typography.bodySmall,
@@ -364,7 +432,7 @@ fun SettingsScreen(
                         .clickable {
                             viewModel.clearCache {
                                 scope.launch {
-                                    snackbarHostState.showSnackbar("Cache cleared")
+                                    snackbarHostState.showSnackbar(context.getString(R.string.settings_cache_cleared))
                                 }
                             }
                         }
@@ -379,7 +447,7 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "Clear",
+                        stringResource(R.string.settings_clear),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -389,7 +457,7 @@ fun SettingsScreen(
             RoundedDivider()
 
             Text(
-                "About",
+                stringResource(R.string.settings_about),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(16.dp)
             )
@@ -409,9 +477,9 @@ fun SettingsScreen(
                 )
                 Spacer(Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Resona", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Version ${BuildConfig.VERSION_NAME}",
+                        stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -55,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.auth.AuthRepository
 import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.model.User
@@ -127,7 +129,7 @@ fun AccountScreen(
     val state by viewModel.uiState.collectAsState()
     var showLogin by remember { mutableStateOf(false) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Account") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.account_title)) }) }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 showLogin -> OAuthWebViewScreen(
@@ -274,7 +276,7 @@ private fun LoggedInContent(
             ) {
                 Icon(Icons.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Sign Out", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.account_sign_out), style = MaterialTheme.typography.labelLarge)
             }
         }
 
@@ -294,7 +296,7 @@ private fun LoggedInContent(
             ) {
                 Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Settings", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.account_settings), style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -335,7 +337,7 @@ private fun LoggedOutContent(onSignIn: () -> Unit) {
         Spacer(Modifier.height(24.dp))
 
         Text(
-            "Sign in to SoundCloud",
+            stringResource(R.string.account_sign_in_title),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
         )
@@ -343,7 +345,7 @@ private fun LoggedOutContent(onSignIn: () -> Unit) {
         Spacer(Modifier.height(8.dp))
 
         Text(
-            "Access your favorites, profile, and more",
+            stringResource(R.string.account_sign_in_desc),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -367,7 +369,7 @@ private fun LoggedOutContent(onSignIn: () -> Unit) {
             ) {
                 Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Sign in with SoundCloud", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.account_sign_in_soundcloud), style = MaterialTheme.typography.labelLarge)
             }
         }
     }

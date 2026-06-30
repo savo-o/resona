@@ -60,11 +60,16 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.player.PlaybackState
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -314,7 +319,7 @@ private fun FullPlayerContent(
         IconButton(onClick = onCollapse) {
             Icon(
                 Icons.Filled.KeyboardArrowDown,
-                contentDescription = "Collapse",
+                contentDescription = stringResource(R.string.player_collapse),
                 modifier = Modifier.size(32.dp),
                 tint = MaterialTheme.colorScheme.onSurface,
             )

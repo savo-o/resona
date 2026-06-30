@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Resona</string>
+
+    <!-- Navigation -->
+    <string name="nav_search">Поиск</string>
+    <string name="nav_library">Библиотека</string>
+    <string name="nav_favorites">Избранное</string>
+    <string name="nav_account">Аккаунт</string>
+    <string name="nav_settings">Настройки</string>
+    <string name="nav_artist">Исполнитель</string>
+    <string name="nav_playlist">Плейлист</string>
+    <string name="nav_favorite_artists">Избранные исполнители</string>
+    <string name="nav_favorite_playlists">Избранные плейлисты</string>
+    <string name="nav_import_export">Импорт / Экспорт</string>
+
+    <!-- Search -->
+    <string name="search_hint">Треки, исполнители, альбомы…</string>
+    <string name="search_tracks">Треки</string>
+    <string name="search_artists">Исполнители</string>
+    <string name="search_playlists">Плейлисты</string>
+    <string name="search_error">Ошибка: %s</string>
+    <string name="search_nothing_found">Ничего не найдено</string>
+    <string name="search_empty">тут будут результаты :)</string>
+    <string name="search_clear">Очистить</string>
+
+    <!-- Library -->
+    <string name="library_title">Библиотека</string>
+    <string name="library_favorites">Избранное</string>
+    <string name="library_albums">Альбомы</string>
+    <string name="library_artists">Исполнители</string>
+    <string name="library_playlists">Плейлисты</string>
+    <string name="library_tracks_count">%d треков</string>
+    <string name="library_playlists_count">%d плейлистов</string>
+    <string name="library_artists_count">%d исполнителей</string>
+    <string name="library_recently_played">Недавние треки</string>
+
+    <!-- Favorites -->
+    <string name="favorites_title">Избранное</string>
+    <string name="favorites_empty">Пусто!</string>
+    <string name="favorite_artists_title">Избранные исполнители</string>
+    <string name="favorite_artists_empty">Пока нет избранных исполнителей</string>
+    <string name="favorite_playlists_title">Избранные плейлисты</string>
+    <string name="favorite_playlists_empty">Пока нет избранных плейлистов</string>
+
+    <!-- Player -->
+    <string name="player_collapse">Свернуть</string>
+    <string name="player_favorite">В избранное</string>
+    <string name="player_play">Воспроизвести</string>
+
+    <!-- Search tabs -->
+    <string name="tab_tracks">Треки</string>
+    <string name="tab_artists">Исполнители</string>
+    <string name="tab_playlists">Плейлисты</string>
+
+    <!-- Artist / Playlist -->
+    <string name="play_all">Воспроизвести все</string>
+    <string name="artist_tracks">Треки</string>
+    <string name="artist_followers">%d подписчиков</string>
+    <string name="artist_tracks_count">%d треков</string>
+    <string name="artist_at_username">@%s</string>
+    <string name="artist_id">ID: %d</string>
+    <string name="playlist_by">%s</string>
+    <string name="playlist_tracks_count">%d треков</string>
+
+    <!-- Account -->
+    <string name="account_title">Аккаунт</string>
+    <string name="account_sign_in_soundcloud">Войти через SoundCloud</string>
+    <string name="account_sign_in_title">Войти в SoundCloud</string>
+    <string name="account_sign_in_desc">Доступ к избранному, профилю и не только</string>
+    <string name="account_sign_out">Выйти</string>
+    <string name="account_settings">Настройки</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_color_theme">Цветовая тема</string>
+    <string name="settings_dark_theme">Тёмная тема</string>
+    <string name="settings_dark_system">Системная</string>
+    <string name="settings_dark_light">Светлая</string>
+    <string name="settings_dark_dark">Тёмная</string>
+    <string name="settings_dynamic_color">Динамический цвет из трека</string>
+    <string name="settings_dynamic_color_desc">Акцентный цвет меняется в зависимости от текущего трека</string>
+    <string name="settings_autoplay">Автовоспроизведение следующего трека</string>
+    <string name="settings_developer_mode">Режим разработчика</string>
+    <string name="settings_developer_mode_desc">Показывать ID пользователей в профилях</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_language_ru">Русский</string>
+    <string name="settings_storage">Хранилище</string>
+    <string name="settings_cache">Кэш</string>
+    <string name="settings_cache_size">Расчёт…</string>
+    <string name="settings_cache_cleared">Кэш очищен</string>
+    <string name="settings_clear">Очистить</string>
+    <string name="settings_about">О приложении</string>
+    <string name="settings_version">Версия %s</string>
+
+    <!-- Import / Export -->
+    <string name="import_export_title">Импорт / Экспорт</string>
+    <string name="export_favorites">Экспорт избранного</string>
+    <string name="export_favorites_desc">Сохранить треки, исполнителей и плейлисты в JSON-файл</string>
+    <string name="import_favorites">Импорт избранного</string>
+    <string name="import_favorites_desc">Загрузить избранное из JSON-файла</string>
+    <string name="import_sc_title">Импорт с SoundCloud</string>
+    <string name="import_sc_desc">Введите имя пользователя или URL профиля SoundCloud</string>
+    <string name="import_sc_hint">имя пользователя или soundcloud.com/username</string>
+    <string name="import_sc_resolve">Найти профиль</string>
+    <string name="import_sc_fetch">Загрузить лайки</string>
+    <string name="import_sc_cancel">Отмена</string>
+    <string name="import_sc_resolving">Поиск профиля…</string>
+    <string name="import_sc_fetched">Загружено %d треков…</string>
+    <string name="import_sc_slow">Это может занять время для профилей с большим количеством лайков</string>
+    <string name="import_sc_preview">Предпросмотр</string>
+    <string name="import_sc_preview_count">%d лайкнутых треков от %s</string>
+    <string name="import_sc_replace">Заменить текущее избранное</string>
+    <string name="import_sc_merge">Объединить с текущим избранным</string>
+    <string name="import_sc_importing">Импорт…</string>
+    <string name="import_sc_dismiss">Закрыть</string>
+
+    <!-- Messages -->
+    <string name="msg_export_success">Избранное успешно экспортировано</string>
+    <string name="msg_export_failed">Ошибка экспорта: %s</string>
+    <string name="msg_import_result">Импортировано: %1$d треков, %2$d исполнителей, %3$d плейлистов</string>
+    <string name="msg_import_failed">Ошибка импорта: %s</string>
+    <string name="msg_sc_import_result">Импортировано %d треков с SoundCloud</string>
+    <string name="msg_sc_import_failed">Ошибка импорта</string>
+    <string name="msg_sc_resolve_failed">Не удалось найти профиль</string>
+    <string name="msg_sc_fetch_failed">Не удалось загрузить лайки</string>
+
+    <!-- About -->
+    <string name="about_github">GitHub</string>
+    <string name="about_version">Версия %1$s (%2$d)</string>
+
+    <!-- Badges -->
+    <string name="badge_developer">Значок разработчика</string>
+    <string name="badge_developer_desc">Этот пользователь — разработчик Resona.</string>
+    <string name="badge_supporter">Значок сторонника</string>
+    <string name="badge_supporter_desc">Этот пользователь поддерживает Resona.</string>
+    <string name="badge_unknown">Неизвестный значок.</string>
+    <string name="badge_received">%1$s получил значок %2$s.</string>
+
+    <!-- Common -->
+    <string name="back">Назад</string>
+    <string name="done">Готово</string>
+    <string name="close">Закрыть</string>
+    <string name="cancel">Отмена</string>
+
+    <!-- Theme names -->
+    <string name="theme_sc_orange">Оранжевый SoundCloud</string>
+    <string name="theme_ultraviolet">Ультрафиолетовый</string>
+    <string name="theme_mint">Мятный</string>
+    <string name="theme_ocean">Океанский</string>
+    <string name="theme_system">Системная (Material You)</string>
+    <string name="theme_from_track">Из обложки трека</string>
+</resources>

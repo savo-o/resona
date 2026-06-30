@@ -56,11 +56,13 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.player.PlayerController
 
@@ -89,7 +91,7 @@ fun LibraryScreen(
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text("Library") },
+            title = { Text(stringResource(R.string.library_title)) },
             actions = {
                 IconButton(onClick = onImportExport) {
                     Icon(Icons.Filled.SwapHoriz, contentDescription = "Import / Export")
@@ -111,8 +113,8 @@ fun LibraryScreen(
 
             LibraryLargeCard(
                 icon = Icons.Filled.Favorite,
-                title = "Favorites",
-                subtitle = "$favCount tracks",
+                title = stringResource(R.string.library_favorites),
+                subtitle = stringResource(R.string.library_tracks_count, favCount),
                 onClick = onFavorites,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -124,8 +126,8 @@ fun LibraryScreen(
             ) {
                 LibrarySmallCard(
                     icon = Icons.Filled.Album,
-                    title = "Albums",
-                    subtitle = "$playlistsCount playlists",
+                    title = stringResource(R.string.library_albums),
+                    subtitle = stringResource(R.string.library_playlists_count, playlistsCount),
                     onClick = onFavoritePlaylists,
                     modifier = Modifier.weight(1f),
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -133,8 +135,8 @@ fun LibraryScreen(
                 )
                 LibrarySmallCard(
                     icon = Icons.Filled.Person,
-                    title = "Artists",
-                    subtitle = "$artistsCount artists",
+                    title = stringResource(R.string.library_artists),
+                    subtitle = stringResource(R.string.library_artists_count, artistsCount),
                     onClick = onFavoriteArtists,
                     modifier = Modifier.weight(1f),
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -144,8 +146,8 @@ fun LibraryScreen(
 
             LibraryLargeCard(
                 icon = Icons.AutoMirrored.Filled.List,
-                title = "Playlists",
-                subtitle = "$playlistsCount playlists",
+                title = stringResource(R.string.library_playlists),
+                subtitle = stringResource(R.string.library_playlists_count, playlistsCount),
                 onClick = onPlaylists,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -153,7 +155,7 @@ fun LibraryScreen(
 
             if (recentTracks.isNotEmpty()) {
                 Text(
-                    text = "Recently Played",
+                    text = stringResource(R.string.library_recently_played),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),

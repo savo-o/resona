@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.media3.common.util.UnstableApi
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -40,6 +41,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.savoo.scclient.R
 import com.savoo.scclient.ui.screens.account.AccountScreen
 import com.savoo.scclient.ui.screens.artist.ArtistScreen
 import com.savoo.scclient.ui.screens.favorites.FavoriteArtistsScreen
@@ -106,7 +108,15 @@ fun RootScreen() {
                                 }
                             },
                             icon = { Icon(iconFor(screen.route), contentDescription = screen.label) },
-                            label = { Text(screen.label) }
+                            label = {
+                                val labelResId = when (screen.route) {
+                                    Screen.Search.route -> R.string.nav_search
+                                    Screen.Library.route -> R.string.nav_library
+                                    Screen.Account.route -> R.string.nav_account
+                                    else -> 0
+                                }
+                                if (labelResId != 0) Text(stringResource(labelResId)) else Text(screen.label)
+                            }
                         )
                     }
                 }

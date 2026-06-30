@@ -37,10 +37,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
+import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.ui.components.AlbumRow
 import com.savoo.scclient.ui.components.ArtistRow
 import com.savoo.scclient.ui.components.TrackRow
@@ -57,20 +61,20 @@ fun SearchScreen(
     val playerState by viewModel.playerController.state.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Search") }) }
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_search)) }) }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
             TextField(
                 value = state.query,
                 onValueChange = viewModel::onQueryChange,
-                placeholder = { Text("Tracks, artists, albums...") },
+                placeholder = { Text(stringResource(R.string.search_hint)) },
                 leadingIcon = {
                     Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 },
                 trailingIcon = {
                     if (state.query.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onQueryChange("") }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.search_clear))
                         }
                     }
                 },
@@ -126,14 +130,14 @@ fun SearchScreen(
                     CircularProgressIndicator()
                 }
                 state.error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Error: ${state.error}")
+                    Text(stringResource(R.string.search_error, state.error ?: ""))
                 }
                 state.query.isNotBlank() && state.tracks.isEmpty() && state.artists.isEmpty() && state.albums.isEmpty() -> Box(
                     Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "Nothing found",
+                        stringResource(R.string.search_nothing_found),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyLarge,
                     )
@@ -143,7 +147,7 @@ fun SearchScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "let's go search something...",
+                        stringResource(R.string.search_empty),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyLarge,
                     )

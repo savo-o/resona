@@ -23,11 +23,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Track
@@ -86,7 +88,7 @@ fun FavoritesScreen(
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text("Favorites") },
+            title = { Text(stringResource(R.string.favorites_title)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -96,7 +98,7 @@ fun FavoritesScreen(
     }) { padding ->
         if (tracks.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Empty!", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.favorites_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(

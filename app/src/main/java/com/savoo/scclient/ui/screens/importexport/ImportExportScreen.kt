@@ -49,16 +49,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.remote.ScProfile
 import com.savoo.scclient.data.remote.SoundCloudImportRepository
 import com.savoo.scclient.data.repository.FavoritesExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -69,6 +73,7 @@ class ImportExportViewModel @Inject constructor(
     private val exporter: FavoritesExporter,
     private val scImportRepo: SoundCloudImportRepository,
     private val favoritesDao: FavoritesDao,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _message = MutableStateFlow<String?>(null)
@@ -80,9 +85,9 @@ class ImportExportViewModel @Inject constructor(
     fun exportToFile(uri: Uri) {
         viewModelScope.launch {
             exporter.exportToFile(uri).onSuccess {
-                _message.value = "Favorites exported successfully"
+                _message.value = context.getString(R.string.msg_export_success)
             }.onFailure {
-                _message.value = "Export failed: ${it.message}"
+                _message.value = context.getString(R.string.msg_export_failed, it.message ?: "")
             }
         }
     }
@@ -90,9 +95,9 @@ class ImportExportViewModel @Inject constructor(
     fun importFromFile(uri: Uri) {
         viewModelScope.launch {
             exporter.importFromFile(uri).onSuccess { result ->
-                _message.value = "Imported: ${result.tracks} tracks, ${result.artists} artists, ${result.playlists} playlists"
+                _message.value = context.getString(R.string.msg_import_result, result.tracks, result.artists, result.playlists)
             }.onFailure {
-                _message.value = "Import failed: ${it.message}"
+                _message.value = context.getString(R.string.msg_import_failed, it.message ?: "")
             }
         }
     }
@@ -103,7 +108,7 @@ class ImportExportViewModel @Inject constructor(
             scImportRepo.resolveProfile(input).onSuccess { profile ->
                 _scState.value = ScImportState.ProfileFound(profile)
             }.onFailure { e ->
-                _scState.value = ScImportState.Error(e.message ?: "Failed to resolve profile")
+                _scState.value = ScImportState.Error(e.message ?: context.getString(R.string.msg_sc_resolve_failed))
             }
         }
     }
@@ -119,7 +124,7 @@ class ImportExportViewModel @Inject constructor(
                     tracks = result.tracks,
                 )
             }.onFailure { e ->
-                _scState.value = ScImportState.Error(e.message ?: "Failed to fetch likes")
+                _scState.value = ScImportState.Error(e.message ?: context.getString(R.string.msg_sc_fetch_failed))
             }
         }
     }
@@ -132,10 +137,10 @@ class ImportExportViewModel @Inject constructor(
                     favoritesDao.getAllTracksSync().forEach { favoritesDao.removeTrack(it.trackId) }
                 }
                 tracks.forEach { favoritesDao.addTrack(it) }
-                _message.value = "Imported ${tracks.size} tracks from SoundCloud"
+                _message.value = context.getString(R.string.msg_sc_import_result, tracks.size)
                 _scState.value = ScImportState.Idle
             } catch (e: Exception) {
-                _scState.value = ScImportState.Error(e.message ?: "Import failed")
+                _scState.value = ScImportState.Error(e.message ?: context.getString(R.string.msg_sc_import_failed))
             }
         }
     }
@@ -192,10 +197,10 @@ fun ImportExportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Import / Export") },
+                title = { Text(stringResource(R.string.import_export_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -225,9 +230,9 @@ fun ImportExportScreen(
                 )
                 Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Export Favorites", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.export_favorites), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Save tracks, artists and playlists to a JSON file",
+                        stringResource(R.string.export_favorites_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -251,9 +256,9 @@ fun ImportExportScreen(
                 )
                 Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Import Favorites", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.import_favorites), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        "Load favorites from a JSON file",
+                        stringResource(R.string.import_favorites_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -302,12 +307,12 @@ private fun SoundCloudImportSection(
                 modifier = Modifier.size(24.dp)
             )
             Spacer(Modifier.width(16.dp))
-            Text("Import from SoundCloud", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.import_sc_title), style = MaterialTheme.typography.bodyLarge)
         }
 
         Spacer(Modifier.height(8.dp))
         Text(
-            "Enter a SoundCloud username or profile URL",
+            stringResource(R.string.import_sc_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -319,7 +324,7 @@ private fun SoundCloudImportSection(
                 OutlinedTextField(
                     value = scInput,
                     onValueChange = onInputChange,
-                    placeholder = { Text("username or soundcloud.com/username") },
+                    placeholder = { Text(stringResource(R.string.import_sc_hint)) },
                     singleLine = true,
                     enabled = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -337,7 +342,7 @@ private fun SoundCloudImportSection(
                     enabled = scInput.isNotBlank(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Resolve Profile")
+                    Text(stringResource(R.string.import_sc_resolve))
                 }
             }
 
@@ -348,7 +353,7 @@ private fun SoundCloudImportSection(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text("Resolving profile...", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.import_sc_resolving), style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
@@ -367,9 +372,9 @@ private fun SoundCloudImportSection(
                     }
                     Spacer(Modifier.height(12.dp))
                     Row {
-                        TextButton(onClick = onReset) { Text("Cancel") }
+                        TextButton(onClick = onReset) { Text(stringResource(R.string.import_sc_cancel)) }
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { onFetchAndPreview(profile) }) { Text("Fetch Likes") }
+                        TextButton(onClick = { onFetchAndPreview(profile) }) { Text(stringResource(R.string.import_sc_fetch)) }
                     }
                 }
             }
@@ -381,10 +386,10 @@ private fun SoundCloudImportSection(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.height(8.dp))
-                    Text("Fetched ${scState.progress} tracks...", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.import_sc_fetched, scState.progress), style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "This may take a while for profiles with many likes",
+                        stringResource(R.string.import_sc_slow),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -400,10 +405,10 @@ private fun SoundCloudImportSection(
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
                         .padding(16.dp)
                 ) {
-                    Text("Preview", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.import_sc_preview), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "${preview.tracks.size} liked tracks from ${preview.profile.username}",
+                        stringResource(R.string.import_sc_preview_count, preview.tracks.size, preview.profile.username),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -411,13 +416,13 @@ private fun SoundCloudImportSection(
                     TextButton(
                         onClick = { onImport(preview.tracks, true) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Replace current favorites") }
+                    ) { Text(stringResource(R.string.import_sc_replace)) }
                     TextButton(
                         onClick = { onImport(preview.tracks, false) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Merge with current favorites") }
+                    ) { Text(stringResource(R.string.import_sc_merge)) }
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
+                    TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_sc_cancel)) }
                 }
             }
 
@@ -428,7 +433,7 @@ private fun SoundCloudImportSection(
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
-                    Text("Importing...", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.import_sc_importing), style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
@@ -446,7 +451,7 @@ private fun SoundCloudImportSection(
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Spacer(Modifier.height(8.dp))
-                    TextButton(onClick = onErrorDismiss) { Text("Dismiss") }
+                    TextButton(onClick = onErrorDismiss) { Text(stringResource(R.string.import_sc_dismiss)) }
                 }
             }
         }

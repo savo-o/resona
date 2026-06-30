@@ -20,10 +20,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.Playlist
@@ -70,7 +72,7 @@ fun FavoritePlaylistsScreen(
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text("Favorite Playlists") },
+            title = { Text(stringResource(R.string.favorite_playlists_title)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -80,7 +82,7 @@ fun FavoritePlaylistsScreen(
     }) { padding ->
         if (playlists.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No favorite playlists yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.favorite_playlists_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(
