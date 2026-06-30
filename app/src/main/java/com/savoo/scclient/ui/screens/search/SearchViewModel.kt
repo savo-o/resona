@@ -8,16 +8,19 @@ import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.repository.SearchHistoryManager
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -39,11 +42,14 @@ data class SearchUiState(
 class SearchViewModel @Inject constructor(
     private val repository: TrackRepository,
     private val favoritesDao: FavoritesDao,
+    private val searchHistory: SearchHistoryManager,
     val playerController: PlayerController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
+
+    val history = searchHistory.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val queryFlow = MutableStateFlow("")
 
@@ -74,6 +80,7 @@ class SearchViewModel @Inject constructor(
     private fun runSearch(query: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+            searchHistory.add(query)
             runCatching {
                 val tracks = repository.searchTracks(query)
                 val artists = repository.searchUsers(query)
@@ -87,6 +94,18 @@ class SearchViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
             }
         }
+    }
+
+    fun selectFromHistory(query: String) {
+        onQueryChange(query)
+    }
+
+    fun removeHistoryItem(query: String) {
+        viewModelScope.launch { searchHistory.remove(query) }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { searchHistory.clear() }
     }
 
     fun playTrack(track: Track) {

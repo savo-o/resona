@@ -23,6 +23,9 @@
     <string name="search_nothing_found">Nothing found</string>
     <string name="search_empty">let\'s go search something…</string>
     <string name="search_clear">Clear</string>
+    <string name="search_history">Recent searches</string>
+    <string name="search_clear_history">Clear</string>
+    <string name="search_remove">Remove</string>
 
     <!-- Library -->
     <string name="library_title">Library</string>
