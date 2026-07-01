@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -70,17 +71,18 @@ import com.savoo.scclient.player.PlayerController
 @Composable
 fun LibraryScreen(
     onFavorites: () -> Unit = {},
-    onPlaylists: () -> Unit = {},
     onSettings: () -> Unit = {},
     onImportExport: () -> Unit = {},
     onFavoriteArtists: () -> Unit = {},
     onFavoritePlaylists: () -> Unit = {},
+    onOfflineTracks: () -> Unit = {},
     playerController: PlayerController? = null,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val favCount by viewModel.favoritesCount.collectAsState()
     val artistsCount by viewModel.artistsCount.collectAsState()
     val playlistsCount by viewModel.playlistsCount.collectAsState()
+    val offlineCount by viewModel.offlineCount.collectAsState()
     val recentTracks = viewModel.playerController.getRecentTracks()
     val playerState by viewModel.playerController.state.collectAsState()
     val recentRowState = rememberLazyListState()
@@ -145,10 +147,10 @@ fun LibraryScreen(
             }
 
             LibraryLargeCard(
-                icon = Icons.AutoMirrored.Filled.List,
-                title = stringResource(R.string.library_playlists),
-                subtitle = stringResource(R.string.library_playlists_count, playlistsCount),
-                onClick = onPlaylists,
+                icon = Icons.Filled.CloudDownload,
+                title = stringResource(R.string.library_offline),
+                subtitle = stringResource(R.string.library_offline_count, offlineCount),
+                onClick = onOfflineTracks,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             )

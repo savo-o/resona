@@ -32,7 +32,11 @@ class TrackRepository @Inject constructor(
 
     suspend fun getMe(): User = api.getMe()
 
-    suspend fun getTrack(id: Long): Track = api.getTrack(id)
+    suspend fun getTrack(id: Long): Track {
+        val track = api.getTrack(id)
+        android.util.Log.d("TrackRepository", "getTrack($id): media=${track.media}, transcodings=${track.media?.transcodings?.size}")
+        return track
+    }
 
     suspend fun getLikedTracks(): List<Track> = withContext(Dispatchers.IO) {
         val token = tokenStore.accessToken

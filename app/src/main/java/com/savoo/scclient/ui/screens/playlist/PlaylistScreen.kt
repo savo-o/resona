@@ -60,6 +60,7 @@ import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.TrackRepository
+import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.components.TrackRow
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -81,6 +82,7 @@ data class PlaylistUiState(
 class PlaylistViewModel @Inject constructor(
     private val repository: TrackRepository,
     private val favoritesDao: FavoritesDao,
+    private val offlineTrackManager: OfflineTrackManager,
     val playerController: PlayerController,
 ) : ViewModel() {
 
@@ -178,6 +180,16 @@ class PlaylistViewModel @Inject constructor(
             }
         }
     }
+
+    fun isOfflineFlow(trackId: Long) = offlineTrackManager.isOfflineTrack(trackId)
+
+    fun saveForOffline(track: Track) {
+        viewModelScope.launch { offlineTrackManager.saveForOffline(track) }
+    }
+
+    fun removeFromOffline(trackId: Long) {
+        viewModelScope.launch { offlineTrackManager.removeFromOffline(trackId) }
+    }
 }
 
 @UnstableApi
@@ -260,12 +272,18 @@ fun PlaylistScreen(
                 }
                 items(state.tracks, key = { it.id }) { track ->
                     val isFav by viewModel.isFavoriteFlow(track.id).collectAsState(initial = false)
+                    val isCurrentTrack = playerState.currentTrack?.id == track.id
                     TrackRow(
                         track = track,
                         onClick = { viewModel.playTrack(track) },
                         isFavorite = isFav,
                         isLoading = playerState.loadingTrackId == track.id,
+                        isPlaying = playerState.isPlaying && isCurrentTrack,
                         onToggleFavorite = { viewModel.toggleFavorite(track) },
+                        onTogglePlayPause = {
+                            if (isCurrentTrack) viewModel.playerController.togglePlayPause()
+                            else viewModel.playTrack(track)
+                        },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }

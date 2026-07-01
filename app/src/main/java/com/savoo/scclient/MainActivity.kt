@@ -4,13 +4,16 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.core.view.WindowCompat
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
@@ -53,7 +56,39 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        val currentLang = run {
+            val prefs = getSharedPreferences("sc_settings", MODE_PRIVATE)
+            prefs.getString("language", null)?.let {
+                runCatching { LanguageOption.valueOf(it) }.getOrNull()
+            } ?: LanguageOption.ENGLISH
+        }
+
+        val darkMode = run {
+            val prefs = getSharedPreferences("sc_settings", MODE_PRIVATE)
+            prefs.getString("dark_mode", null)?.let {
+                runCatching { DarkModeOption.valueOf(it) }.getOrNull()
+            } ?: DarkModeOption.SYSTEM
+        }
+
+        val isDark = when (darkMode) {
+            DarkModeOption.LIGHT -> false
+            DarkModeOption.DARK -> true
+            DarkModeOption.SYSTEM -> resources.configuration.uiMode and
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+
+        if (isDark) {
+            enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            )
+        } else {
+            enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            )
+        }
 
         setContent {
             val settings by settingsRepository.settings.collectAsState(initial = AppSettings())
@@ -63,6 +98,12 @@ class MainActivity : ComponentActivity() {
                 DarkModeOption.SYSTEM -> systemDark
                 DarkModeOption.LIGHT -> false
                 DarkModeOption.DARK -> true
+            }
+
+            LaunchedEffect(isDark) {
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                controller.isAppearanceLightStatusBars = !isDark
+                controller.isAppearanceLightNavigationBars = !isDark
             }
 
             val effectiveTheme = if (settings.dynamicFromTrack && trackSeedColor != null) {

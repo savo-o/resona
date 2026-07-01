@@ -1,4 +1,4 @@
-package com.savoo.scclient.ui.screens.favorites
+package com.savoo.scclient.ui.screens.offline
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,8 +27,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.R
-import com.savoo.scclient.data.local.FavoritesDao
-import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.player.OfflineTrackManager
@@ -43,21 +42,20 @@ import javax.inject.Inject
 
 @UnstableApi
 @HiltViewModel
-class FavoritesViewModel @Inject constructor(
-    private val favoritesDao: FavoritesDao,
+class OfflineTracksViewModel @Inject constructor(
+    private val offlineTrackManager: OfflineTrackManager,
     val playerController: PlayerController,
-    val offlineTrackManager: OfflineTrackManager,
 ) : ViewModel() {
 
-    val tracks = favoritesDao.getAllTracks().map { list ->
-        list.map { fav ->
+    val tracks = offlineTrackManager.getAllOfflineTracks().map { list ->
+        list.map { offline ->
             Track(
-                id = fav.trackId,
-                title = fav.title,
-                durationMs = fav.durationMs,
-                artworkUrl = fav.artworkUrl,
-                user = User(id = fav.userId, username = fav.username, avatarUrl = fav.userAvatarUrl),
-                permalinkUrl = fav.permalinkUrl,
+                id = offline.trackId,
+                title = offline.title,
+                durationMs = offline.durationMs,
+                artworkUrl = offline.artworkUrl,
+                user = User(id = offline.userId, username = offline.username, avatarUrl = offline.userAvatarUrl),
+                permalinkUrl = offline.permalinkUrl,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -68,9 +66,9 @@ class FavoritesViewModel @Inject constructor(
         playerController.playQueue(currentTracks, idx.coerceAtLeast(0))
     }
 
-    fun toggleFavorite(trackId: Long) {
+    fun removeFromOffline(trackId: Long) {
         viewModelScope.launch {
-            if (favoritesDao.isTrackFavoriteSync(trackId)) favoritesDao.removeTrack(trackId)
+            offlineTrackManager.removeFromOffline(trackId)
         }
     }
 }
@@ -78,8 +76,8 @@ class FavoritesViewModel @Inject constructor(
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FavoritesScreen(
-    viewModel: FavoritesViewModel = hiltViewModel(),
+fun OfflineTracksScreen(
+    viewModel: OfflineTracksViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
 ) {
     val tracks by viewModel.tracks.collectAsState()
@@ -87,17 +85,17 @@ fun FavoritesScreen(
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(stringResource(R.string.favorites_title)) },
+            title = { Text(stringResource(R.string.library_offline)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             }
         )
     }) { padding ->
         if (tracks.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.favorites_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.offline_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyColumn(
@@ -110,9 +108,7 @@ fun FavoritesScreen(
                         track = track,
                         onClick = { viewModel.playTrack(track) },
                         isLoading = playerState.loadingTrackId == track.id,
-                        isFavorite = true,
                         isPlaying = playerState.isPlaying && isCurrentTrack,
-                        onToggleFavorite = { viewModel.toggleFavorite(track.id) },
                         onTogglePlayPause = {
                             if (isCurrentTrack) viewModel.playerController.togglePlayPause()
                             else viewModel.playTrack(track)

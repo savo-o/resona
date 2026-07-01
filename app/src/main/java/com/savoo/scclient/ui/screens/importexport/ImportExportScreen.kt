@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
@@ -106,12 +108,38 @@ class ImportExportViewModel @Inject constructor(
     fun scResolveProfile(input: String) {
         viewModelScope.launch {
             _scState.value = ScImportState.Resolving
-            scImportRepo.resolveProfile(input).onSuccess { profile ->
+            val result = scImportRepo.resolveProfile(input)
+            result.onSuccess { profile ->
                 _scState.value = ScImportState.ProfileFound(profile)
             }.onFailure { e ->
-                _scState.value = ScImportState.Error(e.message ?: context.getString(R.string.msg_sc_resolve_failed))
+                if (input.startsWith("http") || input.contains("/")) {
+                    _scState.value = ScImportState.Error(e.message ?: context.getString(R.string.msg_sc_resolve_failed))
+                } else {
+                    scSearchProfiles(input)
+                }
             }
         }
+    }
+
+    fun scSearchProfiles(query: String) {
+        viewModelScope.launch {
+            _scState.value = ScImportState.Searching
+            scImportRepo.searchProfiles(query).onSuccess { profiles ->
+                if (profiles.size == 1) {
+                    _scState.value = ScImportState.ProfileFound(profiles.first())
+                } else if (profiles.isEmpty()) {
+                    _scState.value = ScImportState.Error(context.getString(R.string.msg_sc_no_results))
+                } else {
+                    _scState.value = ScImportState.SearchResults(profiles, query)
+                }
+            }.onFailure { e ->
+                _scState.value = ScImportState.Error(e.message ?: context.getString(R.string.msg_sc_search_failed))
+            }
+        }
+    }
+
+    fun scSelectProfile(profile: ScProfile) {
+        _scState.value = ScImportState.ProfileFound(profile)
     }
 
     fun scFetchAndPreview(profile: ScProfile) {
@@ -170,6 +198,8 @@ sealed class ScImportState {
     ) : ScImportState()
     data object Importing : ScImportState()
     data class Error(val message: String) : ScImportState()
+    data class SearchResults(val profiles: List<ScProfile>, val query: String) : ScImportState()
+    data object Searching : ScImportState()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -278,6 +308,7 @@ fun ImportExportScreen(
                 onInputChange = { scInput = it },
                 onResolve = { viewModel.scResolveProfile(scInput) },
                 onFetchAndPreview = { viewModel.scFetchAndPreview(it) },
+                onResolveProfile = { viewModel.scSelectProfile(it) },
                 onImport = { tracks, playlists, replace -> viewModel.scImport(tracks, playlists, replace) },
                 onReset = { scInput = ""; viewModel.scReset() },
                 onErrorDismiss = { viewModel.scReset() },
@@ -295,6 +326,7 @@ private fun SoundCloudImportSection(
     onInputChange: (String) -> Unit,
     onResolve: () -> Unit,
     onFetchAndPreview: (com.savoo.scclient.data.remote.ScProfile) -> Unit,
+    onResolveProfile: (com.savoo.scclient.data.remote.ScProfile) -> Unit,
     onImport: (List<FavoriteTrack>, List<FavoritePlaylist>, Boolean) -> Unit,
     onReset: () -> Unit,
     onErrorDismiss: () -> Unit,
@@ -359,6 +391,73 @@ private fun SoundCloudImportSection(
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(12.dp))
                     Text(stringResource(R.string.import_sc_resolving), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
+            is ScImportState.Searching -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(stringResource(R.string.import_sc_searching), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
+            is ScImportState.SearchResults -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.import_sc_select_profile),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${scState.profiles.size} results for \"${scState.query}\"",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    scState.profiles.forEach { profile ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onResolveProfile(profile) }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AsyncImage(
+                                model = profile.avatarUrl?.replace("-large", "-t500x500"),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    profile.fullName ?: profile.username,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                Text(
+                                    "@${profile.username}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.import_sc_cancel))
+                    }
                 }
             }
 

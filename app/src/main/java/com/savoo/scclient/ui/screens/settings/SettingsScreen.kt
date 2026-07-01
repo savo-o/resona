@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -73,6 +74,7 @@ import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
+import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -90,6 +92,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
+    private val offlineTrackManager: OfflineTrackManager,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
     val settings = repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
@@ -98,8 +101,15 @@ class SettingsViewModel @Inject constructor(
     private val _cacheSize = MutableStateFlow("Calculating...")
     val cacheSize = _cacheSize.asStateFlow()
 
+    private val _offlineSize = MutableStateFlow("Calculating...")
+    val offlineSize = _offlineSize.asStateFlow()
+
+    private val _offlineCount = MutableStateFlow(0)
+    val offlineCount = _offlineCount.asStateFlow()
+
     init {
         calculateCacheSize()
+        calculateOfflineSize()
     }
 
     fun setColorTheme(theme: AppColorTheme) = viewModelScope.launch { repository.setColorTheme(theme) }
@@ -132,6 +142,24 @@ class SettingsViewModel @Inject constructor(
                 deleteDir(context.codeCacheDir)
             }
             calculateCacheSize()
+            onDone()
+        }
+    }
+
+    fun calculateOfflineSize() {
+        viewModelScope.launch {
+            val size = withContext(Dispatchers.IO) {
+                formatSize(offlineTrackManager.getTotalSize())
+            }
+            _offlineSize.value = size
+            _offlineCount.value = offlineTrackManager.getTrackCount()
+        }
+    }
+
+    fun clearOffline(onDone: () -> Unit) {
+        viewModelScope.launch {
+            offlineTrackManager.clearAllOffline()
+            calculateOfflineSize()
             onDone()
         }
     }
@@ -183,6 +211,8 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsState()
     val autoplay by viewModel.autoplayNext.collectAsState()
     val cacheSize by viewModel.cacheSize.collectAsState()
+    val offlineCount by viewModel.offlineCount.collectAsState()
+    val offlineSize by viewModel.offlineSize.collectAsState()
     var showAbout by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -451,6 +481,60 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
+                }
+            }
+
+            RoundedDivider()
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.CloudDownload,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_offline_tracks), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        stringResource(R.string.settings_offline_tracks_count, offlineCount, offlineSize),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (offlineCount > 0) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .clickable {
+                                viewModel.clearOffline {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(context.getString(R.string.settings_offline_cleared))
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(R.string.settings_clear),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
                 }
             }
 

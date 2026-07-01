@@ -100,6 +100,52 @@ class SoundCloudImportRepository @Inject constructor(
         }
     }
 
+    suspend fun searchProfiles(query: String): Result<List<ScProfile>> = withContext(Dispatchers.IO) {
+        try {
+            val clientId = getFreshClientId()
+            val searchUrl = "https://api-v2.soundcloud.com/search/users?q=${java.net.URLEncoder.encode(query, "UTF-8")}&limit=10&client_id=$clientId"
+
+            val request = Request.Builder().url(searchUrl).build()
+            val body = client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        IllegalStateException("Search failed: ${response.code}")
+                    )
+                }
+                response.body?.string() ?: throw IllegalStateException("Empty response")
+            }
+
+            val json = org.json.JSONObject(body)
+            val collection = json.optJSONArray("collection") ?: org.json.JSONArray()
+
+            val profiles = mutableListOf<ScProfile>()
+            for (i in 0 until collection.length()) {
+                val user = collection.getJSONObject(i)
+                val userId = user.getLong("id")
+                val username = user.getString("username")
+                val avatarUrl = user.optString("avatar_url").ifEmpty { null }
+                val fullName = user.optString("full_name").ifEmpty { null }
+                val permalinkUrl = user.optString("permalink_url").ifEmpty { null }
+                val followersCount = user.optLong("followers_count").takeIf { it > 0 }
+
+                profiles.add(
+                    ScProfile(
+                        userId = userId,
+                        username = username,
+                        avatarUrl = avatarUrl,
+                        fullName = fullName,
+                        permalinkUrl = permalinkUrl,
+                        followersCount = followersCount,
+                    )
+                )
+            }
+
+            Result.success(profiles)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchLikedTracks(
         profile: ScProfile,
         onProgress: (current: Int) -> Unit = {},
@@ -114,19 +160,34 @@ class SoundCloudImportRepository @Inject constructor(
 
             while (nextUrl != null && pageCount < maxPages) {
                 val request = Request.Builder().url(nextUrl).build()
-                val body = client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        if (response.code == 429) {
-                            delay(2000L * (pageCount + 1))
-                            return@withContext Result.failure(
-                                IllegalStateException("Rate limited after $pageCount pages. Try again later.")
-                            )
+                var retries = 3
+                var body: String? = null
+                while (retries > 0) {
+                    try {
+                        body = client.newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                if (response.code == 429) {
+                                    delay(3000L * (4 - retries))
+                                    retries--
+                                    return@use null
+                                }
+                                return@withContext Result.failure(
+                                    IllegalStateException("Error ${response.code} while fetching likes")
+                                )
+                            }
+                            response.body?.string() ?: throw IllegalStateException("Empty response")
                         }
-                        return@withContext Result.failure(
-                            IllegalStateException("Error ${response.code} while fetching likes")
-                        )
+                        if (body != null) break
+                    } catch (e: java.io.IOException) {
+                        retries--
+                        if (retries <= 0) throw e
+                        delay(2000L)
                     }
-                    response.body?.string() ?: throw IllegalStateException("Empty response")
+                }
+                if (body == null) {
+                    return@withContext Result.failure(
+                        IllegalStateException("Failed after retries")
+                    )
                 }
 
                 val json = org.json.JSONObject(body)

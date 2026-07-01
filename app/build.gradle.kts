@@ -22,8 +22,8 @@ android {
         applicationId = "com.savoo.scclient"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.2.1"
+        versionCode = 5
+        versionName = "0.2.2"
 
         buildConfigField("String", "SC_CLIENT_ID_FALLBACK", "\"\"")
     }

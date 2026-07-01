@@ -26,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -108,10 +110,14 @@ fun PlayerSheet(
         FullPlayerSheet(
             state = state,
             isFavorite = viewModel.isFavorite.collectAsState().value,
+            isOffline = viewModel.isOffline.collectAsState().value,
+            isSavingOffline = viewModel.isSavingOffline.collectAsState().value,
             onDismiss = { showFullPlayer = false },
             onTogglePlay = { viewModel.controller.togglePlayPause() },
             onSeek = { viewModel.controller.seekTo(it) },
             onToggleFavorite = { viewModel.toggleFavorite() },
+            onSaveForOffline = { viewModel.saveForOffline() },
+            onRemoveFromOffline = { viewModel.removeFromOffline() },
             onNext = { viewModel.controller.skipToNext() },
             onPrev = { viewModel.controller.skipToPrevious() },
             onArtistClick = { id -> showFullPlayer = false; onArtistClick(id) },
@@ -124,10 +130,14 @@ fun PlayerSheet(
 private fun FullPlayerSheet(
     state: PlaybackState,
     isFavorite: Boolean,
+    isOffline: Boolean,
+    isSavingOffline: Boolean,
     onDismiss: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
     onToggleFavorite: () -> Unit,
+    onSaveForOffline: () -> Unit,
+    onRemoveFromOffline: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
     onArtistClick: (Long) -> Unit = {},
@@ -144,10 +154,14 @@ private fun FullPlayerSheet(
         FullPlayerContent(
             state = state,
             isFavorite = isFavorite,
+            isOffline = isOffline,
+            isSavingOffline = isSavingOffline,
             onCollapse = onDismiss,
             onTogglePlay = onTogglePlay,
             onSeek = onSeek,
             onToggleFavorite = onToggleFavorite,
+            onSaveForOffline = onSaveForOffline,
+            onRemoveFromOffline = onRemoveFromOffline,
             onNext = onNext,
             onPrev = onPrev,
             onArtistClick = onArtistClick,
@@ -263,10 +277,14 @@ private fun MiniPlayer(
 private fun FullPlayerContent(
     state: PlaybackState,
     isFavorite: Boolean,
+    isOffline: Boolean,
+    isSavingOffline: Boolean,
     onCollapse: () -> Unit,
     onTogglePlay: () -> Unit,
     onSeek: (Long) -> Unit,
     onToggleFavorite: () -> Unit,
+    onSaveForOffline: () -> Unit,
+    onRemoveFromOffline: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
     onArtistClick: (Long) -> Unit = {},
@@ -439,6 +457,31 @@ private fun FullPlayerContent(
                         tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.scale(heartScale),
                     )
+                }
+                if (isSavingOffline) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else if (isOffline) {
+                    IconButton(onClick = onRemoveFromOffline) {
+                        Icon(
+                            Icons.Filled.CloudDone,
+                            contentDescription = stringResource(R.string.player_saved_offline),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                } else {
+                    IconButton(onClick = onSaveForOffline) {
+                        Icon(
+                            Icons.Filled.CloudDownload,
+                            contentDescription = stringResource(R.string.player_save_offline),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onPrev) {

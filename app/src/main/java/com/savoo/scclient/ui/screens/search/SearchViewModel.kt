@@ -10,6 +10,7 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.repository.SearchHistoryManager
 import com.savoo.scclient.data.repository.TrackRepository
+import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
@@ -43,6 +44,7 @@ class SearchViewModel @Inject constructor(
     private val repository: TrackRepository,
     private val favoritesDao: FavoritesDao,
     private val searchHistory: SearchHistoryManager,
+    private val offlineTrackManager: OfflineTrackManager,
     val playerController: PlayerController,
 ) : ViewModel() {
 
@@ -142,5 +144,15 @@ class SearchViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun isOfflineFlow(trackId: Long) = offlineTrackManager.isOfflineTrack(trackId)
+
+    fun saveForOffline(track: Track) {
+        viewModelScope.launch { offlineTrackManager.saveForOffline(track) }
+    }
+
+    fun removeFromOffline(trackId: Long) {
+        viewModelScope.launch { offlineTrackManager.removeFromOffline(trackId) }
     }
 }

@@ -51,6 +51,7 @@ import com.savoo.scclient.ui.screens.favorites.FavoritePlaylistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritesScreen
 import com.savoo.scclient.ui.screens.importexport.ImportExportScreen
 import com.savoo.scclient.ui.screens.library.LibraryScreen
+import com.savoo.scclient.ui.screens.offline.OfflineTracksScreen
 import com.savoo.scclient.ui.screens.player.PlayerSheet
 import com.savoo.scclient.ui.screens.playlist.PlaylistScreen
 import com.savoo.scclient.ui.screens.search.SearchScreen
@@ -218,6 +219,7 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                         onImportExport = { navController.navigate(Screen.ImportExport.route) },
                         onFavoriteArtists = { navController.navigate(Screen.FavoriteArtists.route) },
                         onFavoritePlaylists = { navController.navigate(Screen.FavoritePlaylists.route) },
+                        onOfflineTracks = { navController.navigate(Screen.OfflineTracks.route) },
                     )
                 }
                 composable(Screen.Favorites.route) {
@@ -243,6 +245,9 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                 }
                 composable(Screen.ImportExport.route) {
                     ImportExportScreen(onBack = { navController.popBackStack() })
+                }
+                composable(Screen.OfflineTracks.route) {
+                    OfflineTracksScreen(onBack = { navController.popBackStack() })
                 }
                 composable(
                     route = Screen.Artist.route,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.remote.AuthInterceptor
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.squareup.moshi.Moshi
@@ -83,4 +84,7 @@ object NetworkModule {
 
     @Provides
     fun provideFavoritesDao(db: AppDatabase): FavoritesDao = db.favoritesDao()
+
+    @Provides
+    fun provideOfflineDao(db: AppDatabase): OfflineDao = db.offlineDao()
 }

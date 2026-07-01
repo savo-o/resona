@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,12 +21,21 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     val controller: PlayerController,
     private val favoritesDao: FavoritesDao,
+    private val offlineTrackManager: OfflineTrackManager,
 ) : ViewModel() {
 
     val isFavorite = controller.state.map { it.currentTrack?.id ?: 0L }
         .distinctUntilChanged()
         .flatMapLatest { id -> favoritesDao.isTrackFavorite(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val isOffline = controller.state.map { it.currentTrack?.id ?: 0L }
+        .distinctUntilChanged()
+        .flatMapLatest { id -> offlineTrackManager.isOfflineTrack(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val _isSavingOffline = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isSavingOffline = _isSavingOffline
 
     fun toggleFavorite() {
         val track = controller.state.value.currentTrack ?: return
@@ -46,6 +56,25 @@ class PlayerViewModel @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    fun saveForOffline() {
+        val track = controller.state.value.currentTrack ?: return
+        viewModelScope.launch {
+            android.util.Log.d("OfflineTrack", "Starting save for: ${track.title} (media=${track.media != null})")
+            _isSavingOffline.value = true
+            val result = offlineTrackManager.saveForOffline(track)
+            result.onSuccess { android.util.Log.d("OfflineTrack", "Save success") }
+            result.onFailure { android.util.Log.e("OfflineTrack", "Save failed: ${it.message}") }
+            _isSavingOffline.value = false
+        }
+    }
+
+    fun removeFromOffline() {
+        val track = controller.state.value.currentTrack ?: return
+        viewModelScope.launch {
+            offlineTrackManager.removeFromOffline(track.id)
         }
     }
 }

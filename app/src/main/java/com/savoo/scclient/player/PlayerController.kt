@@ -9,6 +9,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.palette.graphics.Palette
@@ -52,6 +53,7 @@ class PlayerController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trackRepository: TrackRepository,
     private val trackCache: TrackCache,
+    val offlineTrackManager: OfflineTrackManager,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -79,8 +81,11 @@ class PlayerController @Inject constructor(
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            _state.value = _state.value.copy(isPlaying = isPlaying)
-            if (isPlaying) startPositionPolling() else {
+            if (isPlaying) {
+                _state.update { it.copy(isPlaying = true, loadingTrackId = null) }
+                startPositionPolling()
+            } else {
+                _state.update { it.copy(isPlaying = false) }
                 stopPositionPolling()
                 saveState()
             }
@@ -142,13 +147,17 @@ class PlayerController @Inject constructor(
     private fun resolveAndReplace(mediaId: Long) {
         scope.launch {
             val track = queue.find { it.id == mediaId } ?: return@launch
-            val cachedPath = trackCache.getCachedFilePath(mediaId)
+            val offlineFile = java.io.File(context.filesDir, "offline/${mediaId}.mp3")
+            val offlinePath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath else null
+            val cachedPath = offlinePath ?: trackCache.getCachedFilePath(mediaId)
             val fullTrack = if (cachedPath != null) track
-                else if (track.media == null) {
-                    runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-                } else track
+                else withContext(Dispatchers.IO) {
+                    if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
+                    else track
+                }
             val url = if (cachedPath != null) cachedPath
-                else trackRepository.resolvePlayableUrl(fullTrack) ?: return@launch
+                else withContext(Dispatchers.IO) { trackRepository.resolvePlayableUrl(fullTrack) }
+            if (url == null) return@launch
 
             val idx = queue.indexOf(track)
             if (idx < 0) return@launch
@@ -239,14 +248,26 @@ class PlayerController @Inject constructor(
 
     private fun doPlay(track: Track) {
         scope.launch {
-            val cachedPath = trackCache.getCachedFilePath(track.id)
-            val fullTrack = if (cachedPath != null) {
-                track
-            } else if (track.media == null) {
-                runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-            } else track
-            val url = if (cachedPath != null) cachedPath
-                else trackRepository.resolvePlayableUrl(fullTrack) ?: return@launch
+            val offlineFile = java.io.File(context.filesDir, "offline/${track.id}.mp3")
+            val offlinePath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath else null
+            val cachedPath = offlinePath ?: trackCache.getCachedFilePath(track.id)
+            Log.d("PlayerController", "doPlay(${track.title}): offline=$offlinePath, cache=$cachedPath")
+
+            val fullTrack: Track
+            val url: String?
+            if (cachedPath != null) {
+                fullTrack = track
+                url = cachedPath
+            } else {
+                fullTrack = withContext(Dispatchers.IO) {
+                    if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
+                    else track
+                }
+                url = withContext(Dispatchers.IO) {
+                    trackRepository.resolvePlayableUrl(fullTrack)
+                }
+            }
+            if (url == null) return@launch
 
             recentTracks.removeAll { it.id == fullTrack.id }
             recentTracks.add(fullTrack)
@@ -260,12 +281,14 @@ class PlayerController @Inject constructor(
                 val isNearby = kotlin.math.abs(i - queueIndex) <= 2
 
                 if (isCurrent || isNearby) {
-                    val nearbyCached = trackCache.getCachedFilePath(t.id)
+                    val nearbyOffline = java.io.File(context.filesDir, "offline/${t.id}.mp3")
+                    val nearbyCached = if (nearbyOffline.exists() && nearbyOffline.length() > 0) nearbyOffline.absolutePath
+                        else trackCache.getCachedFilePath(t.id)
                     val full = if (nearbyCached != null || t.media != null) t
-                        else runCatching { trackRepository.getTrack(t.id) }.getOrNull() ?: t
+                        else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(t.id) }.getOrNull() ?: t }
                     val tUrl = if (isCurrent) url
                         else nearbyCached
-                            ?: runCatching { trackRepository.resolvePlayableUrl(full) }.getOrNull()
+                            ?: withContext(Dispatchers.IO) { runCatching { trackRepository.resolvePlayableUrl(full) }.getOrNull() }
 
                     if (tUrl != null) {
                         allItems.add(MediaItem.Builder()
@@ -372,13 +395,17 @@ class PlayerController @Inject constructor(
             }
             updateQueueState()
             scope.launch {
-                val cachedPath = trackCache.getCachedFilePath(track.id)
+                val offlineFile = java.io.File(context.filesDir, "offline/${track.id}.mp3")
+                val offlinePath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath else null
+                val cachedPath = offlinePath ?: trackCache.getCachedFilePath(track.id)
                 val fullTrack = if (cachedPath != null) track
-                    else if (track.media == null) {
-                        runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-                    } else track
+                    else withContext(Dispatchers.IO) {
+                        if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
+                        else track
+                    }
                 val url = if (cachedPath != null) cachedPath
-                    else trackRepository.resolvePlayableUrl(fullTrack) ?: return@launch
+                    else withContext(Dispatchers.IO) { trackRepository.resolvePlayableUrl(fullTrack) }
+                if (url == null) return@launch
                 val item = MediaItem.Builder()
                     .setUri(url)
                     .setMediaId(fullTrack.id.toString())

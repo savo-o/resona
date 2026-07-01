@@ -33,10 +33,13 @@
     <string name="library_albums">Albums</string>
     <string name="library_artists">Artists</string>
     <string name="library_playlists">Playlists</string>
+    <string name="library_offline">Offline Tracks</string>
+    <string name="library_offline_count">%d tracks</string>
     <string name="library_tracks_count">%d tracks</string>
     <string name="library_playlists_count">%d playlists</string>
     <string name="library_artists_count">%d artists</string>
     <string name="library_recently_played">Recently Played</string>
+    <string name="offline_empty">No offline tracks yet</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Favorites</string>
@@ -51,6 +54,8 @@
     <string name="player_favorite">Favorite</string>
     <string name="player_play">Play</string>
     <string name="player_share">Share</string>
+    <string name="player_save_offline">Save for offline</string>
+    <string name="player_saved_offline">Saved for offline</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Tracks</string>
@@ -72,6 +77,12 @@
     <string name="account_sign_in_soundcloud">Sign in with SoundCloud</string>
     <string name="account_sign_in_title">Sign in to Resona</string>
     <string name="account_sign_in_desc">Access your favorites, profile, and more</string>
+    <string name="account_step_1">Tap the button below to open SoundCloud</string>
+    <string name="account_step_2">Log in with your SoundCloud account</string>
+    <string name="account_step_3">Tap Done when you see the SoundCloud homepage</string>
+    <string name="account_loading_soundcloud">Loading SoundCloud…</string>
+    <string name="account_login_hint_title">Ready to sign in?</string>
+    <string name="account_login_hint_desc">Log in on the page above, then tap Done</string>
     <string name="account_sign_out">Sign Out</string>
     <string name="account_share_link">Share profile</string>
     <string name="account_settings">Settings</string>
@@ -96,6 +107,9 @@
     <string name="settings_cache_size">Calculating…</string>
     <string name="settings_cache_cleared">Cache cleared</string>
     <string name="settings_clear">Clear</string>
+    <string name="settings_offline_tracks">Offline Tracks</string>
+    <string name="settings_offline_tracks_count">%1$d tracks · %2$s</string>
+    <string name="settings_offline_cleared">Offline tracks cleared</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %s</string>
 
@@ -132,6 +146,10 @@
     <string name="msg_sc_import_result">Imported %d tracks from SoundCloud</string>
     <string name="msg_sc_import_failed">Import failed</string>
     <string name="msg_sc_resolve_failed">Failed to resolve profile</string>
+    <string name="msg_sc_search_failed">Search failed</string>
+    <string name="msg_sc_no_results">No profiles found</string>
+    <string name="import_sc_searching">Searching…</string>
+    <string name="import_sc_select_profile">Select a profile</string>
     <string name="msg_sc_fetch_failed">Failed to fetch likes</string>
 
     <!-- About -->

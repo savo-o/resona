@@ -33,10 +33,13 @@
     <string name="library_albums">Альбомы</string>
     <string name="library_artists">Исполнители</string>
     <string name="library_playlists">Плейлисты</string>
+    <string name="library_offline">Офлайн треки</string>
+    <string name="library_offline_count">%d треков</string>
     <string name="library_tracks_count">%d треков</string>
     <string name="library_playlists_count">%d плейлистов</string>
     <string name="library_artists_count">%d исполнителей</string>
     <string name="library_recently_played">Недавние треки</string>
+    <string name="offline_empty">Пока нет офлайн треков</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Избранное</string>
@@ -51,6 +54,8 @@
     <string name="player_favorite">В избранное</string>
     <string name="player_play">Воспроизвести</string>
     <string name="player_share">Поделиться</string>
+    <string name="player_save_offline">Сохранить офлайн</string>
+    <string name="player_saved_offline">Сохранено офлайн</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Треки</string>
@@ -72,6 +77,12 @@
     <string name="account_sign_in_soundcloud">Войти через SoundCloud</string>
     <string name="account_sign_in_title">Войти в Resona</string>
     <string name="account_sign_in_desc">Доступ к избранному, профилю и не только</string>
+    <string name="account_step_1">Нажмите кнопку ниже, чтобы открыть SoundCloud</string>
+    <string name="account_step_2">Войдите в свой аккаунт SoundCloud</string>
+    <string name="account_step_3">Нажмите Готово, когда увидите главную страницу</string>
+    <string name="account_loading_soundcloud">Загрузка SoundCloud…</string>
+    <string name="account_login_hint_title">Готовы войти?</string>
+    <string name="account_login_hint_desc">Войдите на странице выше, затем нажмите Готово</string>
     <string name="account_sign_out">Выйти</string>
     <string name="account_share_link">Поделиться профилем</string>
     <string name="account_settings">Настройки</string>
@@ -96,6 +107,9 @@
     <string name="settings_cache_size">Расчёт…</string>
     <string name="settings_cache_cleared">Кэш очищен</string>
     <string name="settings_clear">Очистить</string>
+    <string name="settings_offline_tracks">Офлайн треки</string>
+    <string name="settings_offline_tracks_count">%1$d треков · %2$s</string>
+    <string name="settings_offline_cleared">Офлайн треки очищены</string>
     <string name="settings_about">О приложении</string>
     <string name="settings_version">Версия %s</string>
 
@@ -132,6 +146,10 @@
     <string name="msg_sc_import_result">Импортировано %d треков с SoundCloud</string>
     <string name="msg_sc_import_failed">Ошибка импорта</string>
     <string name="msg_sc_resolve_failed">Не удалось найти профиль</string>
+    <string name="msg_sc_search_failed">Ошибка поиска</string>
+    <string name="msg_sc_no_results">Профили не найдены</string>
+    <string name="import_sc_searching">Поиск…</string>
+    <string name="import_sc_select_profile">Выберите профиль</string>
     <string name="msg_sc_fetch_failed">Не удалось загрузить лайки</string>
 
     <!-- About -->
