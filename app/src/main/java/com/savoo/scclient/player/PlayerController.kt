@@ -96,6 +96,10 @@ class PlayerController @Inject constructor(
             if (playbackState == Player.STATE_READY) updatePosition()
         }
 
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            Log.e("PlayerController", "Playback error: ${error.message}")
+        }
+
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val mediaId = mediaItem?.mediaId?.toLongOrNull() ?: return
             val track = queue.find { it.id == mediaId }
@@ -110,13 +114,20 @@ class PlayerController @Inject constructor(
 
                 if (mediaItem.localConfiguration?.uri?.toString() == "pending") {
                     scope.launch {
-                        val cachedPath = trackCache.getCachedFilePath(mediaId)
+                        val offlineFile = java.io.File(context.filesDir, "offline/${mediaId}.mp3")
+                        val cachedPath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath
+                            else trackCache.getCachedFilePath(mediaId)
                         val fullTrack = if (cachedPath != null) track
-                            else if (track.media == null) {
-                                runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-                            } else track
+                            else withContext(Dispatchers.IO) {
+                                if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
+                                else track
+                            }
                         val url = if (cachedPath != null) cachedPath
-                            else trackRepository.resolvePlayableUrl(fullTrack) ?: return@launch
+                            else withContext(Dispatchers.IO) { trackRepository.resolvePlayableUrl(fullTrack) }
+                        if (url == null) {
+                            controller?.seekToNext()
+                            return@launch
+                        }
 
                         val i = queue.indexOf(track)
                         if (i < 0) return@launch
@@ -128,10 +139,9 @@ class PlayerController @Inject constructor(
                                 MediaMetadata.Builder()
                                     .setTitle(fullTrack.title)
                                     .setArtist(fullTrack.user.username)
-                                    .setArtworkUri(fullTrack.artworkUrl?.replace("-large", "-t500x500")?.let { Uri.parse(it) })
+                                    .setArtworkUri(fullTrack.artworkUrl?.replace("-large", "-t500x500")?.let { android.net.Uri.parse(it) })
                                     .build()
-                            )
-                            .build()
+                            ).build()
 
                         controller?.replaceMediaItem(i, item)
 
@@ -327,7 +337,6 @@ class PlayerController @Inject constructor(
             if (cachedPath == null && url != "pending") {
                 trackCache.cacheAudioFile(fullTrack, url)
             }
-            trackCache.prefetchNearby(queue, queueIndex, scope)
         }
     }
 
