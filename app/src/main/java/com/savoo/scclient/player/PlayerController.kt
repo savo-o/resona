@@ -12,11 +12,13 @@ import android.net.Uri
 import android.util.Log
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.RawResourceDataSource
 import androidx.palette.graphics.Palette
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.google.common.util.concurrent.MoreExecutors
+import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.repository.TrackRepository
@@ -29,6 +31,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -45,6 +49,8 @@ data class PlaybackState(
     val hasNext: Boolean = false,
     val hasPrev: Boolean = false,
     val loadingTrackId: Long? = null,
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: Int = Player.REPEAT_MODE_OFF,
 )
 
 @UnstableApi
@@ -65,8 +71,36 @@ class PlayerController @Inject constructor(
     val seedColor = _seedColor.asStateFlow()
     private val queue = mutableListOf<Track>()
     private var queueIndex = -1
+    // Snapshot of queue's order right before shuffling, so toggling shuffle off can restore it. Empty when shuffle is off.
+    // Shuffling is handled entirely at this level (queue itself is reordered) rather than via ExoPlayer's native
+    // shuffleModeEnabled - replaceMediaItem() turned out to internally remove+reinsert the period, which mutates
+    // ExoPlayer's own shuffle order as a side effect, so "previous" could land somewhere unexpected after any
+    // background resolve had happened. Keeping native shuffle permanently off avoids that entirely.
+    private val originalOrder = mutableListOf<Track>()
     private val recentTracks = mutableListOf<Track>()
     private val prefs = context.getSharedPreferences("player_state", Context.MODE_PRIVATE)
+    private val errorRetryCount = mutableMapOf<Long, Int>()
+    private val resolvingMediaIds = mutableSetOf<Long>()
+    // Serializes replaceMediaItem/prepare/play calls to the (IPC-backed) MediaController - concurrent preload
+    // resolutions for the next and previous track were issuing these commands at overlapping times, which is
+    // suspected to be involved in the shuffle-skip cascade (the player jumping through several unrelated tracks).
+    private val playerCommandMutex = Mutex()
+
+    private companion object {
+        const val TAG = "PlayerController"
+        private const val PENDING_SCHEME = "rawresource"
+
+        // Placeholder items point at a real, always-loadable local silent file rather than an invalid URI (which used
+        // to make ExoPlayer choke while probing it during buffering/look-ahead). Every placeholder gets a distinct
+        // fragment (#<trackId>) so each is a unique Uri - dozens of playlist entries sharing byte-identical URIs was
+        // itself confusing ExoPlayer's Timeline/MediaSource bookkeeping and causing shuffle skips to cascade through
+        // many unrelated tracks; the fragment doesn't affect how RawResourceDataSource resolves the resource id.
+        fun pendingUriFor(trackId: Long): Uri =
+            RawResourceDataSource.buildRawResourceUri(R.raw.silence).buildUpon().fragment(trackId.toString()).build()
+    }
+
+    private fun isPending(mediaItem: MediaItem?): Boolean =
+        mediaItem?.localConfiguration?.uri?.scheme == PENDING_SCHEME
 
     init {
         restoreState()
@@ -75,6 +109,14 @@ class PlayerController @Inject constructor(
         future.addListener({
             controller = future.get()
             controller?.addListener(playerListener)
+            controller?.shuffleModeEnabled = false // shuffling is handled at the queue level, see toggleShuffle()
+            controller?.repeatMode = prefs.getInt("repeat_mode", Player.REPEAT_MODE_OFF)
+            _state.update {
+                it.copy(
+                    shuffleEnabled = prefs.getBoolean("shuffle_enabled", false),
+                    repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF,
+                )
+            }
             restorePlayLastTrack()
         }, MoreExecutors.directExecutor())
     }
@@ -83,6 +125,7 @@ class PlayerController @Inject constructor(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (isPlaying) {
                 _state.update { it.copy(isPlaying = true, loadingTrackId = null) }
+                controller?.currentMediaItem?.mediaId?.toLongOrNull()?.let { errorRetryCount.remove(it) }
                 startPositionPolling()
             } else {
                 _state.update { it.copy(isPlaying = false) }
@@ -92,99 +135,226 @@ class PlayerController @Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            Log.d(TAG, "onPlaybackStateChanged: $playbackState currentId=${controller?.currentMediaItem?.mediaId} pos=${controller?.currentPosition} dur=${controller?.duration}")
             _state.value = _state.value.copy(isBuffering = playbackState == Player.STATE_BUFFERING)
             if (playbackState == Player.STATE_READY) updatePosition()
         }
 
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            Log.d(TAG, "onPositionDiscontinuity: reason=$reason oldItem=${oldPosition.mediaItem?.mediaId} oldPos=${oldPosition.positionMs} newItem=${newPosition.mediaItem?.mediaId} newPos=${newPosition.positionMs}")
+        }
+
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            Log.d(TAG, "onTimelineChanged: reason=$reason windowCount=${timeline.windowCount}")
+        }
+
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            Log.e("PlayerController", "Playback error: ${error.message}")
+            Log.e(TAG, "Playback error: ${error.message}")
+            // Fatal errors drop the player into STATE_IDLE; playWhenReady survives, so re-preparing resumes playback automatically.
+            val mediaId = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+            if (mediaId in resolvingMediaIds) return // an in-flight resolution will prepare()/play() or skip once it finishes
+            val attempts = (errorRetryCount[mediaId] ?: 0) + 1
+            errorRetryCount[mediaId] = attempts
+            if (attempts > 2) {
+                Log.e(TAG, "Giving up on track $mediaId after $attempts failed attempts, skipping")
+                errorRetryCount.remove(mediaId)
+                controller?.seekToNext()
+                return
+            }
+            scope.launch {
+                delay(400)
+                controller?.prepare()
+            }
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _state.update { it.copy(repeatMode = repeatMode) }
+            updateQueueState()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val mediaId = mediaItem?.mediaId?.toLongOrNull() ?: return
             val track = queue.find { it.id == mediaId }
+            Log.d(TAG, "onMediaItemTransition: id=$mediaId title=${track?.title} reason=$reason pending=${isPending(mediaItem)} queueIndex(before)=$queueIndex")
             if (track != null) {
                 val idx = queue.indexOf(track)
                 if (idx >= 0) {
                     queueIndex = idx
                     updateQueueState()
                 }
-                _state.update { it.copy(currentTrack = track, durationMs = track.durationMs, loadingTrackId = null) }
-                extractSeedColor(track.artworkUrl)
 
-                if (mediaItem.localConfiguration?.uri?.toString() == "pending") {
+                // replaceMediaItem() (used to swap a resolved "pending" placeholder for the real URL) fires this same
+                // callback with reason=PLAYLIST_CHANGED even when nothing the user asked for actually changed. Treating
+                // that as a real transition was the cause of the cover/title flashing: it re-triggered preloadAdjacent(),
+                // which replaced more items, which fired more PLAYLIST_CHANGED transitions - a self-sustaining cascade.
+                val isSelfEcho = reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
+                    _state.value.currentTrack?.id == mediaId
+                if (!isSelfEcho) {
+                    _state.update { it.copy(currentTrack = track, durationMs = track.durationMs, loadingTrackId = null) }
+                    extractSeedColor(track.artworkUrl)
+                }
+
+                if (isPending(mediaItem) && resolvingMediaIds.add(mediaId)) {
+                    Log.d(TAG, "reactive resolve start: id=$mediaId title=${track.title}")
                     scope.launch {
-                        val offlineFile = java.io.File(context.filesDir, "offline/${mediaId}.mp3")
-                        val cachedPath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath
-                            else trackCache.getCachedFilePath(mediaId)
-                        val fullTrack = if (cachedPath != null) track
-                            else withContext(Dispatchers.IO) {
-                                if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-                                else track
+                        try {
+                            val resolved = resolveTrack(track)
+                            if (resolved == null) {
+                                Log.w(TAG, "reactive resolve FAILED after retries, skipping: id=$mediaId title=${track.title}")
+                                controller?.seekToNext()
+                                return@launch
                             }
-                        val url = if (cachedPath != null) cachedPath
-                            else withContext(Dispatchers.IO) { trackRepository.resolvePlayableUrl(fullTrack) }
-                        if (url == null) {
-                            controller?.seekToNext()
-                            return@launch
-                        }
+                            Log.d(TAG, "reactive resolve OK: id=$mediaId title=${track.title}")
 
-                        val i = queue.indexOf(track)
-                        if (i < 0) return@launch
+                            val i = queue.indexOf(track)
+                            if (i < 0) return@launch
 
-                        val item = MediaItem.Builder()
-                            .setUri(url)
-                            .setMediaId(fullTrack.id.toString())
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(fullTrack.title)
-                                    .setArtist(fullTrack.user.username)
-                                    .setArtworkUri(fullTrack.artworkUrl?.replace("-large", "-t500x500")?.let { android.net.Uri.parse(it) })
-                                    .build()
-                            ).build()
+                            playerCommandMutex.withLock {
+                                controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url))
 
-                        controller?.replaceMediaItem(i, item)
+                                // Only do this if we're still actually the current item - playback may have moved on to a
+                                // different (possibly still-pending) track while this resolve was in flight. replaceMediaItem
+                                // on the ACTIVE window doesn't actually swap the audio being read: ExoPlayer keeps decoding
+                                // whatever was already buffered from the placeholder (~0.5s of silence) until that period
+                                // naturally "ends", THEN auto-advances - which is what was really driving the skip cascade.
+                                // seekTo(sameIndex, 0) forces it to actually discard that and reload from the new source.
+                                controller?.let {
+                                    if (it.currentMediaItem?.mediaId?.toLongOrNull() == mediaId) {
+                                        it.seekTo(i, 0L)
+                                        it.prepare()
+                                        if (it.playWhenReady) it.play()
+                                    }
+                                }
+                            }
 
-                        if (cachedPath == null && url != "pending") {
-                            trackCache.cacheAudioFile(fullTrack, url)
+                            if (resolved.needsCaching) {
+                                trackCache.cacheAudioFile(resolved.track, resolved.url)
+                            }
+                        } finally {
+                            resolvingMediaIds.remove(mediaId)
                         }
                     }
+                }
+
+                // Don't re-trigger preloading off our own PLAYLIST_CHANGED echoes - see the isSelfEcho comment above.
+                if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+                    preloadAdjacent()
                 }
             }
         }
     }
 
+    private data class ResolvedTrack(val track: Track, val url: String, val needsCaching: Boolean)
+
+    private fun offlineFilePath(trackId: Long): String? {
+        val file = java.io.File(context.filesDir, "offline/$trackId.mp3")
+        return if (file.exists() && file.length() > 0) file.absolutePath else null
+    }
+
+    // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
+    // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
+    private suspend fun resolveTrack(track: Track, attempts: Int = 3): ResolvedTrack? {
+        offlineFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
+        trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
+
+        repeat(attempts) { attempt ->
+            val fullTrack = if (track.media != null) track
+                else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(track.id) }.getOrNull() } ?: track
+            if (fullTrack.media == null) {
+                Log.w(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
+            }
+            val url = withContext(Dispatchers.IO) {
+                runCatching { trackRepository.resolvePlayableUrl(fullTrack) }
+                    .onFailure { Log.w(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableUrl threw ${it}") }
+                    .getOrNull()
+            }
+            if (url != null) return ResolvedTrack(fullTrack, url, needsCaching = true)
+            if (attempt < attempts - 1) delay(500L * (attempt + 1))
+        }
+        Log.w(TAG, "resolveTrack GAVE UP after $attempts attempts: id=${track.id} title=${track.title}")
+        return null
+    }
+
+    private fun buildMediaItem(track: Track, url: String): MediaItem =
+        MediaItem.Builder()
+            .setUri(url)
+            .setMediaId(track.id.toString())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.user.username)
+                    .setArtworkUri(track.artworkUrl?.replace("-large", "-t500x500")?.let { Uri.parse(it) })
+                    .build()
+            ).build()
+
+    private fun buildPendingMediaItem(track: Track): MediaItem =
+        MediaItem.Builder()
+            .setMediaId(track.id.toString())
+            .setUri(pendingUriFor(track.id))
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(track.title)
+                    .setArtist(track.user.username)
+                    .setArtworkUri(track.artworkUrl?.replace("-large", "-t500x500")?.let { Uri.parse(it) })
+                    .build()
+            ).build()
+
+    // Preloads neighbours via media3's shuffle/repeat-aware next/previous index so skips rarely hit an unresolved "pending" item.
+    private fun preloadAdjacent() {
+        val c = controller ?: return
+        val indices = listOfNotNull(
+            c.nextMediaItemIndex.takeIf { it != androidx.media3.common.C.INDEX_UNSET },
+            c.previousMediaItemIndex.takeIf { it != androidx.media3.common.C.INDEX_UNSET },
+        )
+        Log.d(TAG, "preloadAdjacent: currentIndex=${c.currentMediaItemIndex} candidates=$indices shuffle=${c.shuffleModeEnabled}")
+        for (idx in indices) {
+            if (idx !in 0 until c.mediaItemCount) continue
+            val item = runCatching { c.getMediaItemAt(idx) }.getOrNull() ?: continue
+            if (isPending(item)) {
+                item.mediaId.toLongOrNull()?.let { resolveAndReplace(it) }
+            }
+        }
+    }
+
     private fun resolveAndReplace(mediaId: Long) {
+        if (!resolvingMediaIds.add(mediaId)) {
+            Log.d(TAG, "resolveAndReplace: id=$mediaId already in flight, skipping duplicate")
+            return
+        }
+        Log.d(TAG, "preload resolve start: id=$mediaId")
         scope.launch {
-            val track = queue.find { it.id == mediaId } ?: return@launch
-            val offlineFile = java.io.File(context.filesDir, "offline/${mediaId}.mp3")
-            val offlinePath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath else null
-            val cachedPath = offlinePath ?: trackCache.getCachedFilePath(mediaId)
-            val fullTrack = if (cachedPath != null) track
-                else withContext(Dispatchers.IO) {
-                    if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-                    else track
+            try {
+                val track = queue.find { it.id == mediaId } ?: return@launch
+                val resolved = resolveTrack(track)
+                if (resolved == null) {
+                    Log.w(TAG, "preload resolve FAILED: id=$mediaId title=${track.title}")
+                    return@launch
                 }
-            val url = if (cachedPath != null) cachedPath
-                else withContext(Dispatchers.IO) { trackRepository.resolvePlayableUrl(fullTrack) }
-            if (url == null) return@launch
+                Log.d(TAG, "preload resolve OK: id=$mediaId title=${track.title}")
 
-            val idx = queue.indexOf(track)
-            if (idx < 0) return@launch
+                val idx = queue.indexOf(track)
+                if (idx < 0) return@launch
 
-            val item = MediaItem.Builder()
-                .setUri(url)
-                .setMediaId(fullTrack.id.toString())
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(fullTrack.title)
-                        .setArtist(fullTrack.user.username)
-                        .setArtworkUri(fullTrack.artworkUrl?.replace("-large", "-t500x500")?.let { Uri.parse(it) })
-                        .build()
-                )
-                .build()
+                playerCommandMutex.withLock {
+                    controller?.replaceMediaItem(idx, buildMediaItem(resolved.track, resolved.url))
 
-            controller?.replaceMediaItem(idx, item)
+                    // If this neighbour became the current item while we were resolving it, recover it the same way the
+                    // reactive path does - see the comment there for why seekTo() is needed, not just prepare().
+                    controller?.let {
+                        if (it.currentMediaItem?.mediaId?.toLongOrNull() == mediaId) {
+                            it.seekTo(idx, 0L)
+                            it.prepare()
+                            if (it.playWhenReady) it.play()
+                        }
+                    }
+                }
+
+                if (resolved.needsCaching) {
+                    trackCache.cacheAudioFile(resolved.track, resolved.url)
+                }
+            } finally {
+                resolvingMediaIds.remove(mediaId)
+            }
         }
     }
 
@@ -235,106 +405,104 @@ class PlayerController @Inject constructor(
     }
 
     fun skipToNext() {
-        controller?.let {
-            val next = it.currentMediaItemIndex + 1
-            if (next < it.mediaItemCount) {
-                it.seekToNext()
-            }
-        }
+        controller?.let { if (it.hasNextMediaItem()) it.seekToNext() }
     }
 
     fun skipToPrevious() {
         controller?.seekToPrevious()
     }
 
+    fun toggleShuffle() {
+        val enabling = !_state.value.shuffleEnabled
+        val current = queue.getOrNull(queueIndex)
+
+        if (enabling) {
+            originalOrder.clear()
+            originalOrder.addAll(queue)
+            val rest = queue.filterIndexed { i, _ -> i != queueIndex }.shuffled()
+            queue.clear()
+            current?.let { queue.add(it) }
+            queue.addAll(rest)
+            queueIndex = 0
+        } else if (originalOrder.isNotEmpty()) {
+            queue.clear()
+            queue.addAll(originalOrder)
+            originalOrder.clear()
+            queueIndex = current?.let { c -> queue.indexOfFirst { it.id == c.id } }?.takeIf { it >= 0 } ?: 0
+        }
+
+        rebuildTimelinePreservingPlayback()
+        _state.update { it.copy(shuffleEnabled = enabling) }
+        prefs.edit().putBoolean("shuffle_enabled", enabling).apply()
+    }
+
+    // Rebuilds the controller's playlist to match `queue`'s current order without disturbing what's actually
+    // playing: the current window reuses its already-resolved MediaItem (no re-fetch, no audible hiccup), every
+    // other position goes back to a fresh "pending" placeholder to be resolved again as needed.
+    private fun rebuildTimelinePreservingPlayback() {
+        val c = controller ?: return
+        val currentItem = c.currentMediaItem ?: return
+        val pos = c.currentPosition
+        val items = queue.mapIndexed { i, t -> if (i == queueIndex) currentItem else buildPendingMediaItem(t) }
+        c.setMediaItems(items, queueIndex, pos)
+        c.prepare()
+        if (c.playWhenReady) c.play()
+        updateQueueState()
+        preloadAdjacent()
+    }
+
+    fun cycleRepeatMode() {
+        controller?.let {
+            val next = when (it.repeatMode) {
+                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                else -> Player.REPEAT_MODE_OFF
+            }
+            it.repeatMode = next
+            prefs.edit().putInt("repeat_mode", next).apply()
+        }
+    }
+
     private fun updateQueueState() {
         _state.update {
             it.copy(
-                hasNext = queueIndex < queue.lastIndex,
-                hasPrev = queueIndex > 0
+                hasNext = controller?.hasNextMediaItem() ?: (queueIndex < queue.lastIndex),
+                hasPrev = controller?.hasPreviousMediaItem() ?: (queueIndex > 0)
             )
         }
     }
 
     private fun doPlay(track: Track) {
         scope.launch {
-            val offlineFile = java.io.File(context.filesDir, "offline/${track.id}.mp3")
-            val offlinePath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath else null
-            val cachedPath = offlinePath ?: trackCache.getCachedFilePath(track.id)
-            Log.d("PlayerController", "doPlay(${track.title}): offline=$offlinePath, cache=$cachedPath")
-
-            val fullTrack: Track
-            val url: String?
-            if (cachedPath != null) {
-                fullTrack = track
-                url = cachedPath
-            } else {
-                fullTrack = withContext(Dispatchers.IO) {
-                    if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-                    else track
-                }
-                url = withContext(Dispatchers.IO) {
-                    trackRepository.resolvePlayableUrl(fullTrack)
-                }
+            val resolved = resolveTrack(track)
+            if (resolved == null) {
+                _state.update { it.copy(loadingTrackId = null) }
+                return@launch
             }
-            if (url == null) return@launch
+            val (fullTrack, url, needsCaching) = resolved
+            Log.d(TAG, "doPlay(${fullTrack.title}): resolved, cached=${!needsCaching}")
 
             recentTracks.removeAll { it.id == fullTrack.id }
             recentTracks.add(fullTrack)
             if (recentTracks.size > 20) recentTracks.removeFirst()
 
-            val allItems = mutableListOf<MediaItem>()
-            for (i in queue.indices) {
-                val t = queue[i]
-                val isCurrent = i == queueIndex
-                val isNext = i == queueIndex + 1
-                val isNearby = kotlin.math.abs(i - queueIndex) <= 2
-
-                if (isCurrent || isNearby) {
-                    val nearbyOffline = java.io.File(context.filesDir, "offline/${t.id}.mp3")
-                    val nearbyCached = if (nearbyOffline.exists() && nearbyOffline.length() > 0) nearbyOffline.absolutePath
-                        else trackCache.getCachedFilePath(t.id)
-                    val full = if (nearbyCached != null || t.media != null) t
-                        else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(t.id) }.getOrNull() ?: t }
-                    val tUrl = if (isCurrent) url
-                        else nearbyCached
-                            ?: withContext(Dispatchers.IO) { runCatching { trackRepository.resolvePlayableUrl(full) }.getOrNull() }
-
-                    if (tUrl != null) {
-                        allItems.add(MediaItem.Builder()
-                            .setUri(tUrl)
-                            .setMediaId(full.id.toString())
-                            .setMediaMetadata(
-                                MediaMetadata.Builder()
-                                    .setTitle(full.title)
-                                    .setArtist(full.user.username)
-                                    .setArtworkUri(full.artworkUrl?.replace("-large", "-t500x500")?.let { android.net.Uri.parse(it) })
-                                    .build()
-                            ).build())
-                    }
-                } else {
-                    allItems.add(MediaItem.Builder()
-                        .setMediaId(t.id.toString())
-                        .setUri("pending")
-                        .setMediaMetadata(
-                            MediaMetadata.Builder()
-                                .setTitle(t.title)
-                                .setArtist(t.user.username)
-                                .setArtworkUri(t.artworkUrl?.replace("-large", "-t500x500")?.let { android.net.Uri.parse(it) })
-                                .build()
-                        ).build())
-                }
+            // Only the current track needs to be resolved before play() starts; neighbours are prefetched
+            // afterwards via preloadAdjacent() so playback doesn't wait on network calls nobody's listening to yet.
+            val allItems = queue.mapIndexed { i, t ->
+                if (i == queueIndex) buildMediaItem(fullTrack, url) else buildPendingMediaItem(t)
             }
 
-            _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs)
+            _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
             extractSeedColor(fullTrack.artworkUrl)
             controller?.apply {
                 setMediaItems(allItems, queueIndex, 0L)
                 prepare()
                 play()
             }
+            updateQueueState()
+            preloadAdjacent()
 
-            if (cachedPath == null && url != "pending") {
+            if (needsCaching) {
                 trackCache.cacheAudioFile(fullTrack, url)
             }
         }
@@ -404,34 +572,17 @@ class PlayerController @Inject constructor(
             }
             updateQueueState()
             scope.launch {
-                val offlineFile = java.io.File(context.filesDir, "offline/${track.id}.mp3")
-                val offlinePath = if (offlineFile.exists() && offlineFile.length() > 0) offlineFile.absolutePath else null
-                val cachedPath = offlinePath ?: trackCache.getCachedFilePath(track.id)
-                val fullTrack = if (cachedPath != null) track
-                    else withContext(Dispatchers.IO) {
-                        if (track.media == null) runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
-                        else track
-                    }
-                val url = if (cachedPath != null) cachedPath
-                    else withContext(Dispatchers.IO) { trackRepository.resolvePlayableUrl(fullTrack) }
-                if (url == null) return@launch
-                val item = MediaItem.Builder()
-                    .setUri(url)
-                    .setMediaId(fullTrack.id.toString())
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(fullTrack.title)
-                            .setArtist(fullTrack.user.username)
-                            .setArtworkUri(fullTrack.artworkUrl?.replace("-large", "-t500x500")?.let { Uri.parse(it) })
-                            .build()
-                    )
-                    .build()
-            _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
+                val resolved = resolveTrack(track) ?: return@launch
+                val (fullTrack, url, needsCaching) = resolved
+                _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
                 extractSeedColor(fullTrack.artworkUrl)
                 controller?.apply {
-                    setMediaItem(item)
+                    setMediaItem(buildMediaItem(fullTrack, url))
                     prepare()
                     if (position > 0) seekTo(position)
+                }
+                if (needsCaching) {
+                    trackCache.cacheAudioFile(fullTrack, url)
                 }
             }
         } catch (_: Exception) {}

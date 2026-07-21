@@ -10,14 +10,16 @@ import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.OfflineTrack
+import com.savoo.scclient.data.model.TelegramImportRecord
 
 @Database(
-    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class],
-    version = 3,
+    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class],
+    version = 4,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
     abstract fun offlineDao(): OfflineDao
+    abstract fun telegramImportDao(): TelegramImportDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -67,9 +69,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS telegram_import_records (
+                        chatId INTEGER NOT NULL,
+                        messageId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        performer TEXT,
+                        status TEXT NOT NULL,
+                        matchedTrackId INTEGER,
+                        reason TEXT,
+                        importedAt INTEGER NOT NULL,
+                        PRIMARY KEY(chatId, messageId)
+                    )
+                """)
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

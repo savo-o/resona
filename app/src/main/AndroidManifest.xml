@@ -41,11 +41,12 @@
             </intent-filter>
 
             <!-- Deep link: soundcloud.com -->
-            <intent-filter>
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="soundcloud.com" />
+                <data android:scheme="https" android:host="www.soundcloud.com" />
                 <data android:scheme="https" android:host="m.soundcloud.com" />
                 <data android:scheme="https" android:host="on.soundcloud.com" />
             </intent-filter>

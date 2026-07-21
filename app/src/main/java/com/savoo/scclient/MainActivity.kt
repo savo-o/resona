@@ -11,7 +11,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.media3.common.util.UnstableApi
@@ -35,6 +34,8 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var playerController: PlayerController
 
+    private var deepLinkTarget by mutableStateOf<DeepLinkTarget>(DeepLinkTarget.None)
+
     override fun attachBaseContext(newBase: Context) {
         val lang = try {
             val prefs = newBase.getSharedPreferences("sc_settings", MODE_PRIVATE)
@@ -56,6 +57,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        deepLinkTarget = DeepLinkTarget.fromIntent(intent)
 
         val currentLang = run {
             val prefs = getSharedPreferences("sc_settings", MODE_PRIVATE)
@@ -112,8 +115,6 @@ class MainActivity : ComponentActivity() {
                 settings.colorTheme
             }
 
-            val deepLinkTarget = remember { parseDeepLink(intent) }
-
             ResonaTheme(
                 colorTheme = effectiveTheme,
                 darkTheme = isDark,
@@ -124,25 +125,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun parseDeepLink(intent: Intent): DeepLinkTarget? {
-        val data = intent.data ?: return null
-        val host = data.host ?: return null
-        val path = data.pathSegments ?: return null
-
-        if (host != "soundcloud.com" && host != "www.soundcloud.com") return null
-        if (path.isEmpty()) return null
-
-        return when (path[0]) {
-            "users" -> {
-                val userId = path.getOrNull(1)?.toLongOrNull()
-                if (userId != null) DeepLinkTarget.Artist(userId) else null
-            }
-            "playlists" -> {
-                val playlistId = path.getOrNull(1)?.toLongOrNull()
-                if (playlistId != null) DeepLinkTarget.Playlist(playlistId) else null
-            }
-            else -> null
-        }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // singleTask means a deep link tapped while the app is already running arrives here, not in onCreate.
+        setIntent(intent)
+        deepLinkTarget = DeepLinkTarget.fromIntent(intent)
     }
 
     override fun onDestroy() {

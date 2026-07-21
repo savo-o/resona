@@ -5,7 +5,9 @@ import android.content.SharedPreferences
 import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.OfflineDao
+import com.savoo.scclient.data.local.TelegramImportDao
 import com.savoo.scclient.data.remote.AuthInterceptor
+import com.savoo.scclient.data.remote.LyricsApi
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -26,6 +28,10 @@ import java.util.concurrent.TimeUnit
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class PlainHttpClient
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class LyricsRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -79,6 +85,27 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    @LyricsRetrofit
+    fun provideLyricsRetrofit(@PlainHttpClient client: OkHttpClient, moshi: Moshi): Retrofit {
+        val uaClient = client.newBuilder()
+            .addInterceptor { chain ->
+                chain.proceed(chain.request().newBuilder().header("User-Agent", "Resona (unofficial SoundCloud client)").build())
+            }
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://lrclib.net/")
+            .client(uaClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideLyricsApi(@LyricsRetrofit retrofit: Retrofit): LyricsApi =
+        retrofit.create(LyricsApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         AppDatabase.create(context)
 
@@ -87,4 +114,7 @@ object NetworkModule {
 
     @Provides
     fun provideOfflineDao(db: AppDatabase): OfflineDao = db.offlineDao()
+
+    @Provides
+    fun provideTelegramImportDao(db: AppDatabase): TelegramImportDao = db.telegramImportDao()
 }

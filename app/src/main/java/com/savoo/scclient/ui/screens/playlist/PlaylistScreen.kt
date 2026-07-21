@@ -24,7 +24,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +63,7 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.components.TrackRow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -193,7 +195,7 @@ class PlaylistViewModel @Inject constructor(
 }
 
 @UnstableApi
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun PlaylistScreen(
     playlistId: Long,
@@ -242,7 +244,7 @@ fun PlaylistScreen(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                LoadingIndicator()
             }
             state.error != null -> Box(
                 Modifier.fillMaxSize().padding(padding),
@@ -293,7 +295,7 @@ fun PlaylistScreen(
                             modifier = Modifier.fillMaxWidth().padding(16.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            LoadingIndicator(modifier = Modifier.size(24.dp))
                         }
                     }
                 }
@@ -323,13 +325,11 @@ private fun PlaylistHeader(
             .padding(bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AsyncImage(
-            model = playlist.artworkUrl?.replace("-large", "-t500x500"),
+        TrackArtwork(
+            artworkUrl = playlist.artworkUrl ?: playlist.tracks?.firstOrNull()?.artworkUrl,
             contentDescription = playlist.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(120.dp)
-                .clip(RoundedCornerShape(20.dp))
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.size(120.dp),
         )
 
         Spacer(Modifier.height(16.dp))

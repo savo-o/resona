@@ -22,10 +22,14 @@ android {
         applicationId = "com.savoo.scclient"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.2.3"
+        versionCode = 7
+        versionName = "0.5"
 
         buildConfigField("String", "SC_CLIENT_ID_FALLBACK", "\"\"")
+        // BETA Telegram import: get these at https://my.telegram.org/apps and put them in local.properties
+        // as TELEGRAM_API_ID / TELEGRAM_API_HASH - never commit real values here.
+        buildConfigField("String", "TELEGRAM_API_ID", "\"${localProps.getProperty("TELEGRAM_API_ID", "0")}\"")
+        buildConfigField("String", "TELEGRAM_API_HASH", "\"${localProps.getProperty("TELEGRAM_API_HASH", "")}\"")
     }
 
     signingConfigs {
@@ -52,6 +56,17 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // BETA Telegram import bundles prebuilt TDLib .so per ABI (~16-23MB each). Split into
+    // per-ABI APKs so a device only downloads its own native lib instead of both.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            isUniversalApk = true
+        }
     }
 
     compileOptions {

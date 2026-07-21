@@ -25,15 +25,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -48,13 +51,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import com.savoo.scclient.data.model.Track
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Shared artwork tile: shows a music-note placeholder behind the real image, so tracks with no
+ * artwork (e.g. Telegram-imported offline tracks with no source to pull a cover from) or artwork
+ * that fails to load (e.g. no network while playing offline) get a real card instead of blank space.
+ */
+@Composable
+fun TrackArtwork(
+    artworkUrl: String?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(14.dp),
+    contentScale: ContentScale = ContentScale.Crop,
+) {
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.MusicNote,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxSize(0.4f),
+        )
+        if (artworkUrl != null) {
+            AsyncImage(
+                model = artworkUrl.replace("-large", "-t500x500"),
+                contentDescription = contentDescription,
+                contentScale = contentScale,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TrackRow(
     track: Track,
@@ -103,12 +144,10 @@ fun TrackRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box {
-                AsyncImage(
-                    model = track.artworkUrl?.replace("-large", "-t500x500"),
+                TrackArtwork(
+                    artworkUrl = track.artworkUrl,
                     contentDescription = track.title,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                    modifier = Modifier.size(56.dp),
                 )
                 if (isPlaying) {
                     EqualizerOverlay(
@@ -152,9 +191,8 @@ fun TrackRow(
                 modifier = Modifier.size(40.dp),
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
+                    LoadingIndicator(
                         modifier = Modifier.padding(8.dp).size(24.dp),
-                        strokeWidth = 2.5.dp,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 } else {

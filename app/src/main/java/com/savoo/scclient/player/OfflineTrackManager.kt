@@ -174,4 +174,45 @@ class OfflineTrackManager @Inject constructor(
         val file = File(offlineDir, "${trackId}.jpg")
         return if (file.exists() && file.length() > 0) file.absolutePath else null
     }
+
+    /**
+     * Registers an already-downloaded file (e.g. from the Telegram import) as an offline track,
+     * under a caller-supplied id rather than a resolved SoundCloud one. Copies the file into the
+     * regular offline store so playback/cache lookups by id work exactly like any other offline track.
+     */
+    suspend fun adoptExternalFile(
+        trackId: Long,
+        title: String,
+        username: String,
+        durationMs: Long,
+        sourceFile: File,
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val audioFile = File(offlineDir, "$trackId.mp3")
+            sourceFile.copyTo(audioFile, overwrite = true)
+            if (sourceFile != audioFile) sourceFile.delete()
+            if (audioFile.length() <= 0) {
+                audioFile.delete()
+                return@withContext false
+            }
+            offlineDao.saveTrack(
+                OfflineTrack(
+                    trackId = trackId,
+                    title = title,
+                    username = username,
+                    artworkUrl = null,
+                    durationMs = durationMs,
+                    permalinkUrl = null,
+                    userId = 0,
+                    userAvatarUrl = null,
+                    localPath = audioFile.absolutePath,
+                    fileSizeBytes = audioFile.length(),
+                )
+            )
+            true
+        } catch (e: Exception) {
+            Log.e("OfflineTrack", "adoptExternalFile failed: ${e.message}")
+            false
+        }
+    }
 }

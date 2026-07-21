@@ -43,6 +43,13 @@
 # Media3
 -keep class androidx.media3.** { *; }
 
+# TDLib (BETA Telegram import): libtdjni.so does JNI FindClass("org/drinkless/tdlib/TdApi")
+# by hardcoded name and reflectively reads/writes fields on TdApi.* objects, so nothing under
+# org.drinkless.tdlib may be renamed, stripped, or have members shrunk away by R8.
+-keep class org.drinkless.tdlib.** { *; }
+-keepclassmembers class org.drinkless.tdlib.** { *; }
+-dontwarn org.drinkless.tdlib.**
+
 # General
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile

@@ -58,13 +58,11 @@ fun AlbumRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            AsyncImage(
-                model = playlist.artworkUrl?.replace("-large", "-t500x500"),
+            TrackArtwork(
+                artworkUrl = playlist.artworkUrl ?: playlist.tracks?.firstOrNull()?.artworkUrl,
                 contentDescription = playlist.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.size(56.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(

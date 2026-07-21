@@ -56,6 +56,12 @@
     <string name="player_share">Поделиться</string>
     <string name="player_save_offline">Сохранить офлайн</string>
     <string name="player_saved_offline">Сохранено офлайн</string>
+    <string name="player_shuffle">Перемешать</string>
+    <string name="player_repeat">Повтор</string>
+    <string name="player_lyrics">Текст песни</string>
+    <string name="player_lyrics_not_found">Синхронизированный текст для этого трека не найден</string>
+    <string name="player_lyrics_offset_earlier">Сдвинуть текст раньше</string>
+    <string name="player_lyrics_offset_later">Сдвинуть текст позже</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Треки</string>
@@ -102,6 +108,8 @@
     <string name="settings_language">Язык</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_ru">Русский</string>
+    <string name="settings_telegram_disclaimer_title">Импорт из Telegram (BETA)</string>
+    <string name="settings_telegram_disclaimer_desc">Эта функция использует TDLib — официальную библиотеку Telegram — чтобы локально на устройстве прочитать историю чата и сопоставить треки с SoundCloud. Сессия входа в Telegram хранится в зашифрованном виде только на устройстве и никуда, кроме серверов самого Telegram, не отправляется. Это экспериментальная, неофициальная функция — используйте на свой страх и риск и в соответствии с условиями использования Telegram.</string>
     <string name="settings_storage">Хранилище</string>
     <string name="settings_cache">Кэш</string>
     <string name="settings_cache_size">Расчёт…</string>
@@ -137,6 +145,28 @@
     <string name="import_sc_merge">Объединить с текущим избранным</string>
     <string name="import_sc_importing">Импорт…</string>
     <string name="import_sc_dismiss">Закрыть</string>
+
+    <!-- Telegram import (BETA) -->
+    <string name="import_tg_title">Импорт из Telegram</string>
+    <string name="import_tg_beta">БЕТА</string>
+    <string name="import_tg_desc">Просканировать чат на аудио, найти совпадения в SoundCloud, а всё не найденное — добавить в офлайн-треки.</string>
+    <string name="import_tg_unavailable">Не настроено в этой сборке — см. инструкцию по настройке импорта из Telegram.</string>
+    <string name="import_tg_start">Войти через Telegram</string>
+    <string name="import_tg_connecting">Подключение…</string>
+    <string name="import_tg_phone_hint">Номер телефона (с кодом страны)</string>
+    <string name="import_tg_send_phone">Продолжить</string>
+    <string name="import_tg_code_sent">Код отправлен на %s</string>
+    <string name="import_tg_code_hint">Код подтверждения</string>
+    <string name="import_tg_send_code">Продолжить</string>
+    <string name="import_tg_password_hint">Облачный пароль</string>
+    <string name="import_tg_send_password">Продолжить</string>
+    <string name="import_tg_load_chats">Выбрать чат</string>
+    <string name="import_tg_log_out">Выйти</string>
+    <string name="import_tg_loading_chats">Загрузка чатов…</string>
+    <string name="import_tg_select_chat">Выберите чат для сканирования</string>
+    <string name="import_tg_progress">Сканирование… обработано %1$d\n%2$s</string>
+    <string name="import_tg_progress_stats">Найдено %1$d · Офлайн %2$d · Ошибок %3$d · Уже в библиотеке %4$d</string>
+    <string name="import_tg_done">Импорт завершён</string>
 
     <!-- Messages -->
     <string name="msg_export_success">Избранное успешно экспортировано</string>

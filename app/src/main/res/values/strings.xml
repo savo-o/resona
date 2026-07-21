@@ -56,6 +56,12 @@
     <string name="player_share">Share</string>
     <string name="player_save_offline">Save for offline</string>
     <string name="player_saved_offline">Saved for offline</string>
+    <string name="player_shuffle">Shuffle</string>
+    <string name="player_repeat">Repeat</string>
+    <string name="player_lyrics">Lyrics</string>
+    <string name="player_lyrics_not_found">No synced lyrics found for this track</string>
+    <string name="player_lyrics_offset_earlier">Shift lyrics earlier</string>
+    <string name="player_lyrics_offset_later">Shift lyrics later</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Tracks</string>
@@ -102,6 +108,8 @@
     <string name="settings_language">Language</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_ru">Русский</string>
+    <string name="settings_telegram_disclaimer_title">Telegram Import (BETA)</string>
+    <string name="settings_telegram_disclaimer_desc">This feature uses TDLib, Telegram\'s official client library, to read your chat history locally on your device and match tracks against SoundCloud. Your Telegram login session is stored encrypted on-device only and is never sent to any server other than Telegram\'s own. This is an experimental, unofficial feature - use it at your own discretion and in line with Telegram\'s Terms of Service.</string>
     <string name="settings_storage">Storage</string>
     <string name="settings_cache">Cache</string>
     <string name="settings_cache_size">Calculating…</string>
@@ -137,6 +145,28 @@
     <string name="import_sc_merge">Merge with current favorites</string>
     <string name="import_sc_importing">Importing…</string>
     <string name="import_sc_dismiss">Dismiss</string>
+
+    <!-- Telegram import (BETA) -->
+    <string name="import_tg_title">Import from Telegram</string>
+    <string name="import_tg_beta">BETA</string>
+    <string name="import_tg_desc">Scan a chat for shared audio, match it against SoundCloud, and add whatever isn\'t found there to Offline Tracks.</string>
+    <string name="import_tg_unavailable">Not set up in this build - see the Telegram import setup notes.</string>
+    <string name="import_tg_start">Sign in with Telegram</string>
+    <string name="import_tg_connecting">Connecting…</string>
+    <string name="import_tg_phone_hint">Phone number (with country code)</string>
+    <string name="import_tg_send_phone">Continue</string>
+    <string name="import_tg_code_sent">Code sent to %s</string>
+    <string name="import_tg_code_hint">Login code</string>
+    <string name="import_tg_send_code">Continue</string>
+    <string name="import_tg_password_hint">Cloud password</string>
+    <string name="import_tg_send_password">Continue</string>
+    <string name="import_tg_load_chats">Choose a chat</string>
+    <string name="import_tg_log_out">Sign out</string>
+    <string name="import_tg_loading_chats">Loading chats…</string>
+    <string name="import_tg_select_chat">Select a chat to scan</string>
+    <string name="import_tg_progress">Scanning… %1$d processed\n%2$s</string>
+    <string name="import_tg_progress_stats">Matched %1$d · Offline %2$d · Failed %3$d · Already in library %4$d</string>
+    <string name="import_tg_done">Import finished</string>
 
     <!-- Messages -->
     <string name="msg_export_success">Favorites exported successfully</string>

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.savoo.scclient.ui.theme.AppColorTheme
@@ -28,6 +29,9 @@ data class AppSettings(
     val dynamicFromTrack: Boolean = true,
     val developerMode: Boolean = false,
     val language: LanguageOption = LanguageOption.ENGLISH,
+    // Manual correction applied on top of the synced lyrics timestamps from the (community-sourced) lyrics
+    // provider - positive shifts lines later, negative earlier. Some tracks' data is simply off by a fixed amount.
+    val lyricsOffsetMs: Long = 0L,
 )
 
 @Singleton
@@ -41,6 +45,7 @@ class SettingsRepository @Inject constructor(
         val DYNAMIC_FROM_TRACK = booleanPreferencesKey("dynamic_from_track")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val LANGUAGE = stringPreferencesKey("language")
+        val LYRICS_OFFSET_MS = longPreferencesKey("lyrics_offset_ms")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -56,6 +61,7 @@ class SettingsRepository @Inject constructor(
             language = prefs[Keys.LANGUAGE]?.let {
                 runCatching { LanguageOption.valueOf(it) }.getOrNull()
             } ?: LanguageOption.ENGLISH,
+            lyricsOffsetMs = prefs[Keys.LYRICS_OFFSET_MS] ?: 0L,
         )
     }
 
@@ -83,5 +89,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setLanguage(language: LanguageOption) {
         context.dataStore.edit { it[Keys.LANGUAGE] = language.name }
+    }
+
+    suspend fun setLyricsOffsetMs(offsetMs: Long) {
+        context.dataStore.edit { it[Keys.LYRICS_OFFSET_MS] = offsetMs }
     }
 }

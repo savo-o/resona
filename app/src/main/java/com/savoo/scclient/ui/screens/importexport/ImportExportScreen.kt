@@ -24,13 +24,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -63,11 +68,20 @@ import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.remote.ScProfile
 import com.savoo.scclient.data.remote.SoundCloudImportRepository
 import com.savoo.scclient.data.repository.FavoritesExporter
+import com.savoo.scclient.data.repository.TelegramImportRepository
+import com.savoo.scclient.telegram.ImportItemResult
+import com.savoo.scclient.telegram.ImportItemStatus
+import com.savoo.scclient.telegram.ImportProgress
+import com.savoo.scclient.telegram.TelegramAuthState
+import com.savoo.scclient.telegram.TelegramChatSummary
+import com.savoo.scclient.telegram.TelegramClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -76,6 +90,8 @@ class ImportExportViewModel @Inject constructor(
     private val exporter: FavoritesExporter,
     private val scImportRepo: SoundCloudImportRepository,
     private val favoritesDao: FavoritesDao,
+    private val telegramClient: TelegramClient,
+    private val telegramImportRepo: TelegramImportRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -84,6 +100,81 @@ class ImportExportViewModel @Inject constructor(
 
     private val _scState = MutableStateFlow<ScImportState>(ScImportState.Idle)
     val scState = _scState.asStateFlow()
+
+    val telegramAvailable = telegramClient.isAvailable
+    val telegramAuthState = telegramClient.authState
+    private val _telegramUiState = MutableStateFlow<TelegramImportUiState>(TelegramImportUiState.SignedOut)
+    val telegramUiState = _telegramUiState.asStateFlow()
+
+    init {
+        // Chat avatars are fetched in the background (see TelegramClient.getChats) - patch them
+        // into the currently shown chat list as they arrive instead of blocking the list on them.
+        viewModelScope.launch {
+            telegramClient.observeChatAvatarUpdates().collect { (chatId, avatarUrl) ->
+                val current = _telegramUiState.value
+                if (current is TelegramImportUiState.ChatPicker) {
+                    _telegramUiState.value = current.copy(
+                        chats = current.chats.map { if (it.chatId == chatId) it.copy(avatarUrl = avatarUrl) else it }
+                    )
+                }
+            }
+        }
+    }
+
+    fun telegramStart() {
+        viewModelScope.launch { telegramClient.start() }
+    }
+
+    fun telegramSendPhone(phoneNumber: String) {
+        viewModelScope.launch { runCatching { telegramClient.sendPhoneNumber(phoneNumber) } }
+    }
+
+    fun telegramSendCode(code: String) {
+        viewModelScope.launch { runCatching { telegramClient.sendCode(code) } }
+    }
+
+    fun telegramSendPassword(password: String) {
+        viewModelScope.launch { runCatching { telegramClient.sendPassword(password) } }
+    }
+
+    fun telegramLoadChats() {
+        viewModelScope.launch {
+            _telegramUiState.value = TelegramImportUiState.LoadingChats
+            telegramClient.getChats().onSuccess { chats ->
+                _telegramUiState.value = TelegramImportUiState.ChatPicker(chats)
+            }.onFailure { e ->
+                _telegramUiState.value = TelegramImportUiState.Error(e.message ?: "Failed to load chats")
+            }
+        }
+    }
+
+    fun telegramImportChat(chat: TelegramChatSummary) {
+        // Show the loading state the instant the chat is tapped - the first real progress event
+        // can take a moment (TDLib has to fetch chat history, then resolve/search the first track).
+        _telegramUiState.value = TelegramImportUiState.Importing(
+            chat,
+            ImportProgress(totalScanned = 0, matched = 0, downloadedOffline = 0, failed = 0, skippedDuplicate = 0, currentTitle = null),
+        )
+        viewModelScope.launch {
+            telegramImportRepo.importChat(chat.chatId).collect { progress ->
+                _telegramUiState.value = TelegramImportUiState.Importing(chat, progress)
+            }
+            (_telegramUiState.value as? TelegramImportUiState.Importing)?.let {
+                _telegramUiState.value = TelegramImportUiState.Summary(chat, it.progress)
+            }
+        }
+    }
+
+    fun telegramReset() {
+        _telegramUiState.value = TelegramImportUiState.SignedOut
+    }
+
+    fun telegramLogOut() {
+        viewModelScope.launch {
+            telegramClient.logOut()
+            _telegramUiState.value = TelegramImportUiState.SignedOut
+        }
+    }
 
     fun exportToFile(uri: Uri) {
         viewModelScope.launch {
@@ -202,6 +293,16 @@ sealed class ScImportState {
     data object Searching : ScImportState()
 }
 
+/** BETA: local UI state for the Telegram import flow, layered on top of [TelegramAuthState]. */
+sealed class TelegramImportUiState {
+    data object SignedOut : TelegramImportUiState()
+    data object LoadingChats : TelegramImportUiState()
+    data class ChatPicker(val chats: List<TelegramChatSummary>) : TelegramImportUiState()
+    data class Importing(val chat: TelegramChatSummary, val progress: ImportProgress) : TelegramImportUiState()
+    data class Summary(val chat: TelegramChatSummary, val progress: ImportProgress) : TelegramImportUiState()
+    data class Error(val message: String) : TelegramImportUiState()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImportExportScreen(
@@ -315,10 +416,27 @@ fun ImportExportScreen(
             )
 
             RoundedDivider()
+
+            TelegramImportSection(
+                available = viewModel.telegramAvailable,
+                authState = viewModel.telegramAuthState.collectAsState().value,
+                uiState = viewModel.telegramUiState.collectAsState().value,
+                onStart = { viewModel.telegramStart() },
+                onSendPhone = { viewModel.telegramSendPhone(it) },
+                onSendCode = { viewModel.telegramSendCode(it) },
+                onSendPassword = { viewModel.telegramSendPassword(it) },
+                onLoadChats = { viewModel.telegramLoadChats() },
+                onImportChat = { viewModel.telegramImportChat(it) },
+                onReset = { viewModel.telegramReset() },
+                onLogOut = { viewModel.telegramLogOut() },
+            )
+
+            RoundedDivider()
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SoundCloudImportSection(
     scState: ScImportState,
@@ -388,7 +506,7 @@ private fun SoundCloudImportSection(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 12.dp)
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    LoadingIndicator(modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(12.dp))
                     Text(stringResource(R.string.import_sc_resolving), style = MaterialTheme.typography.bodyMedium)
                 }
@@ -399,7 +517,7 @@ private fun SoundCloudImportSection(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 12.dp)
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    LoadingIndicator(modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(12.dp))
                     Text(stringResource(R.string.import_sc_searching), style = MaterialTheme.typography.bodyMedium)
                 }
@@ -488,7 +606,7 @@ private fun SoundCloudImportSection(
                     modifier = Modifier.padding(vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    LoadingIndicator(modifier = Modifier.size(24.dp))
                     Spacer(Modifier.height(8.dp))
                     if (scState.isPlaylists) {
                         Text(stringResource(R.string.import_sc_fetching_playlists, scState.progress), style = MaterialTheme.typography.bodyMedium)
@@ -546,7 +664,7 @@ private fun SoundCloudImportSection(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(vertical = 12.dp)
                 ) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    LoadingIndicator(modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(12.dp))
                     Text(stringResource(R.string.import_sc_importing), style = MaterialTheme.typography.bodyMedium)
                 }
@@ -570,6 +688,287 @@ private fun SoundCloudImportSection(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun TelegramImportSection(
+    available: Boolean,
+    authState: TelegramAuthState,
+    uiState: TelegramImportUiState,
+    onStart: () -> Unit,
+    onSendPhone: (String) -> Unit,
+    onSendCode: (String) -> Unit,
+    onSendPassword: (String) -> Unit,
+    onLoadChats: () -> Unit,
+    onImportChat: (TelegramChatSummary) -> Unit,
+    onReset: () -> Unit,
+    onLogOut: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.AutoMirrored.Filled.Send,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Column {
+                Text(stringResource(R.string.import_tg_title), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    stringResource(R.string.import_tg_beta),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(R.string.import_tg_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        if (!available) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(16.dp)
+            ) {
+                Text(stringResource(R.string.import_tg_unavailable), style = MaterialTheme.typography.bodyMedium)
+            }
+            return
+        }
+
+        when (authState) {
+            is TelegramAuthState.Unavailable -> Text(
+                stringResource(R.string.import_tg_unavailable),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            is TelegramAuthState.LoggedOut -> TextButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.import_tg_start))
+            }
+
+            is TelegramAuthState.Connecting -> LoadingRow(stringResource(R.string.import_tg_connecting))
+
+            is TelegramAuthState.WaitPhoneNumber -> {
+                var phone by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    placeholder = { Text(stringResource(R.string.import_tg_phone_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { onSendPhone(phone) }, enabled = phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.import_tg_send_phone))
+                }
+            }
+
+            is TelegramAuthState.WaitCode -> {
+                var code by remember { mutableStateOf("") }
+                Text(
+                    stringResource(R.string.import_tg_code_sent, authState.phoneNumber),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    placeholder = { Text(stringResource(R.string.import_tg_code_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { onSendCode(code) }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.import_tg_send_code))
+                }
+            }
+
+            is TelegramAuthState.WaitPassword -> {
+                var password by remember { mutableStateOf("") }
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = { Text(authState.passwordHint ?: stringResource(R.string.import_tg_password_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                TextButton(onClick = { onSendPassword(password) }, enabled = password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.import_tg_send_password))
+                }
+            }
+
+            is TelegramAuthState.Error -> Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(16.dp)
+            ) {
+                Text(authState.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onStart) { Text(stringResource(R.string.import_sc_dismiss)) }
+            }
+
+            is TelegramAuthState.Ready -> when (uiState) {
+                is TelegramImportUiState.SignedOut -> Row {
+                    TextButton(onClick = onLoadChats) { Text(stringResource(R.string.import_tg_load_chats)) }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onLogOut) { Text(stringResource(R.string.import_tg_log_out)) }
+                }
+
+                is TelegramImportUiState.LoadingChats -> LoadingRow(stringResource(R.string.import_tg_loading_chats))
+
+                is TelegramImportUiState.ChatPicker -> Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .padding(16.dp)
+                ) {
+                    Text(stringResource(R.string.import_tg_select_chat), style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(12.dp))
+                    uiState.chats.forEach { chat ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onImportChat(chat) }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AsyncImage(
+                                model = chat.avatarUrl,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp).clip(CircleShape),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(chat.title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+
+                is TelegramImportUiState.Importing -> {
+                    val progress = uiState.progress
+                    Column(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        LoadingIndicator(modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            stringResource(R.string.import_tg_progress, progress.processed, progress.currentTitle ?: ""),
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Text(
+                            stringResource(R.string.import_tg_progress_stats, progress.matched, progress.downloadedOffline, progress.failed, progress.skippedDuplicate),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (progress.recentResults.isNotEmpty()) {
+                            Spacer(Modifier.height(12.dp))
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                    .padding(8.dp),
+                            ) {
+                                progress.recentResults.forEach { item -> ImportResultRow(item) }
+                            }
+                        }
+                    }
+                }
+
+                is TelegramImportUiState.Summary -> {
+                    val progress = uiState.progress
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .padding(16.dp)
+                    ) {
+                        Text(stringResource(R.string.import_tg_done), style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.import_tg_progress_stats, progress.matched, progress.downloadedOffline, progress.failed, progress.skippedDuplicate),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.import_sc_dismiss))
+                        }
+                    }
+                }
+
+                is TelegramImportUiState.Error -> Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(16.dp)
+                ) {
+                    Text(uiState.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = onReset) { Text(stringResource(R.string.import_sc_dismiss)) }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun LoadingRow(label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
+        LoadingIndicator(modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun ImportResultRow(item: ImportItemResult) {
+    val (icon, tint) = when (item.status) {
+        ImportItemStatus.MATCHED -> Icons.Filled.CheckCircle to MaterialTheme.colorScheme.primary
+        ImportItemStatus.DOWNLOADED_OFFLINE -> Icons.Filled.CloudDone to MaterialTheme.colorScheme.tertiary
+        ImportItemStatus.FAILED -> Icons.Filled.ErrorOutline to MaterialTheme.colorScheme.error
+        ImportItemStatus.SKIPPED_DUPLICATE -> Icons.Filled.CheckCircle to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    ) {
+        Icon(icon, contentDescription = item.status.name, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            item.resolvedTitle,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

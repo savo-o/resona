@@ -62,10 +62,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.components.TrackArtwork
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -279,6 +279,7 @@ private fun LibrarySmallCard(
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RecentlyPlayedItem(
     track: Track,
@@ -328,13 +329,11 @@ private fun RecentlyPlayedItem(
             modifier = Modifier.size(120.dp),
             contentAlignment = Alignment.Center,
         ) {
-            AsyncImage(
-                model = track.artworkUrl?.replace("-large", "-t500x500"),
+            TrackArtwork(
+                artworkUrl = track.artworkUrl,
                 contentDescription = track.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(RoundedCornerShape(20.dp)),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.size(120.dp),
             )
             if (isPlaying) {
                 Box(
@@ -380,9 +379,8 @@ private fun RecentlyPlayedItem(
                         .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    androidx.compose.material3.CircularProgressIndicator(
+                    androidx.compose.material3.LoadingIndicator(
                         modifier = Modifier.size(28.dp),
-                        strokeWidth = 3.dp,
                         color = MaterialTheme.colorScheme.inverseSurface,
                     )
                 }
