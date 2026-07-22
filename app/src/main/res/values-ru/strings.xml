@@ -3,6 +3,7 @@
     <string name="app_name">Resona</string>
 
     <!-- Navigation -->
+    <string name="nav_home">Главная</string>
     <string name="nav_search">Поиск</string>
     <string name="nav_library">Библиотека</string>
     <string name="nav_favorites">Избранное</string>
@@ -13,6 +14,17 @@
     <string name="nav_favorite_artists">Избранные исполнители</string>
     <string name="nav_favorite_playlists">Избранные плейлисты</string>
     <string name="nav_import_export">Импорт / Экспорт</string>
+
+    <!-- Home -->
+    <string name="home_mix_line1">Ваш</string>
+    <string name="home_mix_line2">Микс</string>
+    <string name="home_mix_subtitle_count">%d треков в вашем миксе</string>
+    <string name="home_mix_empty_title">Начните слушать</string>
+    <string name="home_mix_empty_desc">Включите трек или добавьте избранное, чтобы собрать микс</string>
+    <string name="home_section_jump_back_in">Продолжить слушать</string>
+    <string name="home_section_favorites">Из избранного</string>
+    <string name="home_section_offline">Доступно офлайн</string>
+    <string name="home_section_artists">Ваши исполнители</string>
 
     <!-- Search -->
     <string name="search_hint">Треки, исполнители, альбомы…</string>
@@ -40,6 +52,9 @@
     <string name="library_artists_count">%d исполнителей</string>
     <string name="library_recently_played">Недавние треки</string>
     <string name="offline_empty">Пока нет офлайн треков</string>
+    <string name="offline_import_folder">Импорт из папки</string>
+    <string name="offline_import_result">Импортировано треков: %1$d, пропущено: %2$d</string>
+    <string name="offline_import_result_no_skip">Импортировано треков: %1$d</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Избранное</string>
@@ -163,6 +178,9 @@
     <string name="import_tg_load_chats">Выбрать чат</string>
     <string name="import_tg_log_out">Выйти</string>
     <string name="import_tg_loading_chats">Загрузка чатов…</string>
+    <string name="import_tg_select_folder">Найти чат</string>
+    <string name="import_tg_all_chats">Все чаты</string>
+    <string name="import_tg_pinned">Закреплён</string>
     <string name="import_tg_select_chat">Выберите чат для сканирования</string>
     <string name="import_tg_progress">Сканирование… обработано %1$d\n%2$s</string>
     <string name="import_tg_progress_stats">Найдено %1$d · Офлайн %2$d · Ошибок %3$d · Уже в библиотеке %4$d</string>

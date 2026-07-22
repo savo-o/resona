@@ -73,6 +73,15 @@ fun SearchScreen(
     val playerState by viewModel.playerController.state.collectAsState()
     val history by viewModel.history.collectAsState()
 
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.navEvent.collect { event ->
+            when (event) {
+                is SearchNavEvent.Artist -> onArtistClick(event.userId)
+                is SearchNavEvent.Playlist -> onPlaylistClick(event.playlistId)
+            }
+        }
+    }
+
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_search)) }) }
     ) { padding ->
@@ -205,7 +214,7 @@ fun SearchScreen(
                     }
 
                     when {
-                        state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        state.isLoading || state.isResolvingLink -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             LoadingIndicator()
                         }
                         state.error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

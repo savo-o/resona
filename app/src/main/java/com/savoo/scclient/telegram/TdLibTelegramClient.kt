@@ -41,9 +41,12 @@ class TdLibTelegramClient @Inject constructor(
     // Every UpdateXxx TDLib pushes asynchronously (not tied to a specific request/response) is
     // replayed here so other methods (e.g. file download progress) can subscribe to just the
     // updates they care about without a second, separate update-routing mechanism.
-    private val updates = MutableSharedFlow<TdApi.Object>(extraBufferCapacity = 64)
+    private val updates = MutableSharedFlow<TdApi.Object>(extraBufferCapacity = 256)
 
     private var lastPhoneNumber: String = ""
+
+    private val _chatFolders = MutableStateFlow<List<TelegramChatFolder>>(emptyList())
+    override val chatFolders: StateFlow<List<TelegramChatFolder>> = _chatFolders
 
     /** fileId -> chatId for avatar downloads kicked off but not yet finished. */
     private val pendingChatAvatars = ConcurrentHashMap<Int, Long>()
@@ -58,6 +61,9 @@ class TdLibTelegramClient @Inject constructor(
 
     private fun onUpdate(obj: TdApi.Object) {
         if (obj is TdApi.UpdateAuthorizationState) handleAuthState(obj.authorizationState)
+        if (obj is TdApi.UpdateChatFolders) {
+            _chatFolders.value = obj.chatFolders.map { TelegramChatFolder(it.id, it.name.text.text) }
+        }
         updates.tryEmit(obj)
     }
 
@@ -112,8 +118,15 @@ class TdLibTelegramClient @Inject constructor(
         send(TdApi.LogOut())
     }
 
-    override suspend fun getChats(limit: Int): Result<List<TelegramChatSummary>> = runCatching {
-        val chatIds = (send(TdApi.GetChats(TdApi.ChatListMain(), limit)) as TdApi.Chats).chatIds
+    override suspend fun getChats(chatList: TelegramChatList, limit: Int): Result<List<TelegramChatSummary>> = runCatching {
+        val tdList: TdApi.ChatList = when (chatList) {
+            is TelegramChatList.Main -> TdApi.ChatListMain()
+            is TelegramChatList.Folder -> TdApi.ChatListFolder(chatList.folderId)
+        }
+        // GetChats already returns chat ids pre-sorted for this exact list (pinned chats first, in
+        // their pinned order, then the rest by recent activity) - same order the real Telegram app
+        // shows, so there's no need to re-derive that ordering client-side.
+        val chatIds = (send(TdApi.GetChats(tdList, limit)) as TdApi.Chats).chatIds
         chatIds.map { chatId ->
             val chat = send(TdApi.GetChat(chatId)) as TdApi.Chat
             val type = chat.type
@@ -122,8 +135,15 @@ class TdLibTelegramClient @Inject constructor(
                 title = chat.title,
                 avatarUrl = resolveOrQueueChatAvatar(chat),
                 isChannel = type is TdApi.ChatTypeSupergroup && type.isChannel,
+                isPinned = chat.positions.orEmpty().any { it.isPinned && it.list.matches(tdList) },
             )
         }
+    }
+
+    private fun TdApi.ChatList.matches(other: TdApi.ChatList): Boolean = when (this) {
+        is TdApi.ChatListMain -> other is TdApi.ChatListMain
+        is TdApi.ChatListFolder -> other is TdApi.ChatListFolder && other.chatFolderId == chatFolderId
+        else -> false
     }
 
     /**
@@ -180,7 +200,21 @@ class TdLibTelegramClient @Inject constructor(
     }
 
     override fun downloadFile(fileId: Int, expectedSizeBytes: Long, limitBytes: Long): Flow<Pair<Float, File?>> = callbackFlow {
-        send(TdApi.DownloadFile(fileId, 1, 0, limitBytes, false))
+        fun isDone(file: TdApi.File): Boolean =
+            file.local.isDownloadingCompleted || (limitBytes > 0 && file.local.downloadedPrefixSize >= limitBytes)
+
+        // The direct result of DownloadFile is the file's state AT THE MOMENT of the call - if the
+        // file happens to already be fully (or, for a prefix request, sufficiently) downloaded right
+        // then (common with Telegram's content-dedup: the same audio shared across many messages, or
+        // our own earlier ID3-prefix fetch having already pulled a small file in full), no *new*
+        // UpdateFile event will ever fire, and only listening on the update stream would hang forever.
+        val initial = runCatching { send(TdApi.DownloadFile(fileId, 1, 0, limitBytes, false)) as? TdApi.File }.getOrNull()
+        if (initial != null && isDone(initial)) {
+            trySendBlocking(1f to File(initial.local.path))
+            close()
+            return@callbackFlow
+        }
+
         val job = scope.launch {
             updates
                 .filter { it is TdApi.UpdateFile && it.file.id == fileId }
@@ -189,8 +223,7 @@ class TdLibTelegramClient @Inject constructor(
                     val size = expectedSizeBytes.takeIf { it > 0 } ?: file.expectedSize.takeIf { it > 0 } ?: file.size
                     val target = if (limitBytes > 0) minOf(limitBytes, size.takeIf { it > 0 } ?: limitBytes) else size
                     val progress = if (target > 0) (file.local.downloadedPrefixSize.toFloat() / target).coerceIn(0f, 1f) else 0f
-                    val prefixReady = limitBytes > 0 && file.local.downloadedPrefixSize >= limitBytes
-                    if (file.local.isDownloadingCompleted || prefixReady) {
+                    if (isDone(file)) {
                         trySendBlocking(1f to File(file.local.path))
                         close()
                     } else {

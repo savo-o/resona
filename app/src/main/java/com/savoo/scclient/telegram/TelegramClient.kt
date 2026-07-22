@@ -21,7 +21,10 @@ interface TelegramClient {
     suspend fun sendPassword(password: String)
     suspend fun logOut()
 
-    suspend fun getChats(limit: Int = 200): Result<List<TelegramChatSummary>>
+    /** The user's configured Telegram folders, as pushed by TDLib once available after sign-in. */
+    val chatFolders: StateFlow<List<TelegramChatFolder>>
+
+    suspend fun getChats(chatList: TelegramChatList = TelegramChatList.Main, limit: Int = 200): Result<List<TelegramChatSummary>>
 
     /** Emits (chatId, local file uri) as chat avatars queued by [getChats] finish downloading. */
     fun observeChatAvatarUpdates(): Flow<Pair<Long, String>>

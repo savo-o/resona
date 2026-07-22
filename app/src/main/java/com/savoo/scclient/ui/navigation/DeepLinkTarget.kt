@@ -14,7 +14,18 @@ sealed class DeepLinkTarget {
         )
 
         fun fromIntent(intent: Intent): DeepLinkTarget {
+            if (intent.action == Intent.ACTION_SEND) {
+                val shared = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return None
+                val url = Regex("""https?://\S+""").find(shared)?.value?.trimEnd('.', ',', ';', '!', '?', ')', '"', '\'') ?: return None
+                return fromUrl(url)
+            }
+
             val data = intent.data ?: return None
+            return fromUrl(data.toString())
+        }
+
+        private fun fromUrl(rawUrl: String): DeepLinkTarget {
+            val data = android.net.Uri.parse(rawUrl)
             val host = data.host ?: return None
             val path = data.pathSegments ?: return None
 

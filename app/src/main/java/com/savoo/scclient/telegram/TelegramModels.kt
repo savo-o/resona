@@ -17,7 +17,17 @@ data class TelegramChatSummary(
     val title: String,
     val avatarUrl: String? = null,
     val isChannel: Boolean = false,
+    val isPinned: Boolean = false,
 )
+
+/** A Telegram chat folder (as configured by the user in the Telegram app itself). */
+data class TelegramChatFolder(val id: Int, val name: String)
+
+/** Which chat list to read from - the unfiltered main list, or one specific folder. */
+sealed class TelegramChatList {
+    data object Main : TelegramChatList()
+    data class Folder(val folderId: Int) : TelegramChatList()
+}
 
 /** A `messageAudio` pulled from chat history, with whatever tags Telegram itself has for it. */
 data class TelegramAudioMessage(

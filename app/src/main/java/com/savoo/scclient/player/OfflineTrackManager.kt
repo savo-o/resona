@@ -1,6 +1,9 @@
 package com.savoo.scclient.player
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.model.OfflineTrack
@@ -16,6 +19,7 @@ import okhttp3.Request
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 @Singleton
 class OfflineTrackManager @Inject constructor(
@@ -215,4 +219,103 @@ class OfflineTrackManager @Inject constructor(
             false
         }
     }
+
+    data class LocalImportResult(val imported: Int, val skipped: Int)
+
+    private val audioExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma")
+
+    /**
+     * Imports every audio file found directly inside a user-picked folder (SAF tree Uri, non-recursive)
+     * into the offline library, reading title/artist/duration/embedded art via [MediaMetadataRetriever]
+     * rather than a hand-rolled tag parser so more formats than mp3 work out of the box.
+     */
+    suspend fun importLocalFolder(treeUri: Uri): LocalImportResult = withContext(Dispatchers.IO) {
+        var imported = 0
+        var skipped = 0
+        try {
+            val treeDocId = DocumentsContract.getTreeDocumentId(treeUri)
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, treeDocId)
+            context.contentResolver.query(
+                childrenUri,
+                arrayOf(
+                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    DocumentsContract.Document.COLUMN_MIME_TYPE,
+                ),
+                null, null, null,
+            )?.use { cursor ->
+                val idIdx = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val nameIdx = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                val mimeIdx = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(nameIdx) ?: continue
+                    val mime = cursor.getString(mimeIdx).orEmpty()
+                    val ext = name.substringAfterLast('.', "").lowercase()
+                    val looksAudio = mime.startsWith("audio/") || ext in audioExtensions
+                    if (!looksAudio) continue
+                    val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(idIdx))
+                    if (importLocalFile(docUri, name)) imported++ else skipped++
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("OfflineTrack", "importLocalFolder failed: ${e.message}")
+        }
+        LocalImportResult(imported, skipped)
+    }
+
+    private suspend fun importLocalFile(uri: Uri, displayName: String): Boolean {
+        return try {
+            val retriever = MediaMetadataRetriever()
+            retriever.setDataSource(context, uri)
+            val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                ?.takeIf { it.isNotBlank() } ?: displayName.substringBeforeLast('.')
+            val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                ?.takeIf { it.isNotBlank() } ?: "Unknown"
+            val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val embeddedArt = runCatching { retriever.embeddedPicture }.getOrNull()
+            retriever.release()
+
+            val trackId = syntheticLocalId(uri.toString())
+            val ext = displayName.substringAfterLast('.', "mp3")
+            val audioFile = File(offlineDir, "$trackId.$ext")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                audioFile.outputStream().use { output -> input.copyTo(output) }
+            } ?: return false
+            if (audioFile.length() <= 0) {
+                audioFile.delete()
+                return false
+            }
+
+            var artworkUrl: String? = null
+            if (embeddedArt != null) {
+                val artFile = File(offlineDir, "$trackId.jpg")
+                artFile.writeBytes(embeddedArt)
+                artworkUrl = "file://${artFile.absolutePath}"
+            }
+
+            offlineDao.saveTrack(
+                OfflineTrack(
+                    trackId = trackId,
+                    title = title,
+                    username = artist,
+                    artworkUrl = artworkUrl,
+                    durationMs = durationMs,
+                    permalinkUrl = null,
+                    userId = 0,
+                    userAvatarUrl = null,
+                    localPath = audioFile.absolutePath,
+                    fileSizeBytes = audioFile.length(),
+                )
+            )
+            true
+        } catch (e: Exception) {
+            Log.e("OfflineTrack", "importLocalFile failed for $displayName: ${e.message}")
+            false
+        }
+    }
+
+    /** Distinct negative namespace from Telegram's synthetic ids (see TelegramImportRepository) so the
+     * two schemes can't collide - real SoundCloud ids are always positive. */
+    private fun syntheticLocalId(key: String): Long =
+        -(abs(key.hashCode().toLong()) % 1_000_000_000L) - 2_000_000_000L
 }

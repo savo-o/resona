@@ -25,7 +25,9 @@ class TelegramUnavailableClient @Inject constructor() : TelegramClient {
     override suspend fun sendPassword(password: String) {}
     override suspend fun logOut() {}
 
-    override suspend fun getChats(limit: Int): Result<List<TelegramChatSummary>> =
+    override val chatFolders: StateFlow<List<TelegramChatFolder>> = MutableStateFlow(emptyList())
+
+    override suspend fun getChats(chatList: TelegramChatList, limit: Int): Result<List<TelegramChatSummary>> =
         Result.failure(IllegalStateException("Telegram import is not set up in this build"))
 
     override fun observeChatAvatarUpdates(): Flow<Pair<Long, String>> = emptyFlow()

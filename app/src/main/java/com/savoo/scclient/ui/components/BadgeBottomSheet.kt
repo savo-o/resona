@@ -1,11 +1,18 @@
 package com.savoo.scclient.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -21,6 +28,7 @@ data class BadgeInfo(
     val name: String,
     val title: String,
     val description: String,
+    val howToGetUrl: String? = null,
 )
 
 val badgeInfoMap = mapOf(
@@ -33,6 +41,7 @@ val badgeInfoMap = mapOf(
         name = "supporter",
         title = "Supporter Badge",
         description = "This user is a supporter of Resona.",
+        howToGetUrl = "https://t.me/resona_tg",
     ),
 )
 
@@ -42,6 +51,7 @@ fun BadgeBottomSheet(
     badge: String,
     profileName: String,
     onDismiss: () -> Unit,
+    onOpenUrl: (String) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState()
     val info = badgeInfoMap[badge] ?: BadgeInfo(badge, badge, "Unknown badge.")
@@ -81,6 +91,29 @@ fun BadgeBottomSheet(
             )
 
             Spacer(Modifier.height(24.dp))
+
+            info.howToGetUrl?.let { url ->
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenUrl(url) }
+                        .padding(horizontal = 4.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "How to get it",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    )
+                }
+            }
         }
     }
 }

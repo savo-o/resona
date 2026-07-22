@@ -3,6 +3,7 @@
     <string name="app_name">Resona</string>
 
     <!-- Navigation -->
+    <string name="nav_home">Home</string>
     <string name="nav_search">Search</string>
     <string name="nav_library">Library</string>
     <string name="nav_favorites">Favorites</string>
@@ -13,6 +14,17 @@
     <string name="nav_favorite_artists">Favorite Artists</string>
     <string name="nav_favorite_playlists">Favorite Playlists</string>
     <string name="nav_import_export">Import / Export</string>
+
+    <!-- Home -->
+    <string name="home_mix_line1">Your</string>
+    <string name="home_mix_line2">Mix</string>
+    <string name="home_mix_subtitle_count">%d tracks in your mix</string>
+    <string name="home_mix_empty_title">Start Listening</string>
+    <string name="home_mix_empty_desc">Play a track or add favorites to build your mix</string>
+    <string name="home_section_jump_back_in">Jump Back In</string>
+    <string name="home_section_favorites">From Your Favorites</string>
+    <string name="home_section_offline">Offline Ready</string>
+    <string name="home_section_artists">Your Artists</string>
 
     <!-- Search -->
     <string name="search_hint">Tracks, artists, albums…</string>
@@ -40,6 +52,9 @@
     <string name="library_artists_count">%d artists</string>
     <string name="library_recently_played">Recently Played</string>
     <string name="offline_empty">No offline tracks yet</string>
+    <string name="offline_import_folder">Import from folder</string>
+    <string name="offline_import_result">Imported %1$d tracks, skipped %2$d</string>
+    <string name="offline_import_result_no_skip">Imported %1$d tracks</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Favorites</string>
@@ -163,6 +178,9 @@
     <string name="import_tg_load_chats">Choose a chat</string>
     <string name="import_tg_log_out">Sign out</string>
     <string name="import_tg_loading_chats">Loading chats…</string>
+    <string name="import_tg_select_folder">Find a chat</string>
+    <string name="import_tg_all_chats">All chats</string>
+    <string name="import_tg_pinned">Pinned</string>
     <string name="import_tg_select_chat">Select a chat to scan</string>
     <string name="import_tg_progress">Scanning… %1$d processed\n%2$s</string>
     <string name="import_tg_progress_stats">Matched %1$d · Offline %2$d · Failed %3$d · Already in library %4$d</string>

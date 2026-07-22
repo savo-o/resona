@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import android.content.Intent
+import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -296,6 +297,7 @@ fun ArtistScreen(
             badge = badge,
             profileName = state.user?.fullName?.ifBlank { null } ?: state.user?.username ?: "",
             onDismiss = { selectedBadge = null },
+            onOpenUrl = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
         )
     }
 }

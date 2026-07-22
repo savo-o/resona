@@ -20,7 +20,7 @@ class LyricsRepository @Inject constructor(
     suspend fun getSyncedLyrics(track: Track): List<LyricsLine> {
         cache[track.id]?.let { return it }
 
-        val result = withContext(Dispatchers.IO) {
+        val outcome = withContext(Dispatchers.IO) {
             runCatching {
                 val durationSec = track.durationMs / 1000.0
                 val candidates = api.search(
@@ -32,10 +32,10 @@ class LyricsRepository @Inject constructor(
                     .minByOrNull { abs((it.duration ?: 0.0) - durationSec) }
                     ?.syncedLyrics
                     ?.let { parseLrc(it) }
-            }.getOrNull() ?: emptyList()
+                    ?: emptyList()
+            }
         }
-        cache[track.id] = result
-        return result
+        return outcome.getOrNull()?.also { cache[track.id] = it } ?: emptyList()
     }
 
     private fun cleanTitle(title: String): String =

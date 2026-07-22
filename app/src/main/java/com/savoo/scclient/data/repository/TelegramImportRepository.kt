@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -95,6 +96,14 @@ class TelegramImportRepository @Inject constructor(
     }
 
     private suspend fun importOne(message: TelegramAudioMessage): ImportItemResult = withContext(Dispatchers.IO) {
+        // A single stuck download or search call (TDLib edge cases, flaky network) used to be able to
+        // wedge one of the flatMapMerge slots forever, which on a large chat gradually starved the
+        // whole import down to zero throughput. Nothing here is allowed to run longer than this.
+        withTimeoutOrNull(TRACK_TIMEOUT_MS) { importOneInner(message) }
+            ?: ImportItemResult(message, message.title ?: "Untitled", message.performer, ImportItemStatus.FAILED, reason = "timed out")
+    }
+
+    private suspend fun importOneInner(message: TelegramAudioMessage): ImportItemResult {
         var title = message.title
         var performer = message.performer
 
@@ -125,12 +134,12 @@ class TelegramImportRepository @Inject constructor(
                     userAvatarUrl = match.user.avatarUrl,
                 )
             )
-            return@withContext ImportItemResult(message, resolvedTitle, performer, ImportItemStatus.MATCHED, match.id)
+            return ImportItemResult(message, resolvedTitle, performer, ImportItemStatus.MATCHED, match.id)
         }
 
         val file = downloadMessageFile(message)
         if (file == null) {
-            return@withContext ImportItemResult(message, resolvedTitle, performer, ImportItemStatus.FAILED, reason = "download failed")
+            return ImportItemResult(message, resolvedTitle, performer, ImportItemStatus.FAILED, reason = "download failed")
         }
         val syntheticId = syntheticTrackId(message.chatId, message.messageId)
         val saved = offlineTrackManager.adoptExternalFile(
@@ -140,7 +149,7 @@ class TelegramImportRepository @Inject constructor(
             durationMs = message.durationSec * 1000L,
             sourceFile = file,
         )
-        return@withContext if (saved) {
+        return if (saved) {
             ImportItemResult(message, resolvedTitle, performer, ImportItemStatus.DOWNLOADED_OFFLINE, syntheticId)
         } else {
             ImportItemResult(message, resolvedTitle, performer, ImportItemStatus.FAILED, reason = "could not save offline copy")
@@ -194,5 +203,6 @@ class TelegramImportRepository @Inject constructor(
         private const val IMPORT_CONCURRENCY = 4
         private const val ID3_PREFIX_BYTES = 256L * 1024L
         private const val RECENT_RESULTS_LIMIT = 6
+        private const val TRACK_TIMEOUT_MS = 45_000L
     }
 }

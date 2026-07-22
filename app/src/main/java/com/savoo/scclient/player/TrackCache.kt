@@ -9,11 +9,14 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,6 +31,8 @@ class TrackCache @Inject constructor(
         private const val PREFS_NAME = "track_cache"
         private const val KEY_TRACK_ORDER = "track_order"
         private const val KEY_TRACK_INFO_PREFIX = "track_info_"
+        private const val KEY_CACHE_FORMAT_VERSION = "cache_format_version"
+        private const val CACHE_FORMAT_VERSION = 2
     }
 
     private val audioDir: File by lazy {
@@ -37,36 +42,66 @@ class TrackCache @Inject constructor(
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    init {
+        // cacheAudioFile() used to write straight to the final path with no locking, so a file that
+        // exists and is non-empty wasn't a reliable signal that it's actually complete/uncorrupted -
+        // concurrent writers could have interleaved into it. Entries cached before this fix can't be
+        // told apart from good ones after the fact, so wipe the cache once and let it rebuild clean.
+        if (prefs.getInt(KEY_CACHE_FORMAT_VERSION, 1) < CACHE_FORMAT_VERSION) {
+            audioDir.listFiles()?.forEach { it.delete() }
+            prefs.edit().clear().putInt(KEY_CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION).apply()
+        }
+    }
+
+    // Guards concurrent cacheAudioFile() calls for the same track (e.g. background preload of an
+    // adjacent track racing a user directly jumping to play it) - without this, two writers could
+    // both open the final ".mp3" path at once and interleave writes into it. A reader elsewhere
+    // (getCachedFilePath's exists()+length()>0 check) can't tell a corrupt half-written file from
+    // a good one, so a caller could get handed silently-broken audio - this is what "track
+    // sometimes doesn't resolve/play" traced back to.
+    private val downloadLocks = ConcurrentHashMap<Long, Mutex>()
+
     fun getCachedFilePath(trackId: Long): String? {
         val file = File(audioDir, "$trackId.mp3")
         return if (file.exists() && file.length() > 0) file.absolutePath else null
     }
 
     suspend fun cacheAudioFile(track: Track, url: String) = withContext(Dispatchers.IO) {
-        val file = File(audioDir, "${track.id}.mp3")
-        if (file.exists() && file.length() > 0) return@withContext
+        val lock = downloadLocks.getOrPut(track.id) { Mutex() }
+        lock.withLock {
+            val file = File(audioDir, "${track.id}.mp3")
+            if (file.exists() && file.length() > 0) return@withLock
 
-        try {
-            val request = Request.Builder().url(url).build()
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                response.body?.byteStream()?.use { input ->
-                    file.outputStream().use { output ->
-                        input.copyTo(output)
+            // Download to a temp file and rename into place only once fully written, so no reader
+            // can ever observe a partial file at the canonical path (rename is atomic on the same
+            // volume - the file at `file` either doesn't exist yet or is complete, never half-written).
+            val tmpFile = File(audioDir, "${track.id}.mp3.tmp")
+            try {
+                val request = Request.Builder().url(url).build()
+                val response = httpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    response.body?.byteStream()?.use { input ->
+                        tmpFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
                     }
-                }
-                if (file.length() > 0) {
-                    cacheTrackInfo(track)
-                    evictOld()
+                    if (tmpFile.length() > 0 && tmpFile.renameTo(file)) {
+                        cacheTrackInfo(track)
+                        evictOld()
+                    } else {
+                        tmpFile.delete()
+                    }
                 } else {
-                    file.delete()
+                    response.close()
                 }
-            } else {
-                response.close()
+            } catch (_: Exception) {
+                tmpFile.delete()
             }
-        } catch (_: Exception) {
-            file.delete()
         }
+        // Conditional remove: only drop the map entry if it's still the Mutex instance we used - a
+        // concurrent caller may have already replaced it with a fresh one after this one was created
+        // but before this cleanup ran, and removing that newer entry would break its own locking.
+        downloadLocks.remove(track.id, lock)
     }
 
     fun cacheTrackInfo(track: Track) {

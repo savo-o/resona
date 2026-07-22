@@ -50,6 +50,14 @@
                 <data android:scheme="https" android:host="m.soundcloud.com" />
                 <data android:scheme="https" android:host="on.soundcloud.com" />
             </intent-filter>
+
+            <!-- Lets Resona show up in other apps' "Share" sheet (e.g. sharing a track link out of
+                 Chrome or the official SoundCloud app), which ACTION_VIEW alone doesn't cover. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <service

@@ -1,6 +1,7 @@
 package com.savoo.scclient.ui.navigation
 
 sealed class Screen(val route: String, val label: String) {
+    data object Home : Screen("home", "Home")
     data object Search : Screen("search", "Search")
     data object Library : Screen("library", "Library")
     data object Favorites : Screen("favorites", "Favorites")
@@ -18,4 +19,4 @@ sealed class Screen(val route: String, val label: String) {
     data object OfflineTracks : Screen("offline_tracks", "Offline Tracks")
 }
 
-val bottomNavScreens = listOf(Screen.Search, Screen.Library, Screen.Account)
+val bottomNavScreens = listOf(Screen.Home, Screen.Search, Screen.Library)

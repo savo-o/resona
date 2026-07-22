@@ -8,14 +8,19 @@ import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.remote.DeepLinkResult
+import com.savoo.scclient.data.remote.SoundCloudImportRepository
 import com.savoo.scclient.data.repository.SearchHistoryManager
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -34,8 +39,16 @@ data class SearchUiState(
     val artists: List<User> = emptyList(),
     val albums: List<Playlist> = emptyList(),
     val isLoading: Boolean = false,
+    val isResolvingLink: Boolean = false,
     val error: String? = null,
 )
+
+sealed class SearchNavEvent {
+    data class Artist(val userId: Long) : SearchNavEvent()
+    data class Playlist(val playlistId: Long) : SearchNavEvent()
+}
+
+private val SOUNDCLOUD_URL_REGEX = Regex("""^https?://(www\.|m\.|on\.)?soundcloud\.com/\S+""", RegexOption.IGNORE_CASE)
 
 @OptIn(FlowPreview::class)
 @UnstableApi
@@ -45,11 +58,15 @@ class SearchViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val searchHistory: SearchHistoryManager,
     private val offlineTrackManager: OfflineTrackManager,
+    private val scImportRepo: SoundCloudImportRepository,
     val playerController: PlayerController,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState = _uiState.asStateFlow()
+
+    private val _navEvent = MutableSharedFlow<SearchNavEvent>()
+    val navEvent: SharedFlow<SearchNavEvent> = _navEvent.asSharedFlow()
 
     val history = searchHistory.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -59,9 +76,17 @@ class SearchViewModel @Inject constructor(
         queryFlow
             .debounce(350)
             .distinctUntilChanged()
-            .onEach { q -> if (q.isNotBlank()) runSearch(q) else clearResults() }
+            .onEach { q ->
+                when {
+                    isSoundCloudUrl(q) -> clearResults()
+                    q.isNotBlank() -> runSearch(q)
+                    else -> clearResults()
+                }
+            }
             .launchIn(viewModelScope)
     }
+
+    private fun isSoundCloudUrl(query: String): Boolean = SOUNDCLOUD_URL_REGEX.matches(query.trim())
 
     fun onQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
@@ -70,8 +95,38 @@ class SearchViewModel @Inject constructor(
 
     fun onQuerySubmit() {
         val query = _uiState.value.query.trim()
-        if (query.isNotBlank()) {
+        if (query.isBlank()) return
+        if (isSoundCloudUrl(query)) {
+            resolveLink(query)
+        } else {
             viewModelScope.launch { searchHistory.add(query) }
+        }
+    }
+
+    /** Pasting a soundcloud.com link and hitting search opens it directly instead of text-searching for it. */
+    private fun resolveLink(url: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isResolvingLink = true, error = null)
+            scImportRepo.resolveUrl(url)
+                .onSuccess { result ->
+                    when (result) {
+                        is DeepLinkResult.User -> _navEvent.emit(SearchNavEvent.Artist(result.userId))
+                        is DeepLinkResult.Playlist -> _navEvent.emit(SearchNavEvent.Playlist(result.playlistId))
+                        is DeepLinkResult.Track -> {
+                            val track = runCatching { repository.getTrack(result.trackId) }.getOrNull()
+                            if (track != null) {
+                                playerController.playQueue(listOf(track), 0)
+                            } else {
+                                _uiState.value = _uiState.value.copy(error = "Track not found")
+                            }
+                        }
+                    }
+                    _uiState.value = _uiState.value.copy(isResolvingLink = false, query = "")
+                    queryFlow.value = ""
+                }
+                .onFailure { e ->
+                    _uiState.value = _uiState.value.copy(isResolvingLink = false, error = e.message ?: "Could not open link")
+                }
         }
     }
 

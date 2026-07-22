@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +42,7 @@ data class AboutLink(
 
 private val aboutLinks = listOf(
     AboutLink(Icons.Filled.Code, "GitHub", "https://github.com/savo-o/resona"),
+    AboutLink(Icons.AutoMirrored.Filled.Send, "Telegram", "https://t.me/resona_tg"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

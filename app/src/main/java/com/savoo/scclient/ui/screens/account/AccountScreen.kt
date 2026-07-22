@@ -64,6 +64,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import com.savoo.scclient.R
 import com.savoo.scclient.auth.AuthRepository
@@ -346,6 +347,7 @@ private fun LoggedInContent(
             badge = badge,
             profileName = user?.fullName?.ifBlank { null } ?: user?.username ?: "",
             onDismiss = { selectedBadge = null },
+            onOpenUrl = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
         )
     }
 }

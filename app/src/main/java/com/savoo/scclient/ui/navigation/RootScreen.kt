@@ -16,20 +16,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -49,6 +44,7 @@ import com.savoo.scclient.ui.screens.artist.ArtistScreen
 import com.savoo.scclient.ui.screens.favorites.FavoriteArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritePlaylistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritesScreen
+import com.savoo.scclient.ui.screens.home.HomeScreen
 import com.savoo.scclient.ui.screens.importexport.ImportExportScreen
 import com.savoo.scclient.ui.screens.library.LibraryScreen
 import com.savoo.scclient.ui.screens.offline.OfflineTracksScreen
@@ -58,13 +54,20 @@ import com.savoo.scclient.ui.screens.search.SearchScreen
 import com.savoo.scclient.ui.screens.settings.SettingsScreen
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 
-private val navOrder = listOf(Screen.Search.route, Screen.Library.route, Screen.Account.route)
+private val navOrder = listOf(Screen.Home.route, Screen.Search.route, Screen.Library.route)
 
 private fun iconFor(route: String): ImageVector = when (route) {
+    Screen.Home.route -> Icons.Filled.Home
     Screen.Search.route -> Icons.Filled.Search
     Screen.Library.route -> Icons.Filled.LibraryMusic
-    Screen.Account.route -> Icons.Filled.AccountCircle
-    else -> Icons.Filled.AccountCircle
+    else -> Icons.Filled.Home
+}
+
+private fun labelResFor(route: String): Int = when (route) {
+    Screen.Home.route -> R.string.nav_home
+    Screen.Search.route -> R.string.nav_search
+    Screen.Library.route -> R.string.nav_library
+    else -> R.string.nav_home
 }
 
 private fun slideTransition(
@@ -139,37 +142,25 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
         bottomBar = {
             Column {
                 PlayerSheet(onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) })
-                NavigationBar {
-                    bottomNavScreens.forEach { screen ->
-                        NavigationBarItem(
-                            selected = currentRoute == screen.route,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(iconFor(screen.route), contentDescription = screen.label) },
-                            label = {
-                                val labelResId = when (screen.route) {
-                                    Screen.Search.route -> R.string.nav_search
-                                    Screen.Library.route -> R.string.nav_library
-                                    Screen.Account.route -> R.string.nav_account
-                                    else -> 0
-                                }
-                                if (labelResId != 0) Text(stringResource(labelResId)) else Text(screen.label)
-                            }
-                        )
-                    }
-                }
+                ResonaDockBar(
+                    items = bottomNavScreens.map { it to iconFor(it.route) },
+                    currentRoute = currentRoute,
+                    labelFor = { screen -> stringResource(labelResFor(screen.route)) },
+                    onSelect = { screen ->
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
             }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
             NavHost(
                 navController = navController,
-                startDestination = Screen.Library.route,
+                startDestination = Screen.Home.route,
                 modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
                 enterTransition = {
                     val from = initialState.destination.route ?: return@NavHost fadeIn(spring())
@@ -204,6 +195,15 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     slideTransition(slideForward).second
                 },
             ) {
+                composable(Screen.Home.route) {
+                    HomeScreen(
+                        onAccount = { navController.navigate(Screen.Account.route) },
+                        onSettings = { navController.navigate(Screen.Settings.route) },
+                        onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) },
+                        onFavorites = { navController.navigate(Screen.Favorites.route) },
+                        onOfflineTracks = { navController.navigate(Screen.OfflineTracks.route) },
+                    )
+                }
                 composable(Screen.Search.route) {
                     SearchScreen(
                         onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) },

@@ -396,12 +396,32 @@ class PlayerController @Inject constructor(
     }
 
     fun playQueue(tracks: List<Track>, startIndex: Int = 0) {
-        queue.clear()
-        queue.addAll(tracks)
-        queueIndex = startIndex.coerceIn(0, tracks.lastIndex)
-        _state.update { it.copy(loadingTrackId = tracks[queueIndex].id) }
+        if (tracks.isEmpty()) return
+        val clampedStart = startIndex.coerceIn(0, tracks.lastIndex)
+
+        // Starting an unrelated queue (e.g. a different playlist) while shuffle is on used to leave
+        // shuffleEnabled=true and originalOrder pointing at the PREVIOUS queue: the toggle looked on
+        // but this queue played in order, and turning shuffle off would jump back to the old queue's
+        // tracks. Re-shuffle the new queue up front instead, same as toggleShuffle()'s own algorithm.
+        if (_state.value.shuffleEnabled) {
+            val startTrack = tracks[clampedStart]
+            originalOrder.clear()
+            originalOrder.addAll(tracks)
+            val rest = tracks.filterIndexed { i, _ -> i != clampedStart }.shuffled()
+            queue.clear()
+            queue.add(startTrack)
+            queue.addAll(rest)
+            queueIndex = 0
+        } else {
+            originalOrder.clear()
+            queue.clear()
+            queue.addAll(tracks)
+            queueIndex = clampedStart
+        }
+
+        _state.update { it.copy(loadingTrackId = queue[queueIndex].id) }
         updateQueueState()
-        doPlay(tracks[queueIndex])
+        doPlay(queue[queueIndex])
     }
 
     fun skipToNext() {

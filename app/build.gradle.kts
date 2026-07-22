@@ -114,6 +114,7 @@ dependencies {
     implementation(libs.moshi.kotlin)
 
     implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.session)
     implementation(libs.media3.common)
 

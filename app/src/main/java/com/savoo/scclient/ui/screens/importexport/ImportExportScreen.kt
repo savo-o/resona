@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -73,6 +75,8 @@ import com.savoo.scclient.telegram.ImportItemResult
 import com.savoo.scclient.telegram.ImportItemStatus
 import com.savoo.scclient.telegram.ImportProgress
 import com.savoo.scclient.telegram.TelegramAuthState
+import com.savoo.scclient.telegram.TelegramChatFolder
+import com.savoo.scclient.telegram.TelegramChatList
 import com.savoo.scclient.telegram.TelegramChatSummary
 import com.savoo.scclient.telegram.TelegramClient
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -103,6 +107,7 @@ class ImportExportViewModel @Inject constructor(
 
     val telegramAvailable = telegramClient.isAvailable
     val telegramAuthState = telegramClient.authState
+    val telegramChatFolders = telegramClient.chatFolders
     private val _telegramUiState = MutableStateFlow<TelegramImportUiState>(TelegramImportUiState.SignedOut)
     val telegramUiState = _telegramUiState.asStateFlow()
 
@@ -137,10 +142,15 @@ class ImportExportViewModel @Inject constructor(
         viewModelScope.launch { runCatching { telegramClient.sendPassword(password) } }
     }
 
+    /** Step 1 of picking a chat: show "find a chat" - which folder (or all chats) to look in. */
     fun telegramLoadChats() {
+        _telegramUiState.value = TelegramImportUiState.FolderPicker
+    }
+
+    fun telegramSelectFolder(chatList: TelegramChatList) {
         viewModelScope.launch {
             _telegramUiState.value = TelegramImportUiState.LoadingChats
-            telegramClient.getChats().onSuccess { chats ->
+            telegramClient.getChats(chatList).onSuccess { chats ->
                 _telegramUiState.value = TelegramImportUiState.ChatPicker(chats)
             }.onFailure { e ->
                 _telegramUiState.value = TelegramImportUiState.Error(e.message ?: "Failed to load chats")
@@ -296,6 +306,7 @@ sealed class ScImportState {
 /** BETA: local UI state for the Telegram import flow, layered on top of [TelegramAuthState]. */
 sealed class TelegramImportUiState {
     data object SignedOut : TelegramImportUiState()
+    data object FolderPicker : TelegramImportUiState()
     data object LoadingChats : TelegramImportUiState()
     data class ChatPicker(val chats: List<TelegramChatSummary>) : TelegramImportUiState()
     data class Importing(val chat: TelegramChatSummary, val progress: ImportProgress) : TelegramImportUiState()
@@ -421,11 +432,13 @@ fun ImportExportScreen(
                 available = viewModel.telegramAvailable,
                 authState = viewModel.telegramAuthState.collectAsState().value,
                 uiState = viewModel.telegramUiState.collectAsState().value,
+                folders = viewModel.telegramChatFolders.collectAsState().value,
                 onStart = { viewModel.telegramStart() },
                 onSendPhone = { viewModel.telegramSendPhone(it) },
                 onSendCode = { viewModel.telegramSendCode(it) },
                 onSendPassword = { viewModel.telegramSendPassword(it) },
                 onLoadChats = { viewModel.telegramLoadChats() },
+                onSelectFolder = { viewModel.telegramSelectFolder(it) },
                 onImportChat = { viewModel.telegramImportChat(it) },
                 onReset = { viewModel.telegramReset() },
                 onLogOut = { viewModel.telegramLogOut() },
@@ -697,11 +710,13 @@ private fun TelegramImportSection(
     available: Boolean,
     authState: TelegramAuthState,
     uiState: TelegramImportUiState,
+    folders: List<TelegramChatFolder>,
     onStart: () -> Unit,
     onSendPhone: (String) -> Unit,
     onSendCode: (String) -> Unit,
     onSendPassword: (String) -> Unit,
     onLoadChats: () -> Unit,
+    onSelectFolder: (TelegramChatList) -> Unit,
     onImportChat: (TelegramChatSummary) -> Unit,
     onReset: () -> Unit,
     onLogOut: () -> Unit,
@@ -836,6 +851,43 @@ private fun TelegramImportSection(
                     TextButton(onClick = onLogOut) { Text(stringResource(R.string.import_tg_log_out)) }
                 }
 
+                is TelegramImportUiState.FolderPicker -> Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .padding(16.dp)
+                ) {
+                    Text(stringResource(R.string.import_tg_select_folder), style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelectFolder(TelegramChatList.Main) }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.import_tg_all_chats), style = MaterialTheme.typography.bodyLarge)
+                    }
+                    folders.forEach { folder ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onSelectFolder(TelegramChatList.Folder(folder.id)) }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(12.dp))
+                            Text(folder.name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+
                 is TelegramImportUiState.LoadingChats -> LoadingRow(stringResource(R.string.import_tg_loading_chats))
 
                 is TelegramImportUiState.ChatPicker -> Column(
@@ -847,7 +899,9 @@ private fun TelegramImportSection(
                 ) {
                     Text(stringResource(R.string.import_tg_select_chat), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(12.dp))
-                    uiState.chats.forEach { chat ->
+                    // TDLib already returns chats pre-sorted (pinned first) for the requested list -
+                    // this sortedByDescending is just a defensive guarantee, not a re-derivation.
+                    uiState.chats.sortedByDescending { it.isPinned }.forEach { chat ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -863,6 +917,14 @@ private fun TelegramImportSection(
                             )
                             Spacer(Modifier.width(12.dp))
                             Text(chat.title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            if (chat.isPinned) {
+                                Icon(
+                                    Icons.Filled.PushPin,
+                                    contentDescription = stringResource(R.string.import_tg_pinned),
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
