@@ -1,6 +1,5 @@
 package com.savoo.scclient.ui.screens.favorites
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -8,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -18,7 +18,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -30,6 +29,7 @@ import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.ui.components.ArtistRow
+import com.savoo.scclient.ui.components.EmptyState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -80,9 +80,11 @@ fun FavoriteArtistsScreen(
         )
     }) { padding ->
         if (artists.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.favorite_artists_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            EmptyState(
+                icon = Icons.Filled.Person,
+                text = stringResource(R.string.favorite_artists_empty),
+                modifier = Modifier.padding(padding),
+            )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),

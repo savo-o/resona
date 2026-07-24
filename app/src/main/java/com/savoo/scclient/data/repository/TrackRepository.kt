@@ -108,6 +108,11 @@ class TrackRepository @Inject constructor(
         return allTracks
     }
 
+    // Single-page, no pagination - for lightweight "does this artist have anything new" lookups
+    // (e.g. the Home mix) where fetching an artist's full catalog would be wasteful.
+    suspend fun getUserTracksPage(userId: Long, limit: Int = 20): List<Track> =
+        api.getUserTracks(userId, limit = limit).collection
+
     suspend fun getPlaylist(id: Long): Playlist = api.getPlaylist(id)
 
     suspend fun resolvePlayableUrl(track: Track): String? {

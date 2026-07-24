@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,37 +24,37 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
@@ -60,6 +62,12 @@ import com.savoo.scclient.R
 import com.savoo.scclient.ui.components.AlbumRow
 import com.savoo.scclient.ui.components.ArtistRow
 import com.savoo.scclient.ui.components.TrackRow
+
+private fun iconFor(tab: SearchTab): ImageVector = when (tab) {
+    SearchTab.TRACKS -> Icons.Filled.MusicNote
+    SearchTab.ARTISTS -> Icons.Filled.Person
+    SearchTab.ALBUMS -> Icons.Filled.Album
+}
 
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -82,14 +90,26 @@ fun SearchScreen(
         }
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_search)) }) }
-    ) { padding ->
+    Scaffold { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             Column(Modifier.fillMaxSize()) {
-                TextField(
-                    value = state.query,
-                    onValueChange = viewModel::onQueryChange,
+                Text(
+                    text = stringResource(R.string.nav_search),
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                )
+
+                SearchBarDefaults.InputField(
+                    query = state.query,
+                    onQueryChange = viewModel::onQueryChange,
+                    onSearch = { viewModel.onQuerySubmit() },
+                    expanded = false,
+                    onExpandedChange = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
                     placeholder = { Text(stringResource(R.string.search_hint)) },
                     leadingIcon = {
                         Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -101,27 +121,9 @@ fun SearchScreen(
                             }
                         }
                     },
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        imeAction = ImeAction.Search,
-                        keyboardType = KeyboardType.Text,
-                    ),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                        onSearch = { viewModel.onQuerySubmit() }
-                    ),
-                    colors = TextFieldDefaults.colors(
-                        unfocusedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                        focusedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                        cursorColor = MaterialTheme.colorScheme.primary,
-                    ),
-                    textStyle = MaterialTheme.typography.bodyLarge,
-                    shape = MaterialTheme.shapes.extraLarge,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 )
+
+                Spacer(Modifier.height(8.dp))
 
                 if (state.query.isBlank() && history.isNotEmpty()) {
                     Row(
@@ -146,72 +148,54 @@ fun SearchScreen(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
-                    history.forEach { query ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.selectFromHistory(query) }
-                                .padding(horizontal = 20.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                Icons.Outlined.History,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(history, key = { it }) { query ->
+                            HistoryRow(
+                                query = query,
+                                onClick = { viewModel.selectFromHistory(query) },
+                                onRemove = { viewModel.removeHistoryItem(query) },
                             )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                query,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = { viewModel.removeHistoryItem(query) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Clear,
-                                    contentDescription = stringResource(R.string.search_remove),
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
                     }
                 } else {
                     val tabs = SearchTab.entries
                     val selectedIndex = tabs.indexOf(state.activeTab).coerceAtLeast(0)
-                    TabRow(
-                        selectedTabIndex = selectedIndex,
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        indicator = { tabPositions ->
-                            if (selectedIndex < tabPositions.size) {
-                                SecondaryIndicator(
-                                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedIndex]),
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        },
-                        divider = {},
+                    ButtonGroup(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 4.dp),
                     ) {
                         tabs.forEachIndexed { index, tab ->
-                            Tab(
-                                selected = selectedIndex == index,
-                                onClick = { viewModel.onTabChange(tab) },
-                                text = {
-                                    Text(
-                                        text = tab.label,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = if (selectedIndex == index) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            )
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                tabs.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = selectedIndex == index,
+                                onCheckedChange = { checked -> if (checked) viewModel.onTabChange(tab) },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Icon(
+                                    iconFor(tab),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(ToggleButtonDefaults.IconSize),
+                                )
+                                Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing))
+                                Text(
+                                    text = tab.label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
                         }
                     }
+
+                    Spacer(Modifier.height(4.dp))
 
                     when {
                         state.isLoading || state.isResolvingLink -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -299,6 +283,60 @@ fun SearchScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun HistoryRow(
+    query: String,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(MaterialShapes.Cookie9Sided.toShape())
+                    .background(color = MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.History,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                query,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = onRemove,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Clear,
+                    contentDescription = stringResource(R.string.search_remove),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

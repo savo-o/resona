@@ -5,7 +5,6 @@
     <!-- Navigation -->
     <string name="nav_home">Home</string>
     <string name="nav_search">Search</string>
-    <string name="nav_library">Library</string>
     <string name="nav_favorites">Favorites</string>
     <string name="nav_account">Account</string>
     <string name="nav_settings">Settings</string>
@@ -39,18 +38,7 @@
     <string name="search_clear_history">Clear</string>
     <string name="search_remove">Remove</string>
 
-    <!-- Library -->
-    <string name="library_title">Library</string>
-    <string name="library_favorites">Favorites</string>
-    <string name="library_albums">Albums</string>
-    <string name="library_artists">Artists</string>
-    <string name="library_playlists">Playlists</string>
     <string name="library_offline">Offline Tracks</string>
-    <string name="library_offline_count">%d tracks</string>
-    <string name="library_tracks_count">%d tracks</string>
-    <string name="library_playlists_count">%d playlists</string>
-    <string name="library_artists_count">%d artists</string>
-    <string name="library_recently_played">Recently Played</string>
     <string name="offline_empty">No offline tracks yet</string>
     <string name="offline_import_folder">Import from folder</string>
     <string name="offline_import_result">Imported %1$d tracks, skipped %2$d</string>

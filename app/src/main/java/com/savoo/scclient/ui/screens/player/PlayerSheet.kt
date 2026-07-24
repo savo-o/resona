@@ -16,6 +16,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -121,27 +122,52 @@ import kotlin.math.sin
 fun PlayerSheet(
     onArtistClick: (Long) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel(),
+    dockBar: @Composable () -> Unit,
 ) {
     val state by viewModel.controller.state.collectAsState()
     val glowColor by viewModel.controller.seedColor.collectAsState()
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
-
-    val track = state.currentTrack ?: return
+    val track = state.currentTrack
 
     BackHandler(enabled = showFullPlayer) { showFullPlayer = false }
 
-    MiniPlayer(
-        state = state,
-        isFavorite = viewModel.isFavorite.collectAsState().value,
-        onExpand = { showFullPlayer = true },
-        onTogglePlay = { viewModel.controller.togglePlayPause() },
-        onToggleFavorite = { viewModel.toggleFavorite() },
-        onNext = { viewModel.controller.skipToNext() },
-        onPrev = { viewModel.controller.skipToPrevious() },
-        onArtistClick = onArtistClick,
-    )
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .navigationBarsPadding()
+            // Extra clearance on top of the system nav-bar inset: on some devices (MIUI's gesture
+            // nav in particular) touches near the very bottom edge get eaten by the OS gesture
+            // recognizer before this composable ever sees them, even though the reported inset says
+            // there's room - buttons placed right at that boundary can end up untappable.
+            .padding(bottom = 8.dp),
+    ) {
+        Column {
+            if (track != null) {
+                MiniPlayerRow(
+                    track = track,
+                    state = state,
+                    isFavorite = viewModel.isFavorite.collectAsState().value,
+                    onExpand = { showFullPlayer = true },
+                    onTogglePlay = { viewModel.controller.togglePlayPause() },
+                    onToggleFavorite = { viewModel.toggleFavorite() },
+                    onNext = { viewModel.controller.skipToNext() },
+                    onPrev = { viewModel.controller.skipToPrevious() },
+                )
+                Spacer(Modifier.height(6.dp))
+                androidx.compose.material3.HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                )
+            }
+            dockBar()
+        }
+    }
 
-    if (showFullPlayer) {
+    if (showFullPlayer && track != null) {
         FullPlayerSheet(
             state = state,
             isFavorite = viewModel.isFavorite.collectAsState().value,
@@ -225,9 +251,12 @@ private fun FullPlayerSheet(
     }
 }
 
+private val PlayButtonShape = RoundedCornerShape(16.dp)
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun MiniPlayer(
+private fun MiniPlayerRow(
+    track: com.savoo.scclient.data.model.Track,
     state: PlaybackState,
     isFavorite: Boolean,
     onExpand: () -> Unit,
@@ -235,9 +264,7 @@ private fun MiniPlayer(
     onToggleFavorite: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
-    onArtistClick: (Long) -> Unit = {},
 ) {
-    val track = state.currentTrack ?: return
     var heartAnimating by remember { mutableStateOf(false) }
     val heartScale by animateFloatAsState(
         targetValue = if (heartAnimating) 1.4f else 1f,
@@ -246,24 +273,46 @@ private fun MiniPlayer(
         finishedListener = { heartAnimating = false }
     )
 
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(24.dp),
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+        label = "miniPlayerPress",
+    )
+
+    val playInteractionSource = remember { MutableInteractionSource() }
+    val isPlayPressed by playInteractionSource.collectIsPressedAsState()
+    val playScale by animateFloatAsState(
+        targetValue = if (isPlayPressed) 0.88f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+        label = "miniPlayButtonScale",
+    )
+
+    val progress = if (state.durationMs > 0) {
+        (state.positionMs.toFloat() / state.durationMs.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(300, easing = LinearEasing),
+        label = "miniPlayerProgress",
+    )
+
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .navigationBarsPadding()
-            .clickable { onExpand() }
+            .scale(pressScale)
+            .clickable(interactionSource = interactionSource, indication = null) { onExpand() },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             TrackArtwork(
                 artworkUrl = track.artworkUrl,
                 contentDescription = null,
-                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                modifier = Modifier.size(40.dp),
             )
             Column(modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(
@@ -280,48 +329,75 @@ private fun MiniPlayer(
                 )
             }
             if (state.hasPrev) {
-                IconButton(onClick = onPrev, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
                     Icon(
                         Icons.Filled.SkipPrevious,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
-            IconButton(onClick = onTogglePlay, modifier = Modifier.size(44.dp)) {
-                if (state.isBuffering) {
-                    LoadingIndicator(
-                        modifier = Modifier.size(22.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                } else {
-                    Icon(
-                        if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(30.dp),
-                    )
+            Surface(
+                onClick = onTogglePlay,
+                interactionSource = playInteractionSource,
+                shape = PlayButtonShape,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .size(42.dp)
+                    .scale(playScale),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (state.isBuffering) {
+                        LoadingIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        Icon(
+                            if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 }
             }
             if (state.hasNext) {
-                IconButton(onClick = onNext, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
                     Icon(
                         Icons.Filled.SkipNext,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
-            IconButton(onClick = { heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = { heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = null,
                     tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.scale(heartScale),
+                    modifier = Modifier.scale(heartScale).size(20.dp),
                 )
             }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 5.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animatedProgress)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.primary),
+            )
         }
     }
 }

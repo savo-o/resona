@@ -22,7 +22,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,8 +37,9 @@ import androidx.compose.ui.unit.dp
 private val PillShape = RoundedCornerShape(50)
 
 /**
- * Floating pill-shaped dock bar: the selected destination expands into an
- * icon+label pill, unselected destinations collapse down to a bare icon.
+ * Row of destinations meant to sit inside a shared bottom container (see
+ * PlayerSheet): the selected destination expands into an icon+label pill,
+ * unselected destinations collapse down to a bare icon.
  */
 @Composable
 fun ResonaDockBar(
@@ -49,31 +49,24 @@ fun ResonaDockBar(
     labelFor: @Composable (Screen) -> String,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
-        shape = PillShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 3.dp,
-        shadowElevation = 6.dp,
+            .height(52.dp)
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items.forEach { (screen, icon) ->
-                DockItem(
-                    icon = icon,
-                    label = labelFor(screen),
-                    selected = currentRoute == screen.route,
-                    onClick = { onSelect(screen) },
-                )
-            }
+        items.forEach { (screen, icon) ->
+            DockItem(
+                icon = icon,
+                label = labelFor(screen),
+                selected = currentRoute == screen.route,
+                onClick = {
+                    android.util.Log.d("ResonaDockBar", "tapped ${screen.route}")
+                    onSelect(screen)
+                },
+            )
         }
     }
 }
@@ -93,17 +86,17 @@ private fun DockItem(
         label = "dockPress",
     )
     val bgColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
         animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
         label = "dockBg",
     )
     val contentColor by androidx.compose.animation.animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
         label = "dockContent",
     )
     val horizontalPadding by animateDpAsState(
-        targetValue = if (selected) 20.dp else 14.dp,
+        targetValue = if (selected) 18.dp else 12.dp,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         label = "dockPadding",
     )
@@ -119,14 +112,14 @@ private fun DockItem(
                 indication = null,
                 onClick = onClick,
             )
-            .padding(horizontal = horizontalPadding, vertical = 14.dp),
+            .padding(horizontal = horizontalPadding, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = if (selected) null else label,
             tint = contentColor,
-            modifier = Modifier.height(24.dp),
+            modifier = Modifier.height(22.dp),
         )
         AnimatedVisibility(
             visible = selected,

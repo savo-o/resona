@@ -8,8 +8,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,8 +35,12 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -44,6 +50,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -359,94 +366,116 @@ fun ImportExportScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
+                .padding(vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            RoundedDivider()
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { exportLauncher.launch("resona_favorites.json") }
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.FileUpload,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.export_favorites), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.export_favorites_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            ImportExportSectionCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { exportLauncher.launch("resona_favorites.json") }
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.FileUpload,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.export_favorites), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.export_favorites_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                ImportExportDivider()
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { importLauncher.launch(arrayOf("application/json")) }
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.FileDownload,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.import_favorites), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.import_favorites_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
-            RoundedDivider()
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { importLauncher.launch(arrayOf("application/json")) }
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.FileDownload,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+            ImportExportSectionCard {
+                SoundCloudImportSection(
+                    scState = scState,
+                    scInput = scInput,
+                    onInputChange = { scInput = it },
+                    onResolve = { viewModel.scResolveProfile(scInput) },
+                    onFetchAndPreview = { viewModel.scFetchAndPreview(it) },
+                    onResolveProfile = { viewModel.scSelectProfile(it) },
+                    onImport = { tracks, playlists, replace -> viewModel.scImport(tracks, playlists, replace) },
+                    onReset = { scInput = ""; viewModel.scReset() },
+                    onErrorDismiss = { viewModel.scReset() },
                 )
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.import_favorites), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.import_favorites_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
-            RoundedDivider()
-
-            SoundCloudImportSection(
-                scState = scState,
-                scInput = scInput,
-                onInputChange = { scInput = it },
-                onResolve = { viewModel.scResolveProfile(scInput) },
-                onFetchAndPreview = { viewModel.scFetchAndPreview(it) },
-                onResolveProfile = { viewModel.scSelectProfile(it) },
-                onImport = { tracks, playlists, replace -> viewModel.scImport(tracks, playlists, replace) },
-                onReset = { scInput = ""; viewModel.scReset() },
-                onErrorDismiss = { viewModel.scReset() },
-            )
-
-            RoundedDivider()
-
-            TelegramImportSection(
-                available = viewModel.telegramAvailable,
-                authState = viewModel.telegramAuthState.collectAsState().value,
-                uiState = viewModel.telegramUiState.collectAsState().value,
-                folders = viewModel.telegramChatFolders.collectAsState().value,
-                onStart = { viewModel.telegramStart() },
-                onSendPhone = { viewModel.telegramSendPhone(it) },
-                onSendCode = { viewModel.telegramSendCode(it) },
-                onSendPassword = { viewModel.telegramSendPassword(it) },
-                onLoadChats = { viewModel.telegramLoadChats() },
-                onSelectFolder = { viewModel.telegramSelectFolder(it) },
-                onImportChat = { viewModel.telegramImportChat(it) },
-                onReset = { viewModel.telegramReset() },
-                onLogOut = { viewModel.telegramLogOut() },
-            )
-
-            RoundedDivider()
+            ImportExportSectionCard {
+                TelegramImportSection(
+                    available = viewModel.telegramAvailable,
+                    authState = viewModel.telegramAuthState.collectAsState().value,
+                    uiState = viewModel.telegramUiState.collectAsState().value,
+                    folders = viewModel.telegramChatFolders.collectAsState().value,
+                    onStart = { viewModel.telegramStart() },
+                    onSendPhone = { viewModel.telegramSendPhone(it) },
+                    onSendCode = { viewModel.telegramSendCode(it) },
+                    onSendPassword = { viewModel.telegramSendPassword(it) },
+                    onLoadChats = { viewModel.telegramLoadChats() },
+                    onSelectFolder = { viewModel.telegramSelectFolder(it) },
+                    onImportChat = { viewModel.telegramImportChat(it) },
+                    onReset = { viewModel.telegramReset() },
+                    onLogOut = { viewModel.telegramLogOut() },
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun ImportExportSectionCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun ImportExportDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 20.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+    )
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -505,7 +534,7 @@ private fun SoundCloudImportSection(
 
                 Spacer(Modifier.height(12.dp))
 
-                TextButton(
+                Button(
                     onClick = onResolve,
                     enabled = scInput.isNotBlank(),
                     modifier = Modifier.fillMaxWidth(),
@@ -609,7 +638,7 @@ private fun SoundCloudImportSection(
                     Row {
                         TextButton(onClick = onReset) { Text(stringResource(R.string.import_sc_cancel)) }
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { onFetchAndPreview(profile) }) { Text(stringResource(R.string.import_sc_fetch)) }
+                        Button(onClick = { onFetchAndPreview(profile) }) { Text(stringResource(R.string.import_sc_fetch)) }
                     }
                 }
             }
@@ -659,14 +688,16 @@ private fun SoundCloudImportSection(
                         )
                     }
                     Spacer(Modifier.height(12.dp))
-                    TextButton(
-                        onClick = { onImport(preview.tracks, preview.playlists, true) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.import_sc_replace)) }
-                    TextButton(
-                        onClick = { onImport(preview.tracks, preview.playlists, false) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.import_sc_merge)) }
+                    ButtonGroup(modifier = Modifier.fillMaxWidth()) {
+                        FilledTonalButton(
+                            onClick = { onImport(preview.tracks, preview.playlists, false) },
+                            modifier = Modifier.weight(1f),
+                        ) { Text(stringResource(R.string.import_sc_merge)) }
+                        Button(
+                            onClick = { onImport(preview.tracks, preview.playlists, true) },
+                            modifier = Modifier.weight(1f),
+                        ) { Text(stringResource(R.string.import_sc_replace)) }
+                    }
                     Spacer(Modifier.height(4.dp))
                     TextButton(onClick = onReset, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.import_sc_cancel)) }
                 }
@@ -772,7 +803,7 @@ private fun TelegramImportSection(
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            is TelegramAuthState.LoggedOut -> TextButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+            is TelegramAuthState.LoggedOut -> Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.import_tg_start))
             }
 
@@ -789,7 +820,7 @@ private fun TelegramImportSection(
                     shape = RoundedCornerShape(16.dp),
                 )
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = { onSendPhone(phone) }, enabled = phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSendPhone(phone) }, enabled = phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.import_tg_send_phone))
                 }
             }
@@ -811,7 +842,7 @@ private fun TelegramImportSection(
                     shape = RoundedCornerShape(16.dp),
                 )
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = { onSendCode(code) }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSendCode(code) }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.import_tg_send_code))
                 }
             }
@@ -827,7 +858,7 @@ private fun TelegramImportSection(
                     shape = RoundedCornerShape(16.dp),
                 )
                 Spacer(Modifier.height(12.dp))
-                TextButton(onClick = { onSendPassword(password) }, enabled = password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSendPassword(password) }, enabled = password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.import_tg_send_password))
                 }
             }
@@ -845,8 +876,8 @@ private fun TelegramImportSection(
             }
 
             is TelegramAuthState.Ready -> when (uiState) {
-                is TelegramImportUiState.SignedOut -> Row {
-                    TextButton(onClick = onLoadChats) { Text(stringResource(R.string.import_tg_load_chats)) }
+                is TelegramImportUiState.SignedOut -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = onLoadChats) { Text(stringResource(R.string.import_tg_load_chats)) }
                     Spacer(Modifier.weight(1f))
                     TextButton(onClick = onLogOut) { Text(stringResource(R.string.import_tg_log_out)) }
                 }
@@ -1032,16 +1063,4 @@ private fun ImportResultRow(item: ImportItemResult) {
             modifier = Modifier.weight(1f),
         )
     }
-}
-
-@Composable
-private fun RoundedDivider() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(2.dp)
-            .clip(RoundedCornerShape(1.dp))
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-    )
 }

@@ -5,19 +5,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -35,21 +28,31 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -192,18 +195,77 @@ class SettingsViewModel @Inject constructor(
 }
 
 @Composable
-private fun RoundedDivider() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(2.dp)
-            .clip(RoundedCornerShape(1.dp))
-            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+private fun SettingsDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun SettingsSectionCard(
+    title: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        title?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 4.dp, bottom = 10.dp),
+            )
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            Column(content = content)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ColorThemeSwatch(
+    theme: AppColorTheme,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = if (selected) MaterialShapes.Cookie9Sided.toShape() else CircleShape
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(64.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(shape)
+                .background(theme.seedPrimary)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            theme.displayName,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -237,286 +299,130 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Text(
-                stringResource(R.string.settings_color_theme),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(16.dp)
-            )
-            FlowRow(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AppColorTheme.entries.filter { it != AppColorTheme.DYNAMIC_TRACK }.forEach { theme ->
-                    val selected = settings.colorTheme == theme
-                    val bgColor by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                        label = "themeBg"
-                    )
-                    val textColor by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                        label = "themeText"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(bgColor)
-                            .then(
-                                if (!selected) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                                else Modifier
-                            )
-                            .clickable { viewModel.setColorTheme(theme) }
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(theme.seedPrimary)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                theme.displayName,
-                                color = textColor,
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
+            Spacer(Modifier.height(0.dp))
+
+            SettingsSectionCard(title = stringResource(R.string.settings_color_theme)) {
+                FlowRow(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    AppColorTheme.entries.filter { it != AppColorTheme.DYNAMIC_TRACK }.forEach { theme ->
+                        ColorThemeSwatch(
+                            theme = theme,
+                            selected = settings.colorTheme == theme,
+                            onClick = { viewModel.setColorTheme(theme) },
+                        )
                     }
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-            RoundedDivider()
-
-            Text(
-                stringResource(R.string.settings_dark_theme),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(16.dp)
-            )
-            FlowRow(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            SettingsSectionCard(title = stringResource(R.string.settings_dark_theme)) {
                 val modes = DarkModeOption.entries
                 val labelResIds = listOf(R.string.settings_dark_system, R.string.settings_dark_light, R.string.settings_dark_dark)
-                modes.forEachIndexed { index, mode ->
-                    val selected = settings.darkMode == mode
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    val scale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.92f else 1f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
-                        label = "darkChip",
-                    )
-                    val bgColor by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                        label = "darkBg"
-                    )
-                    val textColor by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                        label = "darkText"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .graphicsLayer { scaleX = scale; scaleY = scale }
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(bgColor)
-                            .then(
-                                if (!selected) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                                else Modifier
-                            )
-                            .clickable(interactionSource = interactionSource, indication = null) { viewModel.setDarkMode(mode) }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            stringResource(labelResIds[index]),
-                            color = textColor,
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    modes.forEachIndexed { index, mode ->
+                        val shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                        ToggleButton(
+                            checked = settings.darkMode == mode,
+                            onCheckedChange = { checked -> if (checked) viewModel.setDarkMode(mode) },
+                            modifier = Modifier.weight(1f),
+                            shapes = shapes,
+                        ) {
+                            Text(stringResource(labelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-            RoundedDivider()
-
-            Text(
-                stringResource(R.string.settings_language),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(16.dp)
-            )
-            FlowRow(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            SettingsSectionCard(title = stringResource(R.string.settings_language)) {
                 val languages = LanguageOption.entries
                 val langLabelResIds = listOf(R.string.settings_language_en, R.string.settings_language_ru)
-                languages.forEachIndexed { index, lang ->
-                    val selected = settings.language == lang
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    val scale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.92f else 1f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
-                        label = "langChip",
-                    )
-                    val bgColor by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                        label = "langBg"
-                    )
-                    val textColor by animateColorAsState(
-                        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                        label = "langText"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .graphicsLayer { scaleX = scale; scaleY = scale }
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(bgColor)
-                            .then(
-                                if (!selected) Modifier.border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
-                                else Modifier
-                            )
-                            .clickable(interactionSource = interactionSource, indication = null) {
-                                viewModel.setLanguage(lang)
-                                context.getSharedPreferences("sc_settings", android.content.Context.MODE_PRIVATE)
-                                    .edit().putString("language", lang.name).commit()
-                                activity?.recreate()
-                            }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            stringResource(langLabelResIds[index]),
-                            color = textColor,
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    languages.forEachIndexed { index, lang ->
+                        val shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            languages.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                        ToggleButton(
+                            checked = settings.language == lang,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    viewModel.setLanguage(lang)
+                                    context.getSharedPreferences("sc_settings", android.content.Context.MODE_PRIVATE)
+                                        .edit().putString("language", lang.name).commit()
+                                    activity?.recreate()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shapes = shapes,
+                        ) {
+                            Text(stringResource(langLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-            RoundedDivider()
-
-            SwitchItem(
-                title = stringResource(R.string.settings_dynamic_color),
-                subtitle = stringResource(R.string.settings_dynamic_color_desc),
-                checked = settings.dynamicFromTrack,
-                onCheckedChange = { viewModel.setDynamicFromTrack(it) }
-            )
-
-            RoundedDivider()
-
-            SwitchItem(
-                title = stringResource(R.string.settings_autoplay),
-                checked = autoplay,
-                onCheckedChange = { viewModel.setAutoplayNext(it) }
-            )
-
-            RoundedDivider()
-
-            SwitchItem(
-                title = stringResource(R.string.settings_developer_mode),
-                subtitle = stringResource(R.string.settings_developer_mode_desc),
-                checked = settings.developerMode,
-                onCheckedChange = { viewModel.setDeveloperMode(it) }
-            )
-
-            RoundedDivider()
-
-            Text(
-                stringResource(R.string.settings_storage),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(16.dp)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Filled.Folder,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            SettingsSectionCard {
+                SwitchItem(
+                    title = stringResource(R.string.settings_dynamic_color),
+                    subtitle = stringResource(R.string.settings_dynamic_color_desc),
+                    checked = settings.dynamicFromTrack,
+                    onCheckedChange = { viewModel.setDynamicFromTrack(it) }
                 )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_cache), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        cacheSize,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                SettingsDivider()
+                SwitchItem(
+                    title = stringResource(R.string.settings_autoplay),
+                    checked = autoplay,
+                    onCheckedChange = { viewModel.setAutoplayNext(it) }
+                )
+                SettingsDivider()
+                SwitchItem(
+                    title = stringResource(R.string.settings_developer_mode),
+                    subtitle = stringResource(R.string.settings_developer_mode_desc),
+                    checked = settings.developerMode,
+                    onCheckedChange = { viewModel.setDeveloperMode(it) }
+                )
+            }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_storage)) {
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .clickable {
-                            viewModel.clearCache {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(context.getString(R.string.settings_cache_cleared))
-                                }
-                            }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Filled.Delete,
+                        Icons.Filled.Folder,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(R.string.settings_clear),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-            }
-
-            RoundedDivider()
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Filled.CloudDownload,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_offline_tracks), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.settings_offline_tracks_count, offlineCount, offlineSize),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (offlineCount > 0) {
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_cache), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            cacheSize,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(MaterialTheme.colorScheme.errorContainer)
                             .clickable {
-                                viewModel.clearOffline {
+                                viewModel.clearCache {
                                     scope.launch {
-                                        snackbarHostState.showSnackbar(context.getString(R.string.settings_offline_cleared))
+                                        snackbarHostState.showSnackbar(context.getString(R.string.settings_cache_cleared))
                                     }
                                 }
                             }
@@ -537,65 +443,115 @@ fun SettingsScreen(
                         )
                     }
                 }
-            }
 
-            RoundedDivider()
+                SettingsDivider()
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Send,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp).padding(top = 2.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_telegram_disclaimer_title), style = MaterialTheme.typography.bodyLarge)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.settings_telegram_disclaimer_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.CloudDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_offline_tracks), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_offline_tracks_count, offlineCount, offlineSize),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (offlineCount > 0) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .clickable {
+                                    viewModel.clearOffline {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(context.getString(R.string.settings_offline_cleared))
+                                        }
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                stringResource(R.string.settings_clear),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
                 }
             }
 
-            RoundedDivider()
-
-            Text(
-                stringResource(R.string.settings_about),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(16.dp)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showAbout = true }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    Icons.Filled.Info,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            SettingsSectionCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Send,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp).padding(top = 2.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_telegram_disclaimer_title), style = MaterialTheme.typography.bodyLarge)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.settings_telegram_disclaimer_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_about)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showAbout = true }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
         }
     }
 

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -83,8 +85,10 @@ private val BlobShape = RoundedCornerShape(
 fun HomeScreen(
     onAccount: () -> Unit = {},
     onSettings: () -> Unit = {},
+    onImportExport: () -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onFavorites: () -> Unit = {},
+    onFavoriteArtists: () -> Unit = {},
     onOfflineTracks: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -93,15 +97,12 @@ fun HomeScreen(
     val offlineTracks by viewModel.offlineTracks.collectAsState()
     val favoriteArtists by viewModel.favoriteArtists.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val mixTracks by viewModel.mixTracks.collectAsState()
+    val mixDataLoading by viewModel.isMixLoading.collectAsState()
 
     var recentTracks by remember { mutableStateOf(viewModel.playerController.getRecentTracks()) }
     LaunchedEffect(playerState.currentTrack?.id) {
         recentTracks = viewModel.playerController.getRecentTracks()
-    }
-
-    val mixTracks = remember(recentTracks, favoriteTracks, offlineTracks) {
-        val pool = (recentTracks + favoriteTracks + offlineTracks).distinctBy { it.id }
-        if (pool.isEmpty()) emptyList() else pool.shuffled()
     }
 
     var titleVisible by remember { mutableStateOf(false) }
@@ -125,18 +126,21 @@ fun HomeScreen(
             HomeTopBar(
                 avatarUrl = user?.avatarUrl,
                 onAccount = onAccount,
+                onImportExport = onImportExport,
                 onSettings = onSettings,
             )
 
+            val isMixQueueActive = playerState.queueTag == HomeViewModel.MIX_QUEUE_TAG
             HomeHero(
                 visible = titleVisible,
                 heroVisible = heroVisible,
                 mixTracks = mixTracks,
-                isMixPlaying = playerState.isPlaying && mixTracks.any { it.id == playerState.currentTrack?.id },
-                isMixLoading = playerState.loadingTrackId != null && mixTracks.any { it.id == playerState.loadingTrackId },
+                mixDataLoading = mixDataLoading,
+                isMixPlaying = playerState.isPlaying && isMixQueueActive,
+                isPlaybackBuffering = playerState.loadingTrackId != null && isMixQueueActive,
                 onPlayToggle = {
-                    val currentInMix = mixTracks.any { it.id == playerState.currentTrack?.id }
-                    if (currentInMix) {
+                    android.util.Log.d("HomeScreen", "onPlayToggle: isMixQueueActive=$isMixQueueActive queueTag=${playerState.queueTag} currentTrack=${playerState.currentTrack?.id} mixTracks.size=${mixTracks.size}")
+                    if (isMixQueueActive) {
                         viewModel.playerController.togglePlayPause()
                     } else {
                         viewModel.playMix(mixTracks)
@@ -199,6 +203,7 @@ fun HomeScreen(
                         title = stringResource(R.string.home_section_artists),
                         artists = favoriteArtists.take(10),
                         onArtistClick = onArtistClick,
+                        onSeeAll = onFavoriteArtists,
                     )
                 }
             }
@@ -234,6 +239,7 @@ private fun AnimatedSections(visible: Boolean, content: @Composable androidx.com
 private fun HomeTopBar(
     avatarUrl: String?,
     onAccount: () -> Unit,
+    onImportExport: () -> Unit,
     onSettings: () -> Unit,
 ) {
     Row(
@@ -267,6 +273,9 @@ private fun HomeTopBar(
             }
         }
         Spacer(Modifier.weight(1f))
+        IconButton(onClick = onImportExport) {
+            Icon(Icons.Filled.SwapHoriz, contentDescription = stringResource(R.string.nav_import_export))
+        }
         IconButton(onClick = onSettings) {
             Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.nav_settings))
         }
@@ -279,8 +288,9 @@ private fun HomeHero(
     visible: Boolean,
     heroVisible: Boolean,
     mixTracks: List<Track>,
+    mixDataLoading: Boolean,
     isMixPlaying: Boolean,
-    isMixLoading: Boolean,
+    isPlaybackBuffering: Boolean,
     onPlayToggle: () -> Unit,
 ) {
     val titleAlpha by animateFloatAsState(
@@ -348,12 +358,12 @@ private fun HomeHero(
                         .size(72.dp)
                         .scale(playButtonScale * pressScale),
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         when {
-                            isMixLoading -> LoadingIndicator(modifier = Modifier.size(28.dp))
+                            isPlaybackBuffering -> LoadingIndicator(modifier = Modifier.size(28.dp))
                             isMixPlaying -> Icon(Icons.Filled.Pause, contentDescription = stringResource(R.string.player_play), modifier = Modifier.size(30.dp))
                             else -> Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.player_play), modifier = Modifier.size(32.dp))
                         }
@@ -364,10 +374,10 @@ private fun HomeHero(
 
         Spacer(Modifier.height(20.dp))
 
-        if (mixTracks.isNotEmpty()) {
-            MixBlob(visible = heroVisible, mixTracks = mixTracks, onClick = onPlayToggle)
-        } else {
-            EmptyMixCard(visible = heroVisible)
+        when {
+            mixTracks.isNotEmpty() -> MixBlob(visible = heroVisible, mixTracks = mixTracks, onClick = onPlayToggle)
+            mixDataLoading -> LoadingMixCard(visible = heroVisible)
+            else -> EmptyMixCard(visible = heroVisible)
         }
     }
 }
@@ -404,8 +414,7 @@ private fun MixBlob(visible: Boolean, mixTracks: List<Track>, onClick: () -> Uni
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(300.dp)
-            .clickable(onClick = onClick),
+            .height(300.dp),
     ) {
         if (cornerTrack2 != null) {
             TrackArtwork(
@@ -443,6 +452,35 @@ private fun MixBlob(visible: Boolean, mixTracks: List<Track>, onClick: () -> Uni
                     scaleX = scale; scaleY = scale; this.alpha = alpha
                 },
         )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun LoadingMixCard(visible: Boolean) {
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
+        label = "loadingAlpha",
+    )
+    val infiniteTransition = rememberInfiniteTransition(label = "loadingShimmer")
+    val shimmerAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.5f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "shimmerAlpha",
+    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp)
+            .graphicsLayer { this.alpha = alpha },
+        shape = BlobShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = shimmerAlpha),
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            LoadingIndicator(modifier = Modifier.size(32.dp))
+        }
     }
 }
 
@@ -518,6 +556,7 @@ private fun SectionHeader(title: String, onSeeAll: (() -> Unit)?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onSeeAll != null) Modifier.clickable(onClick = onSeeAll) else Modifier)
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -603,9 +642,10 @@ private fun ArtistSection(
     title: String,
     artists: List<FavoriteArtist>,
     onArtistClick: (Long) -> Unit,
+    onSeeAll: (() -> Unit)? = null,
 ) {
     Column {
-        SectionHeader(title = title, onSeeAll = null)
+        SectionHeader(title = title, onSeeAll = onSeeAll)
         Spacer(Modifier.height(14.dp))
         LazyRow(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),

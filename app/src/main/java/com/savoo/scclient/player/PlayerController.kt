@@ -51,6 +51,11 @@ data class PlaybackState(
     val loadingTrackId: Long? = null,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    // Which playQueue() call is currently active, e.g. "home_mix" - lets a caller tell "is MY queue
+    // the one playing right now" apart from "does the current track merely also appear in my queue"
+    // (the two look the same if you only check track membership, but they're not: e.g. a track played
+    // from Jump Back In can also be part of the mix's pool without the mix itself being what's active).
+    val queueTag: String? = null,
 )
 
 @UnstableApi
@@ -71,6 +76,7 @@ class PlayerController @Inject constructor(
     val seedColor = _seedColor.asStateFlow()
     private val queue = mutableListOf<Track>()
     private var queueIndex = -1
+    private var currentQueueTag: String? = null
     // Snapshot of queue's order right before shuffling, so toggling shuffle off can restore it. Empty when shuffle is off.
     // Shuffling is handled entirely at this level (queue itself is reordered) rather than via ExoPlayer's native
     // shuffleModeEnabled - replaceMediaItem() turned out to internally remove+reinsert the period, which mutates
@@ -383,6 +389,7 @@ class PlayerController @Inject constructor(
     }
 
     fun play(track: Track) {
+        currentQueueTag = null
         _state.update { it.copy(loadingTrackId = track.id) }
         val idx = queue.indexOfFirst { it.id == track.id }
         if (idx >= 0) {
@@ -395,9 +402,17 @@ class PlayerController @Inject constructor(
         doPlay(track)
     }
 
-    fun playQueue(tracks: List<Track>, startIndex: Int = 0) {
+    fun playQueue(tracks: List<Track>, startIndex: Int = 0, repeatAll: Boolean = false, tag: String? = null) {
         if (tracks.isEmpty()) return
         val clampedStart = startIndex.coerceIn(0, tracks.lastIndex)
+        currentQueueTag = tag
+
+        // Session-only, not persisted to prefs (unlike cycleRepeatMode()) - a queue that wants to loop
+        // (e.g. the Home mix, which should feel near-endless) shouldn't silently change the user's
+        // saved repeat preference for every other queue they play afterwards.
+        if (repeatAll) {
+            controller?.repeatMode = Player.REPEAT_MODE_ALL
+        }
 
         // Starting an unrelated queue (e.g. a different playlist) while shuffle is on used to leave
         // shuffleEnabled=true and originalOrder pointing at the PREVIOUS queue: the toggle looked on
@@ -487,7 +502,8 @@ class PlayerController @Inject constructor(
         _state.update {
             it.copy(
                 hasNext = controller?.hasNextMediaItem() ?: (queueIndex < queue.lastIndex),
-                hasPrev = controller?.hasPreviousMediaItem() ?: (queueIndex > 0)
+                hasPrev = controller?.hasPreviousMediaItem() ?: (queueIndex > 0),
+                queueTag = currentQueueTag,
             )
         }
     }

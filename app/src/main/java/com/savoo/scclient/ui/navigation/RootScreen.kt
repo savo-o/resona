@@ -11,13 +11,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.padding
@@ -29,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.media3.common.util.UnstableApi
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -46,7 +43,6 @@ import com.savoo.scclient.ui.screens.favorites.FavoritePlaylistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritesScreen
 import com.savoo.scclient.ui.screens.home.HomeScreen
 import com.savoo.scclient.ui.screens.importexport.ImportExportScreen
-import com.savoo.scclient.ui.screens.library.LibraryScreen
 import com.savoo.scclient.ui.screens.offline.OfflineTracksScreen
 import com.savoo.scclient.ui.screens.player.PlayerSheet
 import com.savoo.scclient.ui.screens.playlist.PlaylistScreen
@@ -54,19 +50,17 @@ import com.savoo.scclient.ui.screens.search.SearchScreen
 import com.savoo.scclient.ui.screens.settings.SettingsScreen
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 
-private val navOrder = listOf(Screen.Home.route, Screen.Search.route, Screen.Library.route)
+private val navOrder = listOf(Screen.Home.route, Screen.Search.route)
 
 private fun iconFor(route: String): ImageVector = when (route) {
     Screen.Home.route -> Icons.Filled.Home
     Screen.Search.route -> Icons.Filled.Search
-    Screen.Library.route -> Icons.Filled.LibraryMusic
     else -> Icons.Filled.Home
 }
 
 private fun labelResFor(route: String): Int = when (route) {
     Screen.Home.route -> R.string.nav_home
     Screen.Search.route -> R.string.nav_search
-    Screen.Library.route -> R.string.nav_library
     else -> R.string.nav_home
 }
 
@@ -140,21 +134,23 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
 
     Scaffold(
         bottomBar = {
-            Column {
-                PlayerSheet(onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) })
-                ResonaDockBar(
-                    items = bottomNavScreens.map { it to iconFor(it.route) },
-                    currentRoute = currentRoute,
-                    labelFor = { screen -> stringResource(labelResFor(screen.route)) },
-                    onSelect = { screen ->
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                )
-            }
+            PlayerSheet(
+                onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) },
+                dockBar = {
+                    ResonaDockBar(
+                        items = bottomNavScreens.map { it to iconFor(it.route) },
+                        currentRoute = currentRoute,
+                        labelFor = { screen -> stringResource(labelResFor(screen.route)) },
+                        onSelect = { screen ->
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                    )
+                },
+            )
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
@@ -199,8 +195,10 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     HomeScreen(
                         onAccount = { navController.navigate(Screen.Account.route) },
                         onSettings = { navController.navigate(Screen.Settings.route) },
+                        onImportExport = { navController.navigate(Screen.ImportExport.route) },
                         onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) },
                         onFavorites = { navController.navigate(Screen.Favorites.route) },
+                        onFavoriteArtists = { navController.navigate(Screen.FavoriteArtists.route) },
                         onOfflineTracks = { navController.navigate(Screen.OfflineTracks.route) },
                     )
                 }
@@ -208,18 +206,6 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     SearchScreen(
                         onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) },
                         onPlaylistClick = { playlistId -> navController.navigate(Screen.Playlist.createRoute(playlistId)) },
-                    )
-                }
-                composable(Screen.Library.route) {
-                    val libraryViewModel = hiltViewModel<com.savoo.scclient.ui.screens.library.LibraryViewModel>()
-                    LibraryScreen(
-                        viewModel = libraryViewModel,
-                        onFavorites = { navController.navigate(Screen.Favorites.route) },
-                        onSettings = { navController.navigate(Screen.Settings.route) },
-                        onImportExport = { navController.navigate(Screen.ImportExport.route) },
-                        onFavoriteArtists = { navController.navigate(Screen.FavoriteArtists.route) },
-                        onFavoritePlaylists = { navController.navigate(Screen.FavoritePlaylists.route) },
-                        onOfflineTracks = { navController.navigate(Screen.OfflineTracks.route) },
                     )
                 }
                 composable(Screen.Favorites.route) {
