@@ -132,6 +132,37 @@
     <string name="settings_offline_cleared">Offline tracks cleared</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %s</string>
+    <string name="settings_debug_menu">Debug Menu</string>
+    <string name="settings_debug_menu_desc">Developer tools and diagnostics</string>
+
+    <!-- Debug Menu -->
+    <string name="debug_menu_title">Debug Menu</string>
+    <string name="debug_menu_build_info">Build Info</string>
+    <string name="debug_menu_version">Version</string>
+    <string name="debug_menu_build_type">Build Type</string>
+    <string name="debug_menu_application_id">Application ID</string>
+    <string name="debug_menu_device">Device</string>
+    <string name="debug_menu_client_id">SoundCloud Client ID</string>
+    <string name="debug_menu_client_id_current">Current: %s</string>
+    <string name="debug_menu_client_id_refresh">Refresh</string>
+    <string name="debug_menu_client_id_refreshed">Client ID refreshed</string>
+    <string name="debug_menu_client_id_override_hint">Manual override</string>
+    <string name="debug_menu_client_id_save">Set</string>
+    <string name="debug_menu_database">Local Database</string>
+    <string name="debug_menu_favorite_tracks">Favorite tracks: %d</string>
+    <string name="debug_menu_favorite_artists">Favorite artists: %d</string>
+    <string name="debug_menu_favorite_playlists">Favorite playlists: %d</string>
+    <string name="debug_menu_offline_tracks">Offline tracks: %d</string>
+    <string name="debug_menu_reset_database">Reset Local Database</string>
+    <string name="debug_menu_reset_database_desc">Wipes favorites, offline tracks and import history</string>
+    <string name="debug_menu_reset_database_done">Local database reset</string>
+    <string name="debug_menu_actions">Actions</string>
+    <string name="debug_menu_copy_report">Copy Debug Report</string>
+    <string name="debug_menu_copy_report_desc">Copies build, device and client info to clipboard</string>
+    <string name="debug_menu_copy">Copy</string>
+    <string name="debug_menu_report_copied">Debug report copied</string>
+    <string name="debug_menu_test_crash">Trigger Test Crash</string>
+    <string name="debug_menu_test_crash_desc">Force-crashes the app to test crash handling</string>
 
     <!-- Import / Export -->
     <string name="import_export_title">Import / Export</string>

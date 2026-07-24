@@ -132,7 +132,7 @@ fun ResonaTheme(
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
         motionScheme = MotionScheme.expressive(),
-        typography = SCTypography,
+        typography = rememberSCTypography(),
         content = content
     )
 }

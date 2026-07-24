@@ -38,6 +38,7 @@ import androidx.navigation.navArgument
 import com.savoo.scclient.R
 import com.savoo.scclient.ui.screens.account.AccountScreen
 import com.savoo.scclient.ui.screens.artist.ArtistScreen
+import com.savoo.scclient.ui.screens.debug.DebugMenuScreen
 import com.savoo.scclient.ui.screens.favorites.FavoriteArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritePlaylistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritesScreen
@@ -227,7 +228,13 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     AccountScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })
                 }
                 composable(Screen.Settings.route) {
-                    SettingsScreen(onBack = { navController.popBackStack() })
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenDebugMenu = { navController.navigate(Screen.DebugMenu.route) },
+                    )
+                }
+                composable(Screen.DebugMenu.route) {
+                    DebugMenuScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Screen.ImportExport.route) {
                     ImportExportScreen(onBack = { navController.popBackStack() })

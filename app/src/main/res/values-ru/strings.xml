@@ -132,6 +132,37 @@
     <string name="settings_offline_cleared">Офлайн треки очищены</string>
     <string name="settings_about">О приложении</string>
     <string name="settings_version">Версия %s</string>
+    <string name="settings_debug_menu">Меню отладки</string>
+    <string name="settings_debug_menu_desc">Инструменты и диагностика для разработки</string>
+
+    <!-- Debug Menu -->
+    <string name="debug_menu_title">Меню отладки</string>
+    <string name="debug_menu_build_info">Информация о сборке</string>
+    <string name="debug_menu_version">Версия</string>
+    <string name="debug_menu_build_type">Тип сборки</string>
+    <string name="debug_menu_application_id">ID приложения</string>
+    <string name="debug_menu_device">Устройство</string>
+    <string name="debug_menu_client_id">SoundCloud Client ID</string>
+    <string name="debug_menu_client_id_current">Текущий: %s</string>
+    <string name="debug_menu_client_id_refresh">Обновить</string>
+    <string name="debug_menu_client_id_refreshed">Client ID обновлён</string>
+    <string name="debug_menu_client_id_override_hint">Ручная замена</string>
+    <string name="debug_menu_client_id_save">Задать</string>
+    <string name="debug_menu_database">Локальная база данных</string>
+    <string name="debug_menu_favorite_tracks">Избранные треки: %d</string>
+    <string name="debug_menu_favorite_artists">Избранные артисты: %d</string>
+    <string name="debug_menu_favorite_playlists">Избранные плейлисты: %d</string>
+    <string name="debug_menu_offline_tracks">Офлайн треки: %d</string>
+    <string name="debug_menu_reset_database">Сбросить локальную базу данных</string>
+    <string name="debug_menu_reset_database_desc">Удаляет избранное, офлайн треки и историю импорта</string>
+    <string name="debug_menu_reset_database_done">Локальная база данных сброшена</string>
+    <string name="debug_menu_actions">Действия</string>
+    <string name="debug_menu_copy_report">Скопировать отчёт для отладки</string>
+    <string name="debug_menu_copy_report_desc">Копирует информацию о сборке, устройстве и client ID в буфер обмена</string>
+    <string name="debug_menu_copy">Копировать</string>
+    <string name="debug_menu_report_copied">Отчёт скопирован</string>
+    <string name="debug_menu_test_crash">Тестовый краш</string>
+    <string name="debug_menu_test_crash_desc">Принудительно роняет приложение для проверки обработки крашей</string>
 
     <!-- Import / Export -->
     <string name="import_export_title">Импорт / Экспорт</string>

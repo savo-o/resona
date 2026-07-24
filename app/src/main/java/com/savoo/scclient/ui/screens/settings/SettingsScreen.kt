@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
@@ -269,6 +270,7 @@ private fun ColorThemeSwatch(
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    onOpenDebugMenu: () -> Unit = {},
 ) {
     val settings by viewModel.settings.collectAsState()
     val autoplay by viewModel.autoplayNext.collectAsState()
@@ -390,6 +392,34 @@ fun SettingsScreen(
                     checked = settings.developerMode,
                     onCheckedChange = { viewModel.setDeveloperMode(it) }
                 )
+            }
+
+            if (settings.developerMode && (BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "canary")) {
+                SettingsSectionCard {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenDebugMenu() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.BugReport,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_debug_menu), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(R.string.settings_debug_menu_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
 
             SettingsSectionCard(title = stringResource(R.string.settings_storage)) {

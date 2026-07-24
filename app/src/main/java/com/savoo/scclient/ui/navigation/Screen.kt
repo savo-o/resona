@@ -16,6 +16,7 @@ sealed class Screen(val route: String, val label: String) {
     data object FavoritePlaylists : Screen("favorite_playlists", "Favorite Playlists")
     data object ImportExport : Screen("import_export", "Import / Export")
     data object OfflineTracks : Screen("offline_tracks", "Offline Tracks")
+    data object DebugMenu : Screen("debug_menu", "Debug Menu")
 }
 
 val bottomNavScreens = listOf(Screen.Home, Screen.Search)
