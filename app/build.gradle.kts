@@ -42,10 +42,18 @@ android {
     }
 
     buildTypes {
-        release {
+        val release by getting {
             isMinifyEnabled = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+        // Nightly builds off main, published as GitHub pre-releases by
+        // .github/workflows/canary.yml. Same signing key as release but a distinct
+        // applicationId/versionName suffix so it can be installed side-by-side.
+        create("canary") {
+            initWith(release)
+            applicationIdSuffix = ".canary"
+            versionNameSuffix = "-canary"
         }
         debug {
             isMinifyEnabled = false

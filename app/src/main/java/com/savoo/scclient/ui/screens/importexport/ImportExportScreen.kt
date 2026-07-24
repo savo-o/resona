@@ -275,6 +275,7 @@ class ImportExportViewModel @Inject constructor(
                     favoritesDao.getAllTracksSync().forEach { favoritesDao.removeTrack(it.trackId) }
                     favoritesDao.getAllPlaylistsSync().forEach { favoritesDao.removePlaylist(it.playlistId) }
                 }
+                // Local/offline favorites only - see import_sc_desc.
                 tracks.forEach { favoritesDao.addTrack(it) }
                 playlists.forEach { favoritesDao.addPlaylist(it) }
                 _message.value = context.getString(R.string.msg_sc_import_result, tracks.size)

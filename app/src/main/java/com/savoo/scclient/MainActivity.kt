@@ -3,6 +3,7 @@ package com.savoo.scclient
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -18,6 +19,7 @@ import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
+import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 import com.savoo.scclient.ui.navigation.RootScreen
@@ -33,8 +35,10 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var playerController: PlayerController
+    @Inject lateinit var webBridge: WebViewApiBridge
 
     private var deepLinkTarget by mutableStateOf<DeepLinkTarget>(DeepLinkTarget.None)
+    private var apiWebView: WebView? = null
 
     override fun attachBaseContext(newBase: Context) {
         val lang = try {
@@ -57,6 +61,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        apiWebView = WebView(this).apply {
+            // Must be attached to a real window (not just held in a field) - Android throttles
+            // JS timers/rendering ticks on WebViews that are never added to the view hierarchy,
+            // which otherwise makes the WebViewApiBridge's fetch calls succeed inconsistently.
+            // 1x1 + alpha 0 keeps it invisible without making it inactive (unlike GONE/detached).
+            alpha = 0f
+            addContentView(this, android.view.ViewGroup.LayoutParams(1, 1))
+            webBridge.setWebView(this)
+        }
 
         deepLinkTarget = DeepLinkTarget.fromIntent(intent)
 
@@ -133,6 +147,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        apiWebView?.destroy()
+        apiWebView = null
         playerController.saveState()
         super.onDestroy()
     }

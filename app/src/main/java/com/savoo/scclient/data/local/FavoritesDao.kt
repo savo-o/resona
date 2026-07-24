@@ -26,6 +26,9 @@ interface FavoritesDao {
     @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE trackId = :trackId)")
     suspend fun isTrackFavoriteSync(trackId: Long): Boolean
 
+    @Query("UPDATE favorites SET source = :source WHERE trackId = :trackId")
+    suspend fun updateTrackSource(trackId: Long, source: String)
+
     @Query("SELECT * FROM favorite_artists ORDER BY addedAt DESC")
     fun getAllArtists(): Flow<List<FavoriteArtist>>
 

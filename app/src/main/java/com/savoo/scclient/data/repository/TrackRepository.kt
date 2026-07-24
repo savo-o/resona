@@ -5,6 +5,7 @@ import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.SoundCloudApi
+import com.savoo.scclient.data.remote.WebViewApiBridge
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,6 +13,7 @@ import javax.inject.Singleton
 class TrackRepository @Inject constructor(
     private val api: SoundCloudApi,
     private val tokenStore: TokenStore,
+    private val webBridge: WebViewApiBridge,
 ) {
     private val TAG = "TrackRepository"
     private var cachedUserId: Long? = null
@@ -58,17 +60,22 @@ class TrackRepository @Inject constructor(
     }
 
     // Confirmed against the real soundcloud.com web client's own network calls: PUT/DELETE
-    // users/{ownUserId}/track_likes/{trackId} (not "me" - the real user id).
+    // users/{ownUserId}/track_likes/{trackId} (not "me" - the real user id). Routed through
+    // WebViewApiBridge because SoundCloud's edge protection (DataDome) blocks the PUT (create a
+    // like) from a plain HTTP client even with browser-shaped headers, but allows it from an
+    // actual WebView JS engine's own fetch.
     suspend fun likeTrack(trackId: Long) {
         val userId = currentUserId() ?: error("Not logged in")
-        val response = api.likeTrack(userId, trackId)
-        if (!response.isSuccessful) error("likeTrack failed: HTTP ${response.code()}")
+        val code = webBridge.likeTrack(userId, trackId)
+        if (code !in 200..299) error("likeTrack failed via WebView: HTTP $code")
     }
 
     suspend fun unlikeTrack(trackId: Long) {
         val userId = currentUserId() ?: error("Not logged in")
-        val response = api.unlikeTrack(userId, trackId)
-        if (!response.isSuccessful) error("unlikeTrack failed: HTTP ${response.code()}")
+        val code = webBridge.unlikeTrack(userId, trackId)
+        // A 404 here just means it was never liked online in the first place (e.g. a local-only
+        // favorite) - that's already the desired end state, not a real failure.
+        if (code !in 200..299 && code != 404) error("unlikeTrack failed via WebView: HTTP $code")
     }
 
     suspend fun searchPlaylists(query: String): List<Playlist> =

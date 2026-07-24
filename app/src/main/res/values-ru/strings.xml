@@ -138,9 +138,9 @@
     <string name="export_favorites">Экспорт избранного</string>
     <string name="export_favorites_desc">Сохранить треки, исполнителей и плейлисты в JSON-файл</string>
     <string name="import_favorites">Импорт избранного</string>
-    <string name="import_favorites_desc">Загрузить избранное из JSON-файла</string>
+    <string name="import_favorites_desc">Загрузить избранное из JSON-файла. Сохраняется только в локальное/оффлайн избранное — без синхронизации с вашими лайками на SoundCloud.</string>
     <string name="import_sc_title">Импорт с SoundCloud</string>
-    <string name="import_sc_desc">Введите имя пользователя или URL профиля SoundCloud</string>
+    <string name="import_sc_desc">Введите имя пользователя или URL профиля SoundCloud. Сохраняется только в локальное/оффлайн избранное — без синхронизации с вашими лайками на SoundCloud.</string>
     <string name="import_sc_hint">имя пользователя или soundcloud.com/username</string>
     <string name="import_sc_resolve">Найти профиль</string>
     <string name="import_sc_fetch">Загрузить лайки</string>
@@ -161,7 +161,7 @@
     <!-- Telegram import (BETA) -->
     <string name="import_tg_title">Импорт из Telegram</string>
     <string name="import_tg_beta">БЕТА</string>
-    <string name="import_tg_desc">Просканировать чат на аудио, найти совпадения в SoundCloud, а всё не найденное — добавить в офлайн-треки.</string>
+    <string name="import_tg_desc">Просканировать чат на аудио, найти совпадения в SoundCloud, а всё не найденное — добавить в офлайн-треки. Найденные совпадения сохраняются только в локальное/оффлайн избранное — без синхронизации с вашими лайками на SoundCloud.</string>
     <string name="import_tg_unavailable">Не настроено в этой сборке — см. инструкцию по настройке импорта из Telegram.</string>
     <string name="import_tg_start">Войти через Telegram</string>
     <string name="import_tg_connecting">Подключение…</string>
@@ -200,6 +200,7 @@
     <!-- About -->
     <string name="about_github">GitHub</string>
     <string name="about_version">Версия %1$s (%2$d)</string>
+    <string name="about_build_canary">Canary-build</string>
 
     <!-- Badges -->
     <string name="badge_developer">Значок разработчика</string>

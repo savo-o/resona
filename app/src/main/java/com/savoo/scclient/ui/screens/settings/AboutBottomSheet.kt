@@ -86,6 +86,15 @@ fun AboutBottomSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
+            if (BuildConfig.BUILD_TYPE == "canary") {
+                Text(
+                    text = stringResource(R.string.about_build_canary),
+                    style = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
             Spacer(Modifier.height(20.dp))
 
             HorizontalDivider(

@@ -43,6 +43,7 @@ import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
@@ -67,6 +68,7 @@ import javax.inject.Inject
 class FavoritesViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val trackRepository: TrackRepository,
+    private val favoritesRepository: FavoritesRepository,
     private val tokenStore: TokenStore,
     private val settingsRepository: SettingsRepository,
     @ApplicationContext private val context: Context,
@@ -74,6 +76,8 @@ class FavoritesViewModel @Inject constructor(
     val offlineTrackManager: OfflineTrackManager,
 ) : ViewModel() {
 
+    // Online likes are reconciled into this same Room table (see FavoritesRepository), so this
+    // single query already includes local, online, and both-sourced favorites, sorted naturally.
     val tracks = favoritesDao.getAllTracks().map { list ->
         list.map { fav ->
             Track(
@@ -87,11 +91,12 @@ class FavoritesViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val trackSources = favoritesDao.getAllTracks().map { list ->
+        list.associate { it.trackId to FavoriteSource.valueOf(it.source) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-
-    private val _onlineTracks = MutableStateFlow<List<Track>>(emptyList())
-    val onlineTracks = _onlineTracks.asStateFlow()
 
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
@@ -100,27 +105,26 @@ class FavoritesViewModel @Inject constructor(
         viewModelScope.launch {
             combine(tokenStore.isLoggedIn, onlineFavoritesEnabled) { loggedIn, enabled -> loggedIn && enabled }
                 .distinctUntilChanged()
-                .collect { active -> if (active) refreshOnline() else _onlineTracks.value = emptyList() }
+                .collect { active -> if (active) refreshOnline() }
         }
     }
 
-    private fun refreshOnline() {
+    fun refreshOnline() {
         viewModelScope.launch {
             runCatching { trackRepository.getLikedTracks() }
                 .onSuccess { result ->
                     android.util.Log.d("ResonaFavorites", "fetched ${result.size} online likes")
-                    _onlineTracks.value = result
+                    favoritesRepository.syncOnlineLikes(result)
                 }
                 .onFailure { e ->
                     android.util.Log.e("ResonaFavorites", "failed to fetch online likes", e)
-                    _onlineTracks.value = emptyList()
                     _message.value = context.getString(R.string.favorites_online_fetch_failed)
                 }
         }
     }
 
     fun playTrack(track: Track) {
-        val currentTracks = (tracks.value + onlineTracks.value).distinctBy { it.id }
+        val currentTracks = tracks.value
         val idx = currentTracks.indexOfFirst { it.id == track.id }
         playerController.playQueue(currentTracks, idx.coerceAtLeast(0))
     }
@@ -133,7 +137,6 @@ class FavoritesViewModel @Inject constructor(
             if (onlineFavoritesEnabled.value && tokenStore.isLoggedIn.value) {
                 runCatching { trackRepository.unlikeTrack(trackId) }
                     .onFailure { _message.value = context.getString(R.string.favorites_online_unlike_failed) }
-                refreshOnline()
             }
         }
     }
@@ -150,25 +153,19 @@ fun FavoritesScreen(
     viewModel: FavoritesViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
 ) {
-    val localTracks by viewModel.tracks.collectAsState()
-    val onlineTracks by viewModel.onlineTracks.collectAsState()
+    val tracks by viewModel.tracks.collectAsState()
+    val trackSources by viewModel.trackSources.collectAsState()
     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var searchQuery by remember { mutableStateOf("") }
 
-    val localIds = remember(localTracks) { localTracks.map { it.id }.toSet() }
-    val onlineIds = remember(onlineTracks) { onlineTracks.map { it.id }.toSet() }
-    val tracks = remember(localTracks, onlineTracks) { (localTracks + onlineTracks).distinctBy { it.id } }
+    LaunchedEffect(Unit) { viewModel.refreshOnline() }
 
     fun favoriteSourceOf(trackId: Long): FavoriteSource? {
         if (!onlineFavoritesEnabled) return null
-        return when {
-            localIds.contains(trackId) && onlineIds.contains(trackId) -> FavoriteSource.BOTH
-            onlineIds.contains(trackId) -> FavoriteSource.ONLINE
-            else -> FavoriteSource.LOCAL
-        }
+        return trackSources[trackId] ?: FavoriteSource.LOCAL
     }
 
     val filteredTracks = if (searchQuery.isBlank()) tracks

@@ -138,9 +138,9 @@
     <string name="export_favorites">Export Favorites</string>
     <string name="export_favorites_desc">Save tracks, artists and playlists to a JSON file</string>
     <string name="import_favorites">Import Favorites</string>
-    <string name="import_favorites_desc">Load favorites from a JSON file</string>
+    <string name="import_favorites_desc">Load favorites from a JSON file. Saved to local/offline favorites only - not synced to your own SoundCloud likes.</string>
     <string name="import_sc_title">Import from SoundCloud</string>
-    <string name="import_sc_desc">Enter a SoundCloud username or profile URL</string>
+    <string name="import_sc_desc">Enter a SoundCloud username or profile URL. Saved to local/offline favorites only - not synced to your own SoundCloud likes.</string>
     <string name="import_sc_hint">username or soundcloud.com/username</string>
     <string name="import_sc_resolve">Resolve Profile</string>
     <string name="import_sc_fetch">Fetch Likes</string>
@@ -161,7 +161,7 @@
     <!-- Telegram import (BETA) -->
     <string name="import_tg_title">Import from Telegram</string>
     <string name="import_tg_beta">BETA</string>
-    <string name="import_tg_desc">Scan a chat for shared audio, match it against SoundCloud, and add whatever isn\'t found there to Offline Tracks.</string>
+    <string name="import_tg_desc">Scan a chat for shared audio, match it against SoundCloud, and add whatever isn\'t found there to Offline Tracks. Matches are saved to local/offline favorites only - not synced to your own SoundCloud likes.</string>
     <string name="import_tg_unavailable">Not set up in this build - see the Telegram import setup notes.</string>
     <string name="import_tg_start">Sign in with Telegram</string>
     <string name="import_tg_connecting">Connecting…</string>
@@ -200,6 +200,7 @@
     <!-- About -->
     <string name="about_github">GitHub</string>
     <string name="about_version">Version %1$s (%2$d)</string>
+    <string name="about_build_canary">Canary-build</string>
 
     <!-- Badges -->
     <string name="badge_developer">Developer Badge</string>

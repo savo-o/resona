@@ -112,6 +112,8 @@ class FavoritesExporter @Inject constructor(
             root.optJSONArray("tracks")?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val t = arr.getJSONObject(i)
+                    // Local/offline favorites only - not synced to the real SoundCloud account,
+                    // same as Telegram/SoundCloud import (see import_favorites_desc).
                     favoritesDao.addTrack(
                         FavoriteTrack(
                             trackId = t.getLong("trackId"),

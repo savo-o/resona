@@ -9,7 +9,6 @@ import com.savoo.scclient.data.model.User
 import retrofit2.Response
 import retrofit2.http.DELETE
 import retrofit2.http.GET
-import retrofit2.http.Headers
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -53,7 +52,6 @@ interface SoundCloudApi {
     @GET
     suspend fun getNextLikesPage(@Url url: String): SearchResponse<LikeItem>
 
-    @Headers("Content-Type: application/json")
     @PUT("users/{userId}/track_likes/{trackId}")
     suspend fun likeTrack(@Path("userId") userId: Long, @Path("trackId") trackId: Long): Response<Unit>
 

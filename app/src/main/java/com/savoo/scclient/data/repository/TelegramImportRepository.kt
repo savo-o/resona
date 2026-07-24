@@ -122,6 +122,8 @@ class TelegramImportRepository @Inject constructor(
 
         val match = runCatching { findBestMatch(resolvedTitle, performer, message.durationSec) }.getOrNull()
         if (match != null) {
+            // Local/offline favorites only - does not push a like to the real SoundCloud account,
+            // even when Online favorites is on (see import_tg_desc / import_sc_desc).
             favoritesDao.addTrack(
                 FavoriteTrack(
                     trackId = match.id,
