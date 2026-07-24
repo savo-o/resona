@@ -19,9 +19,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,21 +33,30 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import android.content.Context
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.R
+import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.local.FavoritesDao
-import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.repository.SettingsRepository
+import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.components.EmptyState
+import com.savoo.scclient.ui.components.FavoriteSource
 import com.savoo.scclient.ui.components.TrackRow
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -54,6 +66,10 @@ import javax.inject.Inject
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
+    private val trackRepository: TrackRepository,
+    private val tokenStore: TokenStore,
+    private val settingsRepository: SettingsRepository,
+    @ApplicationContext private val context: Context,
     val playerController: PlayerController,
     val offlineTrackManager: OfflineTrackManager,
 ) : ViewModel() {
@@ -71,16 +87,59 @@ class FavoritesViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    private val _onlineTracks = MutableStateFlow<List<Track>>(emptyList())
+    val onlineTracks = _onlineTracks.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message = _message.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            combine(tokenStore.isLoggedIn, onlineFavoritesEnabled) { loggedIn, enabled -> loggedIn && enabled }
+                .distinctUntilChanged()
+                .collect { active -> if (active) refreshOnline() else _onlineTracks.value = emptyList() }
+        }
+    }
+
+    private fun refreshOnline() {
+        viewModelScope.launch {
+            runCatching { trackRepository.getLikedTracks() }
+                .onSuccess { result ->
+                    android.util.Log.d("ResonaFavorites", "fetched ${result.size} online likes")
+                    _onlineTracks.value = result
+                }
+                .onFailure { e ->
+                    android.util.Log.e("ResonaFavorites", "failed to fetch online likes", e)
+                    _onlineTracks.value = emptyList()
+                    _message.value = context.getString(R.string.favorites_online_fetch_failed)
+                }
+        }
+    }
+
     fun playTrack(track: Track) {
-        val currentTracks = tracks.value
+        val currentTracks = (tracks.value + onlineTracks.value).distinctBy { it.id }
         val idx = currentTracks.indexOfFirst { it.id == track.id }
         playerController.playQueue(currentTracks, idx.coerceAtLeast(0))
     }
 
+    /** Every row shown here is already favorited (locally, online, or both) - tapping the heart
+     * always means "remove", from whichever source(s) it's currently in. */
     fun toggleFavorite(trackId: Long) {
         viewModelScope.launch {
             if (favoritesDao.isTrackFavoriteSync(trackId)) favoritesDao.removeTrack(trackId)
+            if (onlineFavoritesEnabled.value && tokenStore.isLoggedIn.value) {
+                runCatching { trackRepository.unlikeTrack(trackId) }
+                    .onFailure { _message.value = context.getString(R.string.favorites_online_unlike_failed) }
+                refreshOnline()
+            }
         }
+    }
+
+    fun clearMessage() {
+        _message.value = null
     }
 }
 
@@ -91,9 +150,26 @@ fun FavoritesScreen(
     viewModel: FavoritesViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
 ) {
-    val tracks by viewModel.tracks.collectAsState()
+    val localTracks by viewModel.tracks.collectAsState()
+    val onlineTracks by viewModel.onlineTracks.collectAsState()
+    val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val message by viewModel.message.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     var searchQuery by remember { mutableStateOf("") }
+
+    val localIds = remember(localTracks) { localTracks.map { it.id }.toSet() }
+    val onlineIds = remember(onlineTracks) { onlineTracks.map { it.id }.toSet() }
+    val tracks = remember(localTracks, onlineTracks) { (localTracks + onlineTracks).distinctBy { it.id } }
+
+    fun favoriteSourceOf(trackId: Long): FavoriteSource? {
+        if (!onlineFavoritesEnabled) return null
+        return when {
+            localIds.contains(trackId) && onlineIds.contains(trackId) -> FavoriteSource.BOTH
+            onlineIds.contains(trackId) -> FavoriteSource.ONLINE
+            else -> FavoriteSource.LOCAL
+        }
+    }
 
     val filteredTracks = if (searchQuery.isBlank()) tracks
         else tracks.filter {
@@ -101,16 +177,26 @@ fun FavoritesScreen(
             it.user.username.contains(searchQuery, ignoreCase = true)
         }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(stringResource(R.string.favorites_title)) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    message?.let { msg ->
+        LaunchedEffect(msg) {
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearMessage()
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.favorites_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                 }
-            }
-        )
-    }) { padding ->
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
             if (tracks.isNotEmpty()) {
                 SearchBarDefaults.InputField(
@@ -158,6 +244,7 @@ fun FavoritesScreen(
                                 if (isCurrentTrack) viewModel.playerController.togglePlayPause()
                                 else viewModel.playTrack(track)
                             },
+                            favoriteSource = favoriteSourceOf(track.id),
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }

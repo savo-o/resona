@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.local.FavoritesDao
-import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.LyricsLine
+import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.LyricsRepository
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.player.OfflineTrackManager
@@ -26,6 +26,7 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     val controller: PlayerController,
     private val favoritesDao: FavoritesDao,
+    private val favoritesRepository: FavoritesRepository,
     private val offlineTrackManager: OfflineTrackManager,
     private val lyricsRepository: LyricsRepository,
     private val settingsRepository: SettingsRepository,
@@ -71,22 +72,7 @@ class PlayerViewModel @Inject constructor(
     fun toggleFavorite() {
         val track = controller.state.value.currentTrack ?: return
         viewModelScope.launch {
-            if (favoritesDao.isTrackFavoriteSync(track.id)) {
-                favoritesDao.removeTrack(track.id)
-            } else {
-                favoritesDao.addTrack(
-                    FavoriteTrack(
-                        trackId = track.id,
-                        title = track.title,
-                        username = track.user.username,
-                        artworkUrl = track.artworkUrl,
-                        durationMs = track.durationMs,
-                        permalinkUrl = track.permalinkUrl,
-                        userId = track.user.id,
-                        userAvatarUrl = track.user.avatarUrl,
-                    )
-                )
-            }
+            favoritesRepository.toggleTrackFavorite(track)
         }
     }
 

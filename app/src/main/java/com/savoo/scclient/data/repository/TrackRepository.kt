@@ -5,14 +5,6 @@ import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.SoundCloudApi
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.Types
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import com.savoo.scclient.di.PlainHttpClient
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,9 +12,16 @@ import javax.inject.Singleton
 class TrackRepository @Inject constructor(
     private val api: SoundCloudApi,
     private val tokenStore: TokenStore,
-    @PlainHttpClient private val plainClient: OkHttpClient,
 ) {
     private val TAG = "TrackRepository"
+    private var cachedUserId: Long? = null
+
+    private suspend fun currentUserId(): Long? {
+        cachedUserId?.let { return it }
+        val id = runCatching { api.getMe().id }.getOrNull()
+        cachedUserId = id
+        return id
+    }
 
     suspend fun searchTracks(query: String): List<Track> =
         api.searchTracks(query = query).collection
@@ -38,56 +37,38 @@ class TrackRepository @Inject constructor(
         return track
     }
 
-    suspend fun getLikedTracks(): List<Track> = withContext(Dispatchers.IO) {
-        val token = tokenStore.accessToken
-        if (token.isNullOrEmpty()) {
-            return@withContext emptyList()
+    // The authenticated user's own likes, via the same real JSON API (users/{id}/likes) already
+    // proven to work for public profiles in SoundCloudImportRepository - used here through the
+    // authenticated client so it also covers the logged-in user's own private likes. Each item is
+    // a {kind, track} wrapper, not a flat Track, so it can't reuse the plain SearchResponse<Track>
+    // pagination helpers.
+    suspend fun getLikedTracks(): List<Track> {
+        if (tokenStore.accessToken.isNullOrEmpty()) return emptyList()
+        val userId = currentUserId() ?: return emptyList()
+        val allTracks = mutableListOf<Track>()
+        var response = api.getUserLikes(userId, limit = 200)
+        allTracks.addAll(response.collection.mapNotNull { it.track.takeIf { _ -> it.kind == "like" } })
+        var nextUrl = response.nextHref
+        while (nextUrl != null && allTracks.size < 1000) {
+            response = api.getNextLikesPage(nextUrl)
+            allTracks.addAll(response.collection.mapNotNull { it.track.takeIf { _ -> it.kind == "like" } })
+            nextUrl = response.nextHref
         }
+        return allTracks
+    }
 
-        val client = plainClient
-        val request = Request.Builder()
-            .url("https://soundcloud.com/you/likes")
-            .header("Authorization", "OAuth $token")
-            .header("Cookie", tokenStore.webCookies.orEmpty())
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-            .build()
+    // Confirmed against the real soundcloud.com web client's own network calls: PUT/DELETE
+    // users/{ownUserId}/track_likes/{trackId} (not "me" - the real user id).
+    suspend fun likeTrack(trackId: Long) {
+        val userId = currentUserId() ?: error("Not logged in")
+        val response = api.likeTrack(userId, trackId)
+        if (!response.isSuccessful) error("likeTrack failed: HTTP ${response.code()}")
+    }
 
-        val response = client.newCall(request).execute()
-        val html = response.use { it.body?.string().orEmpty() }
-
-        if (response.code != 200) {
-            return@withContext emptyList()
-        }
-
-        val regex = Regex("""window\.__sc_hydration\s*=\s*(\[[\s\S]*?\])\s*;?\s*</script>""")
-        val match = regex.find(html)
-        if (match == null) {
-            return@withContext emptyList()
-        }
-
-        val json = match.groupValues[1]
-
-        val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
-        val type = Types.newParameterizedType(List::class.java, Map::class.java, Any::class.java)
-        val adapter = moshi.adapter<List<Map<String, Any>>>(type)
-        val items = adapter.fromJson(json) ?: return@withContext emptyList()
-
-        val tracksJson = mutableListOf<Map<String, Any>>()
-        for (item in items) {
-            val data = item["data"] as? Map<*, *> ?: continue
-            val collection = data["collection"] as? List<*> ?: continue
-            for (entry in collection) {
-                val track = entry as? Map<*, *> ?: continue
-                if (track.containsKey("title") && track.containsKey("user")) {
-                    @Suppress("UNCHECKED_CAST")
-                    tracksJson.add(track as Map<String, Any>)
-                }
-            }
-        }
-
-        val trackType = Types.newParameterizedType(List::class.java, Track::class.java)
-        val trackAdapter = moshi.adapter<List<Track>>(trackType)
-        trackAdapter.fromJsonValue(tracksJson) ?: emptyList()
+    suspend fun unlikeTrack(trackId: Long) {
+        val userId = currentUserId() ?: error("Not logged in")
+        val response = api.unlikeTrack(userId, trackId)
+        if (!response.isSuccessful) error("unlikeTrack failed: HTTP ${response.code()}")
     }
 
     suspend fun searchPlaylists(query: String): List<Playlist> =

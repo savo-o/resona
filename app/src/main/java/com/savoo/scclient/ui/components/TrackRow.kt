@@ -27,10 +27,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -95,6 +97,9 @@ fun TrackArtwork(
     }
 }
 
+/** Where a favorited track came from, shown as a small badge on its artwork in the Favorites list. */
+enum class FavoriteSource { LOCAL, ONLINE, BOTH }
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TrackRow(
@@ -106,6 +111,7 @@ fun TrackRow(
     isPlaying: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     onTogglePlayPause: (() -> Unit)? = null,
+    favoriteSource: FavoriteSource? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -156,6 +162,21 @@ fun TrackRow(
                             .clip(RoundedCornerShape(14.dp))
                     )
                 }
+                if (favoriteSource != null) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        if (favoriteSource == FavoriteSource.ONLINE || favoriteSource == FavoriteSource.BOTH) {
+                            FavoriteSourceBadge(Icons.Filled.Cloud, MaterialTheme.colorScheme.primary)
+                        }
+                        if (favoriteSource == FavoriteSource.LOCAL || favoriteSource == FavoriteSource.BOTH) {
+                            FavoriteSourceBadge(Icons.Filled.PhoneAndroid, MaterialTheme.colorScheme.secondary)
+                        }
+                    }
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -205,6 +226,19 @@ fun TrackRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FavoriteSourceBadge(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color) {
+    Box(
+        modifier = Modifier
+            .size(16.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surface),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(11.dp))
     }
 }
 

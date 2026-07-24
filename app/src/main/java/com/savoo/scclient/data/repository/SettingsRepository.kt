@@ -32,6 +32,7 @@ data class AppSettings(
     // Manual correction applied on top of the synced lyrics timestamps from the (community-sourced) lyrics
     // provider - positive shifts lines later, negative earlier. Some tracks' data is simply off by a fixed amount.
     val lyricsOffsetMs: Long = 0L,
+    val onlineFavoritesEnabled: Boolean = false,
 )
 
 @Singleton
@@ -46,6 +47,7 @@ class SettingsRepository @Inject constructor(
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val LANGUAGE = stringPreferencesKey("language")
         val LYRICS_OFFSET_MS = longPreferencesKey("lyrics_offset_ms")
+        val ONLINE_FAVORITES_ENABLED = booleanPreferencesKey("online_favorites_enabled")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -62,6 +64,7 @@ class SettingsRepository @Inject constructor(
                 runCatching { LanguageOption.valueOf(it) }.getOrNull()
             } ?: LanguageOption.ENGLISH,
             lyricsOffsetMs = prefs[Keys.LYRICS_OFFSET_MS] ?: 0L,
+            onlineFavoritesEnabled = prefs[Keys.ONLINE_FAVORITES_ENABLED] ?: false,
         )
     }
 
@@ -93,5 +96,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setLyricsOffsetMs(offsetMs: Long) {
         context.dataStore.edit { it[Keys.LYRICS_OFFSET_MS] = offsetMs }
+    }
+
+    suspend fun setOnlineFavoritesEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.ONLINE_FAVORITES_ENABLED] = value }
     }
 }

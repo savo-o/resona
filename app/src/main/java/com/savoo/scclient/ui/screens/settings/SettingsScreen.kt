@@ -46,8 +46,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
@@ -79,6 +77,7 @@ import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.player.OfflineTrackManager
+import com.savoo.scclient.ui.components.SwitchItem
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -565,33 +564,3 @@ fun SettingsScreen(
     }
 }
 
-@Composable
-private fun SwitchItem(
-    title: String,
-    subtitle: String? = null,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            subtitle?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                checkedTrackColor = MaterialTheme.colorScheme.primary,
-            )
-        )
-    }
-}

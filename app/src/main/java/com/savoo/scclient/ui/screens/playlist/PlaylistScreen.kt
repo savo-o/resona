@@ -57,7 +57,6 @@ import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoritePlaylist
-import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.TrackRepository
@@ -84,6 +83,7 @@ data class PlaylistUiState(
 class PlaylistViewModel @Inject constructor(
     private val repository: TrackRepository,
     private val favoritesDao: FavoritesDao,
+    private val favoritesRepository: com.savoo.scclient.data.repository.FavoritesRepository,
     private val offlineTrackManager: OfflineTrackManager,
     val playerController: PlayerController,
 ) : ViewModel() {
@@ -164,22 +164,7 @@ class PlaylistViewModel @Inject constructor(
 
     fun toggleFavorite(track: Track) {
         viewModelScope.launch {
-            if (favoritesDao.isTrackFavoriteSync(track.id)) {
-                favoritesDao.removeTrack(track.id)
-            } else {
-                favoritesDao.addTrack(
-                    FavoriteTrack(
-                        trackId = track.id,
-                        title = track.title,
-                        username = track.user.username,
-                        artworkUrl = track.artworkUrl,
-                        durationMs = track.durationMs,
-                        permalinkUrl = track.permalinkUrl,
-                        userId = track.user.id,
-                        userAvatarUrl = track.user.avatarUrl,
-                    )
-                )
-            }
+            favoritesRepository.toggleTrackFavorite(track)
         }
     }
 

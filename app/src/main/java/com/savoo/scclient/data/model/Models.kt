@@ -56,6 +56,14 @@ data class SearchResponse<T>(
     @Json(name = "next_href") val nextHref: String?
 )
 
+/** One entry of `users/{id}/likes` - each item wraps either a liked track or a liked playlist,
+ * distinguished by [kind] ("like" for both; only one of [track]/[playlist] is present). */
+@JsonClass(generateAdapter = true)
+data class LikeItem(
+    val kind: String = "",
+    val track: Track? = null,
+)
+
 @JsonClass(generateAdapter = true)
 data class TokenResponse(
     @Json(name = "access_token") val accessToken: String,

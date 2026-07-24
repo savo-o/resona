@@ -86,14 +86,23 @@
     <string name="account_sign_in_soundcloud">Войти через SoundCloud</string>
     <string name="account_sign_in_title">Войти в Resona</string>
     <string name="account_sign_in_desc">Доступ к избранному, профилю и не только</string>
-    <string name="account_step_1">Нажмите кнопку ниже, чтобы открыть SoundCloud</string>
-    <string name="account_step_2">Войдите в свой аккаунт SoundCloud</string>
-    <string name="account_step_3">Нажмите Готово, когда увидите главную страницу</string>
-    <string name="account_loading_soundcloud">Загрузка SoundCloud…</string>
-    <string name="account_login_hint_title">Готовы войти?</string>
-    <string name="account_login_hint_desc">Войдите на странице выше, затем нажмите Готово</string>
     <string name="account_sign_out">Выйти</string>
     <string name="account_share_link">Поделиться профилем</string>
+    <string name="login_email_label">Email</string>
+    <string name="login_password_label">Пароль</string>
+    <string name="login_sign_in_button">Войти</string>
+    <string name="login_signing_in">Выполняется вход…</string>
+    <string name="login_or_continue_with">или продолжить через</string>
+    <string name="login_continue_google">Продолжить через Google</string>
+    <string name="login_continue_facebook">Продолжить через Facebook</string>
+    <string name="login_trouble_use_browser">Не получается войти? Войти через браузер</string>
+    <string name="favorites_online_toggle_title">Онлайн избранное</string>
+    <string name="favorites_online_toggle_desc">Синхронизация лайков с вашим аккаунтом SoundCloud</string>
+    <string name="favorites_badge_local">Локальное избранное</string>
+    <string name="favorites_badge_online">Лайк на SoundCloud</string>
+    <string name="favorites_badge_both">Локально + SoundCloud</string>
+    <string name="favorites_online_unlike_failed">Не удалось убрать лайк на SoundCloud</string>
+    <string name="favorites_online_fetch_failed">Не удалось загрузить лайки с SoundCloud</string>
     <string name="account_settings">Настройки</string>
 
     <!-- Settings -->

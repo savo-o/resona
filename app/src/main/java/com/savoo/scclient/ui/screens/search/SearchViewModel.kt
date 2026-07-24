@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.local.FavoritesDao
-import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
@@ -56,6 +55,7 @@ private val SOUNDCLOUD_URL_REGEX = Regex("""^https?://(www\.|m\.|on\.)?soundclou
 class SearchViewModel @Inject constructor(
     private val repository: TrackRepository,
     private val favoritesDao: FavoritesDao,
+    private val favoritesRepository: com.savoo.scclient.data.repository.FavoritesRepository,
     private val searchHistory: SearchHistoryManager,
     private val offlineTrackManager: OfflineTrackManager,
     private val scImportRepo: SoundCloudImportRepository,
@@ -182,22 +182,7 @@ class SearchViewModel @Inject constructor(
 
     fun toggleFavorite(track: Track) {
         viewModelScope.launch {
-            if (favoritesDao.isTrackFavoriteSync(track.id)) {
-                favoritesDao.removeTrack(track.id)
-            } else {
-                favoritesDao.addTrack(
-                    FavoriteTrack(
-                        trackId = track.id,
-                        title = track.title,
-                        username = track.user.username,
-                        artworkUrl = track.artworkUrl,
-                        durationMs = track.durationMs,
-                        permalinkUrl = track.permalinkUrl,
-                        userId = track.user.id,
-                        userAvatarUrl = track.user.avatarUrl,
-                    )
-                )
-            }
+            favoritesRepository.toggleTrackFavorite(track)
         }
     }
 

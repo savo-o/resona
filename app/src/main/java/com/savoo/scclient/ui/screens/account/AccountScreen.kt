@@ -100,6 +100,11 @@ class AccountViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AccountUiState())
     val uiState = _uiState.asStateFlow()
     val developerMode = settingsRepository.settings.map { it.developerMode }
+    val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
+
+    fun setOnlineFavoritesEnabled(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setOnlineFavoritesEnabled(value) }
+    }
 
     init {
         viewModelScope.launch {
@@ -137,22 +142,10 @@ fun AccountScreen(
     onOpenSettings: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
-    var showLogin by remember { mutableStateOf(false) }
 
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.account_title)) }) }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                showLogin -> OAuthWebViewScreen(
-                    onTokenReceived = { token ->
-                        viewModel.onWebToken(token)
-                        showLogin = false
-                    },
-                    onCookiesReceived = { cookies ->
-                        viewModel.onCookies(cookies)
-                        showLogin = false
-                    },
-                    onCancel = { showLogin = false }
-                )
                 state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     LoadingIndicator()
                 }
@@ -160,15 +153,21 @@ fun AccountScreen(
                     val userBadges by state.user?.id?.let { viewModel.badgeRepository.getBadges(it) }
                         ?.collectAsState() ?: remember { mutableStateOf(emptyList<String>()) }
                     val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
+                    val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState(initial = false)
                     LoggedInContent(
                         user = state.user,
                         badges = userBadges,
                         showId = isDeveloper,
+                        onlineFavoritesEnabled = onlineFavoritesEnabled,
+                        onOnlineFavoritesChange = { viewModel.setOnlineFavoritesEnabled(it) },
                         onLogout = { viewModel.logout() },
                         onSettings = onOpenSettings,
                     )
                 }
-                else -> LoggedOutContent(onSignIn = { showLogin = true })
+                else -> LoginScreen(
+                    onTokenReceived = { token -> viewModel.onWebToken(token) },
+                    onCookiesReceived = { cookies -> viewModel.onCookies(cookies) },
+                )
             }
         }
     }
@@ -179,6 +178,8 @@ private fun LoggedInContent(
     user: User?,
     badges: List<String> = emptyList(),
     showId: Boolean = false,
+    onlineFavoritesEnabled: Boolean = false,
+    onOnlineFavoritesChange: (Boolean) -> Unit = {},
     onLogout: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -302,6 +303,22 @@ private fun LoggedInContent(
         Spacer(Modifier.height(32.dp))
 
         Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            com.savoo.scclient.ui.components.SwitchItem(
+                title = stringResource(R.string.favorites_online_toggle_title),
+                subtitle = stringResource(R.string.favorites_online_toggle_desc),
+                checked = onlineFavoritesEnabled,
+                onCheckedChange = onOnlineFavoritesChange,
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Surface(
             onClick = { logoutPressed = true; onLogout() },
             modifier = Modifier
                 .fillMaxWidth()
@@ -349,121 +366,5 @@ private fun LoggedInContent(
             onDismiss = { selectedBadge = null },
             onOpenUrl = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
         )
-    }
-}
-
-@Composable
-private fun LoggedOutContent(onSignIn: () -> Unit) {
-    var buttonPressed by remember { mutableStateOf(false) }
-    val buttonScale by animateFloatAsState(
-        targetValue = if (buttonPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
-        label = "signIn",
-        finishedListener = { buttonPressed = false }
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            Icons.Filled.Person,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        Text(
-            stringResource(R.string.account_sign_in_title),
-            style = MaterialTheme.typography.headlineSmall,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            stringResource(R.string.account_sign_in_desc),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("1", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(stringResource(R.string.account_step_1), style = MaterialTheme.typography.bodyMedium)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("2", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(stringResource(R.string.account_step_2), style = MaterialTheme.typography.bodyMedium)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("3", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(stringResource(R.string.account_step_3), style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        Surface(
-            onClick = { buttonPressed = true; onSignIn() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .graphicsLayer { scaleX = buttonScale; scaleY = buttonScale },
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.account_sign_in_soundcloud), style = MaterialTheme.typography.labelLarge)
-            }
-        }
     }
 }
