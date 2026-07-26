@@ -99,10 +99,12 @@ fun LoginScreen(
                     onFailed = {
                         isSigningIn = false
                         errorMessage = null
-                        // Auto-fill couldn't confirm a login within the timeout - fall back to
-                        // a real, visible browser session rather than leaving the user stuck.
                         browserStartUrl = SIGN_IN_URL
                         showBrowser = true
+                    },
+                    onCredentialsRejected = { message ->
+                        isSigningIn = false
+                        errorMessage = message
                     },
                 )
             }
@@ -244,6 +246,7 @@ private fun HiddenAutoLoginWebView(
     onTokenReceived: (String) -> Unit,
     onCookiesReceived: (String) -> Unit,
     onFailed: () -> Unit,
+    onCredentialsRejected: (String) -> Unit,
 ) {
     var succeeded by remember { mutableStateOf(false) }
     val capture = remember {
@@ -275,32 +278,47 @@ private fun HiddenAutoLoginWebView(
                 alpha = 0f
                 webViewClient = capture.newClient()
                 loadUrl(SIGN_IN_URL)
-                schedulePolledFill(email, password, cancelled) { succeeded }
+                schedulePolledFill(
+                    email = email,
+                    password = password,
+                    cancelled = cancelled,
+                    isDone = { succeeded },
+                    onCredentialsRejected = { message ->
+                        succeeded = true
+                        onCredentialsRejected(message)
+                    },
+                    onChallengeDetected = {
+                        succeeded = true
+                        onFailed()
+                    },
+                )
             }
         },
     )
 }
 
-/**
- * SoundCloud's real sign-in page is a client-rendered SPA, and its login form is a multi-step
- * flow (an entry screen with "continue with email/Google/..." choices, then an email step, then a
- * separate password step) rather than one static form - so this polls every
- * [FILL_POLL_INTERVAL_MS] and re-evaluates the current step each time, logging what it finds
- * under [LOG_TAG] so failures are diagnosable from logcat. Best-effort: if SoundCloud's markup
- * doesn't match these heuristics at all, nothing happens and the caller's outer timeout falls
- * back to a visible WebView.
- */
 private fun WebView.schedulePolledFill(
     email: String,
     password: String,
     cancelled: BooleanArray,
     isDone: () -> Boolean,
+    onCredentialsRejected: (String) -> Unit,
+    onChallengeDetected: () -> Unit,
 ) {
     val fillJs = buildFillScript(email, password)
     lateinit var tick: () -> Unit
     tick = {
         if (!cancelled[0] && !isDone()) {
-            evaluateJavascript(fillJs) { result -> Log.d(LOG_TAG, "fill attempt result: $result") }
+            evaluateJavascript(fillJs) { rawResult ->
+                val result = rawResult?.removeSurrounding("\"")?.replace("\\\"", "\"").orEmpty()
+                com.savoo.scclient.debug.DebugLog.log(LOG_TAG, "fill attempt result: $result")
+                when {
+                    result.startsWith("error_detected:") ->
+                        onCredentialsRejected(result.removePrefix("error_detected:"))
+                    result.startsWith("challenge_detected:") ->
+                        onChallengeDetected()
+                }
+            }
             postDelayed({ tick() }, FILL_POLL_INTERVAL_MS)
         }
     }
@@ -350,6 +368,20 @@ private fun buildFillScript(email: String, password: String): String = """
                     return 'submitted_form';
                 }
                 return null;
+            }
+
+            var challenge = document.querySelector(
+                'iframe[src*="captcha" i], iframe[src*="hcaptcha" i], iframe[title*="captcha" i], ' +
+                '.g-recaptcha, [data-hcaptcha-widget-id], [class*="challenge" i]'
+            );
+            if (challenge && visible(challenge)) return 'challenge_detected:captcha';
+
+            var errorEls = document.querySelectorAll('[role="alert"], [class*="error" i]');
+            for (var i = 0; i < errorEls.length; i++) {
+                var errText = (errorEls[i].innerText || errorEls[i].textContent || '').trim();
+                if (errText && errText.length < 200 && visible(errorEls[i])) {
+                    return 'error_detected:' + errText;
+                }
             }
 
             var emailInput = document.querySelector('input[type="email"]') ||

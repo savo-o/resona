@@ -9,6 +9,7 @@ import com.savoo.scclient.data.local.TelegramImportDao
 import com.savoo.scclient.data.remote.AuthInterceptor
 import com.savoo.scclient.data.remote.LyricsApi
 import com.savoo.scclient.data.remote.SoundCloudApi
+import com.savoo.scclient.debug.DebugLog
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -64,8 +65,17 @@ object NetworkModule {
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
         if (BuildConfig.DEBUG) {
-            val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC }
-            builder.addInterceptor(logging)
+            val logging = HttpLoggingInterceptor(
+                HttpLoggingInterceptor.Logger { message -> DebugLog.log("HTTP", message) },
+            )
+            builder.addInterceptor { chain ->
+                logging.level = if (DebugLog.verboseNetworkLogging.value) {
+                    HttpLoggingInterceptor.Level.BODY
+                } else {
+                    HttpLoggingInterceptor.Level.BASIC
+                }
+                logging.intercept(chain)
+            }
         }
         return builder.build()
     }

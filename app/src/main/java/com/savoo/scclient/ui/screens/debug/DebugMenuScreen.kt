@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -37,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -52,7 +55,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -61,6 +66,9 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.remote.ClientIdProvider
+import com.savoo.scclient.data.repository.FavoritesRepository
+import com.savoo.scclient.data.repository.TrackRepository
+import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.player.OfflineTrackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -77,8 +85,32 @@ class DebugMenuViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val offlineTrackManager: OfflineTrackManager,
     private val database: AppDatabase,
+    private val trackRepository: TrackRepository,
+    private val favoritesRepository: FavoritesRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    val traceEntries = DebugLog.entries
+    val verboseNetworkLogging = DebugLog.verboseNetworkLogging
+
+    fun setVerboseNetworkLogging(enabled: Boolean) = DebugLog.setVerboseNetworkLogging(enabled)
+
+    fun clearTrace() = DebugLog.clear()
+
+    fun copyTraceToClipboard() {
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Resona trace log", DebugLog.asText()))
+    }
+
+    fun forceSyncOnlineFavorites(onDone: (Result<Int>) -> Unit) {
+        viewModelScope.launch {
+            DebugLog.log("DebugMenu", "manual online favorites sync triggered")
+            val result = runCatching { trackRepository.getLikedTracks() }
+                .onSuccess { favoritesRepository.syncOnlineLikes(it) }
+            refreshCounts()
+            onDone(result.map { it.size })
+        }
+    }
 
     private val _clientId = MutableStateFlow(clientIdProvider.cachedOrFallback())
     val clientId = _clientId.asStateFlow()
@@ -182,6 +214,8 @@ fun DebugMenuScreen(
     val favoriteArtists by viewModel.favoriteArtists.collectAsState()
     val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
     val offlineTracks by viewModel.offlineTracks.collectAsState()
+    val traceEntries by viewModel.traceEntries.collectAsState()
+    val verboseNetworkLogging by viewModel.verboseNetworkLogging.collectAsState()
     var clientIdOverride by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -344,6 +378,104 @@ fun DebugMenuScreen(
                     }
                     TextButton(onClick = { throw RuntimeException("Test crash triggered from Debug Menu") }) {
                         Text(stringResource(R.string.debug_menu_test_crash))
+                    }
+                }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_menu_diagnostics)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.debug_menu_verbose_network), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.debug_menu_verbose_network_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = verboseNetworkLogging, onCheckedChange = { viewModel.setVerboseNetworkLogging(it) })
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.debug_menu_force_sync_favorites), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.debug_menu_force_sync_favorites_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = {
+                        viewModel.forceSyncOnlineFavorites { result ->
+                            scope.launch {
+                                val message = result.fold(
+                                    onSuccess = { context.getString(R.string.debug_menu_force_sync_favorites_done, it) },
+                                    onFailure = { context.getString(R.string.debug_menu_force_sync_favorites_failed) },
+                                )
+                                snackbarHostState.showSnackbar(message)
+                            }
+                        }
+                    }) {
+                        Text(stringResource(R.string.debug_menu_sync))
+                    }
+                }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_menu_trace)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.debug_menu_trace_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = {
+                        viewModel.copyTraceToClipboard()
+                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.debug_menu_report_copied)) }
+                    }) {
+                        Text(stringResource(R.string.debug_menu_copy))
+                    }
+                    TextButton(onClick = { viewModel.clearTrace() }) {
+                        Text(stringResource(R.string.debug_menu_clear))
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    SelectionContainer {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(10.dp),
+                        ) {
+                            if (traceEntries.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.debug_menu_trace_empty),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                traceEntries.forEach { line ->
+                                    Text(
+                                        line,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 11.sp,
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

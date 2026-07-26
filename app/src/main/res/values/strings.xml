@@ -163,6 +163,18 @@
     <string name="debug_menu_report_copied">Debug report copied</string>
     <string name="debug_menu_test_crash">Trigger Test Crash</string>
     <string name="debug_menu_test_crash_desc">Force-crashes the app to test crash handling</string>
+    <string name="debug_menu_diagnostics">Diagnostics</string>
+    <string name="debug_menu_verbose_network">Verbose Network Logging</string>
+    <string name="debug_menu_verbose_network_desc">Logs full request/response bodies to the trace log below</string>
+    <string name="debug_menu_force_sync_favorites">Force Sync Online Favorites</string>
+    <string name="debug_menu_force_sync_favorites_desc">Re-fetches SoundCloud likes and reconciles them into the local database</string>
+    <string name="debug_menu_force_sync_favorites_done">Synced %d online favorites</string>
+    <string name="debug_menu_force_sync_favorites_failed">Sync failed - see trace log</string>
+    <string name="debug_menu_sync">Sync</string>
+    <string name="debug_menu_trace">Trace Log</string>
+    <string name="debug_menu_trace_desc">Recent app events (login, favorites sync, network)</string>
+    <string name="debug_menu_trace_empty">No trace entries yet</string>
+    <string name="debug_menu_clear">Clear</string>
 
     <!-- Import / Export -->
     <string name="import_export_title">Import / Export</string>

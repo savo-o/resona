@@ -9,6 +9,8 @@ import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.repository.FavoritesRepository
+import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -51,6 +54,8 @@ class HomeViewModel @Inject constructor(
     offlineTrackManager: OfflineTrackManager,
     private val tokenStore: TokenStore,
     private val trackRepository: TrackRepository,
+    private val favoritesRepository: FavoritesRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val _user = MutableStateFlow<User?>(null)
@@ -84,6 +89,22 @@ class HomeViewModel @Inject constructor(
                     _user.value = null
                 }
             }
+        }
+
+        viewModelScope.launch {
+            val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
+            combine(tokenStore.isLoggedIn, onlineFavoritesEnabled) { loggedIn, enabled -> loggedIn && enabled }
+                .distinctUntilChanged()
+                .collect { active ->
+                    if (active) {
+                        runCatching { trackRepository.getLikedTracks() }
+                            .onSuccess {
+                                com.savoo.scclient.debug.DebugLog.log(TAG, "synced ${it.size} online likes on Home")
+                                favoritesRepository.syncOnlineLikes(it)
+                            }
+                            .onFailure { e -> com.savoo.scclient.debug.DebugLog.log(TAG, "online likes sync failed: $e") }
+                    }
+                }
         }
 
         // Rebuilds only when favorites/offline/artists actually change (not on every playback tick,

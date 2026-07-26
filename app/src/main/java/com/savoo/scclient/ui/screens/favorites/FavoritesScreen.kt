@@ -113,11 +113,11 @@ class FavoritesViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { trackRepository.getLikedTracks() }
                 .onSuccess { result ->
-                    android.util.Log.d("ResonaFavorites", "fetched ${result.size} online likes")
+                    com.savoo.scclient.debug.DebugLog.log("ResonaFavorites", "fetched ${result.size} online likes")
                     favoritesRepository.syncOnlineLikes(result)
                 }
                 .onFailure { e ->
-                    android.util.Log.e("ResonaFavorites", "failed to fetch online likes", e)
+                    com.savoo.scclient.debug.DebugLog.log("ResonaFavorites", "failed to fetch online likes: $e")
                     _message.value = context.getString(R.string.favorites_online_fetch_failed)
                 }
         }

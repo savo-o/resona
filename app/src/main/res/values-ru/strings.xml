@@ -163,6 +163,18 @@
     <string name="debug_menu_report_copied">Отчёт скопирован</string>
     <string name="debug_menu_test_crash">Тестовый краш</string>
     <string name="debug_menu_test_crash_desc">Принудительно роняет приложение для проверки обработки крашей</string>
+    <string name="debug_menu_diagnostics">Диагностика</string>
+    <string name="debug_menu_verbose_network">Подробный лог сети</string>
+    <string name="debug_menu_verbose_network_desc">Пишет полные тела запросов/ответов в лог трассировки ниже</string>
+    <string name="debug_menu_force_sync_favorites">Принудительная синхронизация избранного</string>
+    <string name="debug_menu_force_sync_favorites_desc">Заново получает лайки SoundCloud и сверяет их с локальной базой</string>
+    <string name="debug_menu_force_sync_favorites_done">Синхронизировано избранных: %d</string>
+    <string name="debug_menu_force_sync_favorites_failed">Синхронизация не удалась - см. лог трассировки</string>
+    <string name="debug_menu_sync">Синхронизировать</string>
+    <string name="debug_menu_trace">Лог трассировки</string>
+    <string name="debug_menu_trace_desc">Последние события приложения (вход, синхронизация избранного, сеть)</string>
+    <string name="debug_menu_trace_empty">Записей пока нет</string>
+    <string name="debug_menu_clear">Очистить</string>
 
     <!-- Import / Export -->
     <string name="import_export_title">Импорт / Экспорт</string>

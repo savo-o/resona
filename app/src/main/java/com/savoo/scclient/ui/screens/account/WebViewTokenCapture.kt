@@ -6,6 +6,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.savoo.scclient.debug.DebugLog
 
 private const val LOG_TAG = "ResonaLogin"
 
@@ -45,7 +46,7 @@ class WebViewTokenCapture(
             val host = request.url.host.orEmpty()
             val allowed = isAllowedAuthHost(host)
             if (!request.isForMainFrame) return !allowed
-            Log.d(LOG_TAG, "navigation to $host -> ${if (allowed) "allowed" else "blocked"}")
+            DebugLog.log(LOG_TAG, "navigation to $host -> ${if (allowed) "allowed" else "blocked"}")
             return !allowed
         }
 
@@ -60,7 +61,7 @@ class WebViewTokenCapture(
             ) {
                 val t = auth.removePrefix("OAuth ")
                 if (t.length > 20) {
-                    Log.d(LOG_TAG, "token captured from Authorization header on $url")
+                    DebugLog.log(LOG_TAG, "token captured from Authorization header on $url")
                     currentToken = t
                     currentCookies = cookiesFromManager()
                     onTokenCaptured(t)
@@ -71,11 +72,11 @@ class WebViewTokenCapture(
         }
 
         override fun onPageFinished(view: WebView, url: String?) {
-            Log.d(LOG_TAG, "page finished: $url")
+            DebugLog.log(LOG_TAG, "page finished: $url")
             onPageLoaded?.invoke()
             if (currentToken == null) {
                 extractHydrationToken(view) { t ->
-                    Log.d(LOG_TAG, "hydration extraction result: ${if (t != null) "found token" else "none"}")
+                    DebugLog.log(LOG_TAG, "hydration extraction result: ${if (t != null) "found token" else "none"}")
                     if (t != null && currentToken == null) {
                         currentToken = t
                         onTokenCaptured(t)
