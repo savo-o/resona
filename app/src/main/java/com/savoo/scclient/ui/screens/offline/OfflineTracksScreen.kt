@@ -90,7 +90,7 @@ class OfflineTracksViewModel @Inject constructor(
     fun playTrack(track: Track) {
         val currentTracks = tracks.value
         val idx = currentTracks.indexOfFirst { it.id == track.id }
-        playerController.playQueue(currentTracks, idx.coerceAtLeast(0))
+        playerController.playQueue(currentTracks, idx.coerceAtLeast(0), tag = "offline")
     }
 
     fun removeFromOffline(trackId: Long) {

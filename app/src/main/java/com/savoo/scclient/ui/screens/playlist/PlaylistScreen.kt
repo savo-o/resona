@@ -129,15 +129,17 @@ class PlaylistViewModel @Inject constructor(
     fun playAll() {
         val tracks = _uiState.value.tracks
         if (tracks.isNotEmpty()) {
-            playerController.playQueue(tracks, 0)
+            playerController.playQueue(tracks, 0, tag = playlistQueueTag())
         }
     }
 
     fun playTrack(track: Track) {
         val tracks = _uiState.value.tracks
         val idx = tracks.indexOfFirst { it.id == track.id }
-        playerController.playQueue(tracks, idx.coerceAtLeast(0))
+        playerController.playQueue(tracks, idx.coerceAtLeast(0), tag = playlistQueueTag())
     }
+
+    private fun playlistQueueTag(): String? = _uiState.value.playlist?.title?.let { "playlist:$it" }
 
     fun isFavoriteFlow(trackId: Long) = favoritesDao.isTrackFavorite(trackId)
 

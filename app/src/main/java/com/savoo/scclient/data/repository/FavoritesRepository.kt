@@ -4,6 +4,7 @@ import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.debug.DebugLog
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,12 +32,14 @@ class FavoritesRepository @Inject constructor(
 ) {
     suspend fun toggleTrackFavorite(track: Track) {
         val wasFavorite = favoritesDao.isTrackFavoriteSync(track.id)
+        DebugLog.log(TAG, "toggleTrackFavorite(${track.id}): wasFavorite=$wasFavorite")
         if (wasFavorite) {
             favoritesDao.removeTrack(track.id)
             val onlineEnabled = settingsRepository.settings.first().onlineFavoritesEnabled
             if (onlineEnabled && tokenStore.isLoggedIn.value) {
                 runCatching { trackRepository.unlikeTrack(track.id) }
-                    .onFailure { e -> android.util.Log.e(TAG, "online unlike FAILED for ${track.id}", e) }
+                    .onSuccess { DebugLog.log(TAG, "online unlike OK for ${track.id}") }
+                    .onFailure { e -> DebugLog.log(TAG, "online unlike FAILED for ${track.id}: $e") }
             }
         } else {
             addTrackFavorite(track)
@@ -56,12 +59,16 @@ class FavoritesRepository @Inject constructor(
      * favorite records directly rather than generic [Track]s). */
     suspend fun addTrackFavorite(favorite: FavoriteTrack) {
         favoritesDao.addTrack(favorite.copy(source = SOURCE_LOCAL))
+        DebugLog.log(TAG, "addTrackFavorite(${favorite.trackId}): added locally")
 
         val onlineEnabled = settingsRepository.settings.first().onlineFavoritesEnabled
         if (onlineEnabled && tokenStore.isLoggedIn.value) {
             runCatching { trackRepository.likeTrack(favorite.trackId) }
-                .onSuccess { favoritesDao.updateTrackSource(favorite.trackId, SOURCE_BOTH) }
-                .onFailure { e -> android.util.Log.e(TAG, "online like FAILED for ${favorite.trackId}", e) }
+                .onSuccess {
+                    favoritesDao.updateTrackSource(favorite.trackId, SOURCE_BOTH)
+                    DebugLog.log(TAG, "online like OK for ${favorite.trackId}")
+                }
+                .onFailure { e -> DebugLog.log(TAG, "online like FAILED for ${favorite.trackId}: $e") }
         }
     }
 
@@ -70,6 +77,7 @@ class FavoritesRepository @Inject constructor(
      * liked online get upgraded to BOTH, and rows no longer liked online get downgraded back to
      * LOCAL (if they were BOTH) or removed entirely (if they were ONLINE-only). */
     suspend fun syncOnlineLikes(onlineTracks: List<Track>) {
+        DebugLog.log(TAG, "syncOnlineLikes: reconciling ${onlineTracks.size} online likes")
         val onlineIds = onlineTracks.map { it.id }.toSet()
         val existing = favoritesDao.getAllTracksSync().associateBy { it.trackId }
 

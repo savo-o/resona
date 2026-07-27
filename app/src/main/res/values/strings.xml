@@ -65,6 +65,11 @@
     <string name="player_lyrics_not_found">No synced lyrics found for this track</string>
     <string name="player_lyrics_offset_earlier">Shift lyrics earlier</string>
     <string name="player_lyrics_offset_later">Shift lyrics later</string>
+    <string name="player_playing_from">Playing from %1$s</string>
+    <string name="player_source_mix">Mix</string>
+    <string name="player_source_favorites">Favorites</string>
+    <string name="player_source_offline">Downloaded</string>
+    <string name="player_source_search">Search</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Tracks</string>
@@ -103,6 +108,10 @@
     <string name="favorites_badge_both">Local + SoundCloud</string>
     <string name="favorites_online_unlike_failed">Couldn\'t remove SoundCloud like</string>
     <string name="favorites_online_fetch_failed">Couldn\'t load your SoundCloud likes</string>
+    <string name="favorites_online_sync_now">Sync now</string>
+    <string name="favorites_online_sync_now_desc">Re-fetch your SoundCloud likes right now</string>
+    <string name="favorites_online_sync_now_done">Synced %d online favorites</string>
+    <string name="favorites_online_sync_now_failed">Sync failed</string>
     <string name="account_settings">Settings</string>
 
     <!-- Settings -->
@@ -166,11 +175,6 @@
     <string name="debug_menu_diagnostics">Diagnostics</string>
     <string name="debug_menu_verbose_network">Verbose Network Logging</string>
     <string name="debug_menu_verbose_network_desc">Logs full request/response bodies to the trace log below</string>
-    <string name="debug_menu_force_sync_favorites">Force Sync Online Favorites</string>
-    <string name="debug_menu_force_sync_favorites_desc">Re-fetches SoundCloud likes and reconciles them into the local database</string>
-    <string name="debug_menu_force_sync_favorites_done">Synced %d online favorites</string>
-    <string name="debug_menu_force_sync_favorites_failed">Sync failed - see trace log</string>
-    <string name="debug_menu_sync">Sync</string>
     <string name="debug_menu_trace">Trace Log</string>
     <string name="debug_menu_trace_desc">Recent app events (login, favorites sync, network)</string>
     <string name="debug_menu_trace_empty">No trace entries yet</string>

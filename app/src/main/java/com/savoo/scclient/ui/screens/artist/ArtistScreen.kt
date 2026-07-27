@@ -122,15 +122,17 @@ class ArtistViewModel @Inject constructor(
     fun playAll() {
         val tracks = _uiState.value.tracks
         if (tracks.isNotEmpty()) {
-            playerController.playQueue(tracks, 0)
+            playerController.playQueue(tracks, 0, tag = artistQueueTag())
         }
     }
 
     fun playTrack(track: Track) {
         val tracks = _uiState.value.tracks
         val idx = tracks.indexOfFirst { it.id == track.id }
-        playerController.playQueue(tracks, idx.coerceAtLeast(0))
+        playerController.playQueue(tracks, idx.coerceAtLeast(0), tag = artistQueueTag())
     }
+
+    private fun artistQueueTag(): String? = _uiState.value.user?.username?.let { "artist:$it" }
 
     fun isFavoriteFlow(trackId: Long) = favoritesDao.isTrackFavorite(trackId)
 

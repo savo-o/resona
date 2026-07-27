@@ -65,6 +65,11 @@
     <string name="player_lyrics_not_found">Синхронизированный текст для этого трека не найден</string>
     <string name="player_lyrics_offset_earlier">Сдвинуть текст раньше</string>
     <string name="player_lyrics_offset_later">Сдвинуть текст позже</string>
+    <string name="player_playing_from">Играет из: %1$s</string>
+    <string name="player_source_mix">Микс</string>
+    <string name="player_source_favorites">Избранное</string>
+    <string name="player_source_offline">Загрузки</string>
+    <string name="player_source_search">Поиск</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Треки</string>
@@ -103,6 +108,10 @@
     <string name="favorites_badge_both">Локально + SoundCloud</string>
     <string name="favorites_online_unlike_failed">Не удалось убрать лайк на SoundCloud</string>
     <string name="favorites_online_fetch_failed">Не удалось загрузить лайки с SoundCloud</string>
+    <string name="favorites_online_sync_now">Синхронизировать</string>
+    <string name="favorites_online_sync_now_desc">Заново получить лайки с SoundCloud прямо сейчас</string>
+    <string name="favorites_online_sync_now_done">Синхронизировано избранных: %d</string>
+    <string name="favorites_online_sync_now_failed">Синхронизация не удалась</string>
     <string name="account_settings">Настройки</string>
 
     <!-- Settings -->
@@ -166,11 +175,6 @@
     <string name="debug_menu_diagnostics">Диагностика</string>
     <string name="debug_menu_verbose_network">Подробный лог сети</string>
     <string name="debug_menu_verbose_network_desc">Пишет полные тела запросов/ответов в лог трассировки ниже</string>
-    <string name="debug_menu_force_sync_favorites">Принудительная синхронизация избранного</string>
-    <string name="debug_menu_force_sync_favorites_desc">Заново получает лайки SoundCloud и сверяет их с локальной базой</string>
-    <string name="debug_menu_force_sync_favorites_done">Синхронизировано избранных: %d</string>
-    <string name="debug_menu_force_sync_favorites_failed">Синхронизация не удалась - см. лог трассировки</string>
-    <string name="debug_menu_sync">Синхронизировать</string>
     <string name="debug_menu_trace">Лог трассировки</string>
     <string name="debug_menu_trace_desc">Последние события приложения (вход, синхронизация избранного, сеть)</string>
     <string name="debug_menu_trace_empty">Записей пока нет</string>

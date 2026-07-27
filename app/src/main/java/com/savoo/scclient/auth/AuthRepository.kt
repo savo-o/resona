@@ -2,6 +2,7 @@ package com.savoo.scclient.auth
 
 import com.savoo.scclient.data.model.TokenResponse
 import com.savoo.scclient.data.remote.ClientIdProvider
+import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.di.PlainHttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,6 +22,7 @@ class AuthRepository @Inject constructor(
 ) {
     suspend fun exchangeCodeForToken(code: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
+            DebugLog.log(TAG, "exchangeCodeForToken: starting")
             val body = FormBody.Builder()
                 .add("grant_type", "authorization_code")
                 .add("client_id", clientIdProvider.cachedOrFallback())
@@ -41,8 +43,16 @@ class AuthRepository @Inject constructor(
             val adapter = moshi.adapter(TokenResponse::class.java)
             val token = adapter.fromJson(responseBody) ?: error("Empty token response")
             tokenStore.save(token)
-        }
+            DebugLog.log(TAG, "exchangeCodeForToken: succeeded")
+        }.onFailure { e -> DebugLog.log(TAG, "exchangeCodeForToken: failed: $e") }
     }
 
-    fun logout() = tokenStore.clear()
+    fun logout() {
+        DebugLog.log(TAG, "logout")
+        tokenStore.clear()
+    }
+
+    companion object {
+        private const val TAG = "AuthRepository"
+    }
 }

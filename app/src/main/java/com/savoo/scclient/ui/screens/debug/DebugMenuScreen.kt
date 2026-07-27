@@ -66,8 +66,6 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.remote.ClientIdProvider
-import com.savoo.scclient.data.repository.FavoritesRepository
-import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.player.OfflineTrackManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -85,8 +83,6 @@ class DebugMenuViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val offlineTrackManager: OfflineTrackManager,
     private val database: AppDatabase,
-    private val trackRepository: TrackRepository,
-    private val favoritesRepository: FavoritesRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -100,16 +96,6 @@ class DebugMenuViewModel @Inject constructor(
     fun copyTraceToClipboard() {
         val clipboard = context.getSystemService(ClipboardManager::class.java)
         clipboard?.setPrimaryClip(ClipData.newPlainText("Resona trace log", DebugLog.asText()))
-    }
-
-    fun forceSyncOnlineFavorites(onDone: (Result<Int>) -> Unit) {
-        viewModelScope.launch {
-            DebugLog.log("DebugMenu", "manual online favorites sync triggered")
-            val result = runCatching { trackRepository.getLikedTracks() }
-                .onSuccess { favoritesRepository.syncOnlineLikes(it) }
-            refreshCounts()
-            onDone(result.map { it.size })
-        }
     }
 
     private val _clientId = MutableStateFlow(clientIdProvider.cachedOrFallback())
@@ -170,10 +156,13 @@ class DebugMenuViewModel @Inject constructor(
         appendLine("Application ID: ${BuildConfig.APPLICATION_ID}")
         appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
         appendLine("Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
-        appendLine("SC Client ID: ${_clientId.value}")
+        appendLine("SC Client ID: ${maskClientId(_clientId.value)}")
         appendLine("Favorites: ${_favoriteTracks.value} tracks, ${_favoriteArtists.value} artists, ${_favoritePlaylists.value} playlists")
         appendLine("Offline tracks: ${_offlineTracks.value}")
     }
+
+    private fun maskClientId(id: String): String =
+        if (id.length <= 6) id else "${id.take(6)}…"
 
     fun copyDebugReportToClipboard() {
         val clipboard = context.getSystemService(ClipboardManager::class.java)
@@ -396,33 +385,6 @@ fun DebugMenuScreen(
                         )
                     }
                     Switch(checked = verboseNetworkLogging, onCheckedChange = { viewModel.setVerboseNetworkLogging(it) })
-                }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.debug_menu_force_sync_favorites), style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            stringResource(R.string.debug_menu_force_sync_favorites_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    TextButton(onClick = {
-                        viewModel.forceSyncOnlineFavorites { result ->
-                            scope.launch {
-                                val message = result.fold(
-                                    onSuccess = { context.getString(R.string.debug_menu_force_sync_favorites_done, it) },
-                                    onFailure = { context.getString(R.string.debug_menu_force_sync_favorites_failed) },
-                                )
-                                snackbarHostState.showSnackbar(message)
-                            }
-                        }
-                    }) {
-                        Text(stringResource(R.string.debug_menu_sync))
-                    }
                 }
             }
 

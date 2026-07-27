@@ -9,7 +9,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
-import android.util.Log
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.RawResourceDataSource
@@ -22,6 +21,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.repository.TrackRepository
+import com.savoo.scclient.debug.DebugLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -141,28 +141,28 @@ class PlayerController @Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            Log.d(TAG, "onPlaybackStateChanged: $playbackState currentId=${controller?.currentMediaItem?.mediaId} pos=${controller?.currentPosition} dur=${controller?.duration}")
+            DebugLog.log(TAG, "onPlaybackStateChanged: $playbackState currentId=${controller?.currentMediaItem?.mediaId} pos=${controller?.currentPosition} dur=${controller?.duration}")
             _state.value = _state.value.copy(isBuffering = playbackState == Player.STATE_BUFFERING)
             if (playbackState == Player.STATE_READY) updatePosition()
         }
 
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
-            Log.d(TAG, "onPositionDiscontinuity: reason=$reason oldItem=${oldPosition.mediaItem?.mediaId} oldPos=${oldPosition.positionMs} newItem=${newPosition.mediaItem?.mediaId} newPos=${newPosition.positionMs}")
+            DebugLog.log(TAG, "onPositionDiscontinuity: reason=$reason oldItem=${oldPosition.mediaItem?.mediaId} oldPos=${oldPosition.positionMs} newItem=${newPosition.mediaItem?.mediaId} newPos=${newPosition.positionMs}")
         }
 
         override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-            Log.d(TAG, "onTimelineChanged: reason=$reason windowCount=${timeline.windowCount}")
+            DebugLog.log(TAG, "onTimelineChanged: reason=$reason windowCount=${timeline.windowCount}")
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            Log.e(TAG, "Playback error: ${error.message}")
+            DebugLog.log(TAG, "Playback error: ${error.message}")
             // Fatal errors drop the player into STATE_IDLE; playWhenReady survives, so re-preparing resumes playback automatically.
             val mediaId = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
             if (mediaId in resolvingMediaIds) return // an in-flight resolution will prepare()/play() or skip once it finishes
             val attempts = (errorRetryCount[mediaId] ?: 0) + 1
             errorRetryCount[mediaId] = attempts
             if (attempts > 2) {
-                Log.e(TAG, "Giving up on track $mediaId after $attempts failed attempts, skipping")
+                DebugLog.log(TAG, "Giving up on track $mediaId after $attempts failed attempts, skipping")
                 errorRetryCount.remove(mediaId)
                 controller?.seekToNext()
                 return
@@ -181,7 +181,7 @@ class PlayerController @Inject constructor(
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val mediaId = mediaItem?.mediaId?.toLongOrNull() ?: return
             val track = queue.find { it.id == mediaId }
-            Log.d(TAG, "onMediaItemTransition: id=$mediaId title=${track?.title} reason=$reason pending=${isPending(mediaItem)} queueIndex(before)=$queueIndex")
+            DebugLog.log(TAG, "onMediaItemTransition: id=$mediaId title=${track?.title} reason=$reason pending=${isPending(mediaItem)} queueIndex(before)=$queueIndex")
             if (track != null) {
                 val idx = queue.indexOf(track)
                 if (idx >= 0) {
@@ -201,16 +201,16 @@ class PlayerController @Inject constructor(
                 }
 
                 if (isPending(mediaItem) && resolvingMediaIds.add(mediaId)) {
-                    Log.d(TAG, "reactive resolve start: id=$mediaId title=${track.title}")
+                    DebugLog.log(TAG, "reactive resolve start: id=$mediaId title=${track.title}")
                     scope.launch {
                         try {
                             val resolved = resolveTrack(track)
                             if (resolved == null) {
-                                Log.w(TAG, "reactive resolve FAILED after retries, skipping: id=$mediaId title=${track.title}")
+                                DebugLog.log(TAG, "reactive resolve FAILED after retries, skipping: id=$mediaId title=${track.title}")
                                 controller?.seekToNext()
                                 return@launch
                             }
-                            Log.d(TAG, "reactive resolve OK: id=$mediaId title=${track.title}")
+                            DebugLog.log(TAG, "reactive resolve OK: id=$mediaId title=${track.title}")
 
                             val i = queue.indexOf(track)
                             if (i < 0) return@launch
@@ -267,17 +267,17 @@ class PlayerController @Inject constructor(
             val fullTrack = if (track.media != null) track
                 else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(track.id) }.getOrNull() } ?: track
             if (fullTrack.media == null) {
-                Log.w(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
+                DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
             }
             val url = withContext(Dispatchers.IO) {
                 runCatching { trackRepository.resolvePlayableUrl(fullTrack) }
-                    .onFailure { Log.w(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableUrl threw ${it}") }
+                    .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableUrl threw ${it}") }
                     .getOrNull()
             }
             if (url != null) return ResolvedTrack(fullTrack, url, needsCaching = true)
             if (attempt < attempts - 1) delay(500L * (attempt + 1))
         }
-        Log.w(TAG, "resolveTrack GAVE UP after $attempts attempts: id=${track.id} title=${track.title}")
+        DebugLog.log(TAG, "resolveTrack GAVE UP after $attempts attempts: id=${track.id} title=${track.title}")
         return null
     }
 
@@ -312,7 +312,7 @@ class PlayerController @Inject constructor(
             c.nextMediaItemIndex.takeIf { it != androidx.media3.common.C.INDEX_UNSET },
             c.previousMediaItemIndex.takeIf { it != androidx.media3.common.C.INDEX_UNSET },
         )
-        Log.d(TAG, "preloadAdjacent: currentIndex=${c.currentMediaItemIndex} candidates=$indices shuffle=${c.shuffleModeEnabled}")
+        DebugLog.log(TAG, "preloadAdjacent: currentIndex=${c.currentMediaItemIndex} candidates=$indices shuffle=${c.shuffleModeEnabled}")
         for (idx in indices) {
             if (idx !in 0 until c.mediaItemCount) continue
             val item = runCatching { c.getMediaItemAt(idx) }.getOrNull() ?: continue
@@ -324,19 +324,19 @@ class PlayerController @Inject constructor(
 
     private fun resolveAndReplace(mediaId: Long) {
         if (!resolvingMediaIds.add(mediaId)) {
-            Log.d(TAG, "resolveAndReplace: id=$mediaId already in flight, skipping duplicate")
+            DebugLog.log(TAG, "resolveAndReplace: id=$mediaId already in flight, skipping duplicate")
             return
         }
-        Log.d(TAG, "preload resolve start: id=$mediaId")
+        DebugLog.log(TAG, "preload resolve start: id=$mediaId")
         scope.launch {
             try {
                 val track = queue.find { it.id == mediaId } ?: return@launch
                 val resolved = resolveTrack(track)
                 if (resolved == null) {
-                    Log.w(TAG, "preload resolve FAILED: id=$mediaId title=${track.title}")
+                    DebugLog.log(TAG, "preload resolve FAILED: id=$mediaId title=${track.title}")
                     return@launch
                 }
-                Log.d(TAG, "preload resolve OK: id=$mediaId title=${track.title}")
+                DebugLog.log(TAG, "preload resolve OK: id=$mediaId title=${track.title}")
 
                 val idx = queue.indexOf(track)
                 if (idx < 0) return@launch
@@ -516,11 +516,11 @@ class PlayerController @Inject constructor(
                 return@launch
             }
             val (fullTrack, url, needsCaching) = resolved
-            Log.d(TAG, "doPlay(${fullTrack.title}): resolved, cached=${!needsCaching}")
+            DebugLog.log(TAG, "doPlay(${fullTrack.title}): resolved, cached=${!needsCaching}")
 
             recentTracks.removeAll { it.id == fullTrack.id }
             recentTracks.add(fullTrack)
-            if (recentTracks.size > 20) recentTracks.removeFirst()
+            if (recentTracks.size > 20) recentTracks.removeAt(0)
 
             // Only the current track needs to be resolved before play() starts; neighbours are prefetched
             // afterwards via preloadAdjacent() so playback doesn't wait on network calls nobody's listening to yet.

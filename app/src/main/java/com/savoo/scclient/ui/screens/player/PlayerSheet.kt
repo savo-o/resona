@@ -542,6 +542,20 @@ private fun FullPlayerContent(
 
                     Spacer(Modifier.height(20.dp))
 
+                    state.currentTrack?.let { track ->
+                        Text(
+                            text = stringResource(R.string.player_playing_from, playingFromSource(state.queueTag, track.user.username)),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .offset { IntOffset(slideOffset.value.roundToInt(), 0) },
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -977,6 +991,19 @@ private fun LyricsLineItem(
             ) { onClick() }
             .padding(vertical = 10.dp),
     )
+}
+
+@Composable
+private fun playingFromSource(queueTag: String?, artistName: String): String = when {
+    queueTag == null -> artistName
+    queueTag == "home_mix" -> stringResource(R.string.player_source_mix)
+    queueTag == "favorites" -> stringResource(R.string.player_source_favorites)
+    queueTag == "offline" -> stringResource(R.string.player_source_offline)
+    queueTag == "recent" -> stringResource(R.string.home_section_jump_back_in)
+    queueTag == "search" -> stringResource(R.string.player_source_search)
+    queueTag.startsWith("artist:") -> queueTag.removePrefix("artist:")
+    queueTag.startsWith("playlist:") -> queueTag.removePrefix("playlist:")
+    else -> artistName
 }
 
 private fun formatTime(ms: Long): String {

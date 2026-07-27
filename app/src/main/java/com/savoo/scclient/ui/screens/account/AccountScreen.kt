@@ -39,12 +39,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,8 +74,10 @@ import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.BadgeRepository
 import com.savoo.scclient.data.remote.ClientIdProvider
+import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
+import com.savoo.scclient.debug.DebugLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,6 +96,7 @@ class AccountViewModel @Inject constructor(
     private val tokenStore: TokenStore,
     private val authRepository: AuthRepository,
     private val trackRepository: TrackRepository,
+    private val favoritesRepository: FavoritesRepository,
     val clientIdProvider: ClientIdProvider,
     val badgeRepository: BadgeRepository,
     private val settingsRepository: SettingsRepository,
@@ -102,8 +107,22 @@ class AccountViewModel @Inject constructor(
     val developerMode = settingsRepository.settings.map { it.developerMode }
     val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
 
+    private val _isSyncingFavorites = MutableStateFlow(false)
+    val isSyncingFavorites = _isSyncingFavorites.asStateFlow()
+
     fun setOnlineFavoritesEnabled(value: Boolean) {
         viewModelScope.launch { settingsRepository.setOnlineFavoritesEnabled(value) }
+    }
+
+    fun syncOnlineFavoritesNow(onDone: (Result<Int>) -> Unit) {
+        viewModelScope.launch {
+            _isSyncingFavorites.value = true
+            DebugLog.log(TAG, "manual online favorites sync triggered from Account")
+            val result = runCatching { trackRepository.getLikedTracks() }
+                .onSuccess { favoritesRepository.syncOnlineLikes(it) }
+            _isSyncingFavorites.value = false
+            onDone(result.map { it.size })
+        }
     }
 
     init {
@@ -133,6 +152,10 @@ class AccountViewModel @Inject constructor(
     }
 
     fun logout() = authRepository.logout()
+
+    companion object {
+        private const val TAG = "AccountViewModel"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -142,8 +165,14 @@ fun AccountScreen(
     onOpenSettings: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.account_title)) }) }) { padding ->
+    Scaffold(
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.account_title)) }) },
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
+    ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -154,12 +183,25 @@ fun AccountScreen(
                         ?.collectAsState() ?: remember { mutableStateOf(emptyList<String>()) }
                     val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
                     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState(initial = false)
+                    val isSyncingFavorites by viewModel.isSyncingFavorites.collectAsState()
                     LoggedInContent(
                         user = state.user,
                         badges = userBadges,
                         showId = isDeveloper,
                         onlineFavoritesEnabled = onlineFavoritesEnabled,
                         onOnlineFavoritesChange = { viewModel.setOnlineFavoritesEnabled(it) },
+                        isSyncingFavorites = isSyncingFavorites,
+                        onSyncFavoritesNow = {
+                            viewModel.syncOnlineFavoritesNow { result ->
+                                scope.launch {
+                                    val message = result.fold(
+                                        onSuccess = { context.getString(R.string.favorites_online_sync_now_done, it) },
+                                        onFailure = { context.getString(R.string.favorites_online_sync_now_failed) },
+                                    )
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            }
+                        },
                         onLogout = { viewModel.logout() },
                         onSettings = onOpenSettings,
                     )
@@ -173,6 +215,7 @@ fun AccountScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LoggedInContent(
     user: User?,
@@ -180,6 +223,8 @@ private fun LoggedInContent(
     showId: Boolean = false,
     onlineFavoritesEnabled: Boolean = false,
     onOnlineFavoritesChange: (Boolean) -> Unit = {},
+    isSyncingFavorites: Boolean = false,
+    onSyncFavoritesNow: () -> Unit = {},
     onLogout: () -> Unit,
     onSettings: () -> Unit,
 ) {
@@ -308,12 +353,37 @@ private fun LoggedInContent(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            com.savoo.scclient.ui.components.SwitchItem(
-                title = stringResource(R.string.favorites_online_toggle_title),
-                subtitle = stringResource(R.string.favorites_online_toggle_desc),
-                checked = onlineFavoritesEnabled,
-                onCheckedChange = onOnlineFavoritesChange,
-            )
+            Column {
+                com.savoo.scclient.ui.components.SwitchItem(
+                    title = stringResource(R.string.favorites_online_toggle_title),
+                    subtitle = stringResource(R.string.favorites_online_toggle_desc),
+                    checked = onlineFavoritesEnabled,
+                    onCheckedChange = onOnlineFavoritesChange,
+                )
+                if (onlineFavoritesEnabled) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.favorites_online_sync_now_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (isSyncingFavorites) {
+                            LoadingIndicator(modifier = Modifier.size(20.dp))
+                        } else {
+                            TextButton(onClick = onSyncFavoritesNow) {
+                                Text(stringResource(R.string.favorites_online_sync_now))
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(Modifier.height(12.dp))

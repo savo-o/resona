@@ -166,7 +166,7 @@ class TrackCache @Inject constructor(
     private fun evictOld() {
         val order = getTrackOrder().toMutableList()
         while (order.size > MAX_CACHED) {
-            val oldestId = order.removeLast()
+            val oldestId = order.removeAt(order.size - 1)
             val file = File(audioDir, "$oldestId.mp3")
             if (file.exists()) file.delete()
             prefs.edit().remove("$KEY_TRACK_INFO_PREFIX$oldestId").apply()

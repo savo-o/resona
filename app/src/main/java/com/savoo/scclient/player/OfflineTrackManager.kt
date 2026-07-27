@@ -4,11 +4,11 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.DocumentsContract
-import android.util.Log
 import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.TrackRepository
+import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.di.PlainHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -115,14 +115,14 @@ class OfflineTrackManager @Inject constructor(
                         fileSizeBytes = audioFile.length(),
                     )
                 )
-                Log.d("OfflineTrack", "Saved ${track.title} (${audioFile.length()} bytes)")
+                DebugLog.log("OfflineTrack", "Saved ${track.title} (${audioFile.length()} bytes)")
                 Result.success(Unit)
             } else {
                 audioFile.delete()
                 Result.failure(Exception("Downloaded file is empty"))
             }
         } catch (e: Exception) {
-            Log.e("OfflineTrack", "Failed to save: ${e.message}")
+            DebugLog.log("OfflineTrack", "Failed to save: ${e.message}")
             Result.failure(e)
         }
     }
@@ -136,7 +136,7 @@ class OfflineTrackManager @Inject constructor(
                 val artworkFile = File(offlineDir, "${trackId}.jpg")
                 if (artworkFile.exists()) artworkFile.delete()
                 offlineDao.removeTrack(trackId)
-                Log.d("OfflineTrack", "Removed offline track: ${track.title}")
+                DebugLog.log("OfflineTrack", "Removed offline track: ${track.title}")
             }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -154,7 +154,7 @@ class OfflineTrackManager @Inject constructor(
                 if (artworkFile.exists()) artworkFile.delete()
             }
             offlineDao.clearAll()
-            Log.d("OfflineTrack", "Cleared all offline tracks")
+            DebugLog.log("OfflineTrack", "Cleared all offline tracks")
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -164,13 +164,13 @@ class OfflineTrackManager @Inject constructor(
     suspend fun getLocalPath(trackId: Long): String? {
         val offlineTrack = offlineDao.getOfflineTrack(trackId)
         if (offlineTrack == null) {
-            Log.d("OfflineTrack", "getLocalPath($trackId): not in DB")
+            DebugLog.log("OfflineTrack", "getLocalPath($trackId): not in DB")
             return null
         }
         val file = File(offlineTrack.localPath)
         val exists = file.exists()
         val size = if (exists) file.length() else 0L
-        Log.d("OfflineTrack", "getLocalPath($trackId): exists=$exists, size=$size, path=${offlineTrack.localPath}")
+        DebugLog.log("OfflineTrack", "getLocalPath($trackId): exists=$exists, size=$size, path=${offlineTrack.localPath}")
         return if (exists && size > 0) file.absolutePath else null
     }
 
@@ -215,7 +215,7 @@ class OfflineTrackManager @Inject constructor(
             )
             true
         } catch (e: Exception) {
-            Log.e("OfflineTrack", "adoptExternalFile failed: ${e.message}")
+            DebugLog.log("OfflineTrack", "adoptExternalFile failed: ${e.message}")
             false
         }
     }
@@ -258,7 +258,7 @@ class OfflineTrackManager @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Log.e("OfflineTrack", "importLocalFolder failed: ${e.message}")
+            DebugLog.log("OfflineTrack", "importLocalFolder failed: ${e.message}")
         }
         LocalImportResult(imported, skipped)
     }
@@ -309,7 +309,7 @@ class OfflineTrackManager @Inject constructor(
             )
             true
         } catch (e: Exception) {
-            Log.e("OfflineTrack", "importLocalFile failed for $displayName: ${e.message}")
+            DebugLog.log("OfflineTrack", "importLocalFile failed for $displayName: ${e.message}")
             false
         }
     }

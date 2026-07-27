@@ -160,7 +160,7 @@ fun HomeScreen(
                             if (playerState.currentTrack?.id == track.id) {
                                 viewModel.playerController.togglePlayPause()
                             } else {
-                                viewModel.playFrom(recentTracks, track.id)
+                                viewModel.playFrom(recentTracks, track.id, tag = "recent")
                             }
                         },
                     )
@@ -176,7 +176,7 @@ fun HomeScreen(
                             if (playerState.currentTrack?.id == track.id) {
                                 viewModel.playerController.togglePlayPause()
                             } else {
-                                viewModel.playFrom(favoriteTracks, track.id)
+                                viewModel.playFrom(favoriteTracks, track.id, tag = "favorites")
                             }
                         },
                     )
@@ -192,7 +192,7 @@ fun HomeScreen(
                             if (playerState.currentTrack?.id == track.id) {
                                 viewModel.playerController.togglePlayPause()
                             } else {
-                                viewModel.playFrom(offlineTracks, track.id)
+                                viewModel.playFrom(offlineTracks, track.id, tag = "offline")
                             }
                         },
                     )

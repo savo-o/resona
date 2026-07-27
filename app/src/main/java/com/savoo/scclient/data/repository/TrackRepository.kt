@@ -6,6 +6,7 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.savoo.scclient.data.remote.WebViewApiBridge
+import com.savoo.scclient.debug.DebugLog
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,7 +36,7 @@ class TrackRepository @Inject constructor(
 
     suspend fun getTrack(id: Long): Track {
         val track = api.getTrack(id)
-        android.util.Log.d("TrackRepository", "getTrack($id): media=${track.media}, transcodings=${track.media?.transcodings?.size}")
+        DebugLog.log(TAG, "getTrack($id): media=${track.media}, transcodings=${track.media?.transcodings?.size}")
         return track
     }
 

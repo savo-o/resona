@@ -175,7 +175,7 @@ class SearchViewModel @Inject constructor(
     fun playTrack(track: Track) {
         val tracks = _uiState.value.tracks
         val idx = tracks.indexOfFirst { it.id == track.id }
-        playerController.playQueue(tracks, idx.coerceAtLeast(0))
+        playerController.playQueue(tracks, idx.coerceAtLeast(0), tag = "search")
     }
 
     fun isFavoriteFlow(trackId: Long) = favoritesDao.isTrackFavorite(trackId)

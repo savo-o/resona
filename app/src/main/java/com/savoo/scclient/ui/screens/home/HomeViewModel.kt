@@ -183,12 +183,12 @@ class HomeViewModel @Inject constructor(
         playerController.playQueue(tracks.shuffled(), repeatAll = true, tag = MIX_QUEUE_TAG)
     }
 
-    fun playFrom(tracks: List<Track>, trackId: Long) {
+    fun playFrom(tracks: List<Track>, trackId: Long, tag: String? = null) {
         val idx = tracks.indexOfFirst { it.id == trackId }
         if (idx < 0) return
         // Same reasoning as playMix: these are Home's own short lists (recent/favorites/offline), and
         // stopping dead at the end of an 8-track "recent" queue reads as broken, not intentional -
         // Home playback should keep going regardless of which row you tapped into.
-        playerController.playQueue(tracks, idx, repeatAll = true)
+        playerController.playQueue(tracks, idx, repeatAll = true, tag = tag)
     }
 }
