@@ -90,6 +90,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Outline
@@ -232,12 +233,13 @@ private fun FullPlayerSheet(
     onArtistClick: (Long) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val palette = rememberPlayerPalette()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = PlayerDarkBg,
+        containerColor = palette.bg,
         dragHandle = null,
     ) {
         FullPlayerContent(
@@ -271,6 +273,29 @@ private val PlayerDarkBg = Color(0xFF17181A)
 private val PlayerCardDim = Color(0xFF232420)
 private val PlayerOnDark = Color(0xFFF5F3E7)
 private val PlayerOnDarkMuted = Color(0xFFAFAEA2)
+
+// The main play button always sits on top of `accent`, which is itself blended heavily toward
+// white (see FullPlayerContent), so its content stays dark regardless of light/dark theme.
+private val PlayerAccentInk = Color(0xFF17181A)
+
+private data class PlayerPalette(val bg: Color, val card: Color, val on: Color, val onMuted: Color)
+
+// The big player uses a bespoke dark palette (not tied to the seed/dynamic color theme) for its
+// dark-mode look, but in light mode it should just match every other surface in the app - so the
+// light variant pulls straight from MaterialTheme instead of a second hand-picked palette.
+// `background`'s luminance mirrors the app's light/dark setting exactly (see Theme.kt's
+// buildDarkScheme/buildLightScheme/buildSeedScheme), so it's a reliable signal here without
+// threading the dark/light flag through every composable in this file.
+@Composable
+private fun rememberPlayerPalette(): PlayerPalette {
+    val scheme = MaterialTheme.colorScheme
+    val isLight = scheme.background.luminance() > 0.5f
+    return if (isLight) {
+        PlayerPalette(scheme.background, scheme.surfaceContainerHigh, scheme.onSurface, scheme.onSurfaceVariant)
+    } else {
+        PlayerPalette(PlayerDarkBg, PlayerCardDim, PlayerOnDark, PlayerOnDarkMuted)
+    }
+}
 
 private fun Color.tone(amount: Float, towards: Color): Color = lerp(this, towards, amount)
 
@@ -492,6 +517,7 @@ private fun FullPlayerContent(
     onArtistClick: (Long) -> Unit = {},
 ) {
     val context = LocalContext.current
+    val palette = rememberPlayerPalette()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
@@ -555,7 +581,7 @@ private fun FullPlayerContent(
                     Icons.Filled.KeyboardArrowDown,
                     contentDescription = stringResource(R.string.player_collapse),
                     modifier = Modifier.size(32.dp),
-                    tint = PlayerOnDark,
+                    tint = palette.on,
                 )
             }
             Row {
@@ -564,7 +590,7 @@ private fun FullPlayerContent(
                         Icons.Filled.Lyrics,
                         contentDescription = stringResource(R.string.player_lyrics),
                         modifier = Modifier.size(24.dp),
-                        tint = if (showLyrics) accent else PlayerOnDark,
+                        tint = if (showLyrics) accent else palette.on,
                     )
                 }
                 IconButton(onClick = {
@@ -580,7 +606,7 @@ private fun FullPlayerContent(
                         Icons.Filled.Share,
                         contentDescription = stringResource(R.string.player_share),
                         modifier = Modifier.size(24.dp),
-                        tint = PlayerOnDark,
+                        tint = palette.on,
                     )
                 }
             }
@@ -625,7 +651,7 @@ private fun FullPlayerContent(
                         Text(
                             text = stringResource(R.string.player_playing_from, playingFromSource(state.queueTag, track.user.username)),
                             style = MaterialTheme.typography.labelMedium,
-                            color = PlayerOnDarkMuted,
+                            color = palette.onMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center,
@@ -653,12 +679,12 @@ private fun FullPlayerContent(
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                     textAlign = TextAlign.Center,
-                                    color = PlayerOnDark,
+                                    color = palette.on,
                                 )
                                 Text(
                                     track.user.username,
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = PlayerOnDarkMuted,
+                                    color = palette.onMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier
@@ -679,7 +705,7 @@ private fun FullPlayerContent(
                             Icon(
                                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                 contentDescription = null,
-                                tint = if (isFavorite) accent else PlayerOnDarkMuted,
+                                tint = if (isFavorite) accent else palette.onMuted,
                                 modifier = Modifier.scale(heartScale),
                             )
                         }
@@ -704,7 +730,7 @@ private fun FullPlayerContent(
                                 Icon(
                                     Icons.Filled.CloudDownload,
                                     contentDescription = stringResource(R.string.player_save_offline),
-                                    tint = PlayerOnDarkMuted,
+                                    tint = palette.onMuted,
                                     modifier = Modifier.size(22.dp),
                                 )
                             }
@@ -724,7 +750,7 @@ private fun FullPlayerContent(
                 colors = SliderDefaults.colors(
                     thumbColor = accent,
                     activeTrackColor = accent,
-                    inactiveTrackColor = PlayerOnDarkMuted.copy(alpha = 0.25f),
+                    inactiveTrackColor = palette.onMuted.copy(alpha = 0.25f),
                 ),
             )
             Row(
@@ -734,12 +760,12 @@ private fun FullPlayerContent(
                 Text(
                     formatTime(if (isDragging) dragPosition.toLong() else state.positionMs),
                     style = MaterialTheme.typography.bodySmall,
-                    color = PlayerOnDarkMuted,
+                    color = palette.onMuted,
                 )
                 Text(
                     formatTime(state.durationMs),
                     style = MaterialTheme.typography.bodySmall,
-                    color = PlayerOnDarkMuted,
+                    color = palette.onMuted,
                 )
             }
 
@@ -753,13 +779,13 @@ private fun FullPlayerContent(
                     .graphicsLayer { scaleX = playScale; scaleY = playScale },
                 shape = RoundedCornerShape(50),
                 color = accent,
-                contentColor = PlayerDarkBg,
+                contentColor = PlayerAccentInk,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (state.isBuffering || state.loadingTrackId != null) {
                         LoadingIndicator(
                             modifier = Modifier.size(28.dp),
-                            color = PlayerDarkBg,
+                            color = PlayerAccentInk,
                         )
                     } else {
                         Icon(
@@ -782,25 +808,25 @@ private fun FullPlayerContent(
                     icon = Icons.Filled.Shuffle,
                     contentDescription = stringResource(R.string.player_shuffle),
                     onClick = onToggleShuffle,
-                    tint = if (state.shuffleEnabled) accent else PlayerOnDarkMuted,
+                    tint = if (state.shuffleEnabled) accent else palette.onMuted,
                 )
                 PlayerCircleIconButton(
                     icon = Icons.Filled.SkipPrevious,
                     contentDescription = null,
                     onClick = onPrev,
-                    tint = PlayerOnDark,
+                    tint = palette.on,
                 )
                 PlayerCircleIconButton(
                     icon = Icons.Filled.SkipNext,
                     contentDescription = null,
                     onClick = onNext,
-                    tint = PlayerOnDark,
+                    tint = palette.on,
                 )
                 PlayerCircleIconButton(
                     icon = if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                     contentDescription = stringResource(R.string.player_repeat),
                     onClick = onCycleRepeat,
-                    tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else PlayerOnDarkMuted,
+                    tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else palette.onMuted,
                 )
             }
         }
@@ -817,10 +843,11 @@ private fun PlayerCircleIconButton(
     size: Dp = 52.dp,
     iconSize: Dp = 24.dp,
 ) {
+    val palette = rememberPlayerPalette()
     IconButton(
         onClick = onClick,
         modifier = modifier.size(size),
-        colors = IconButtonDefaults.iconButtonColors(containerColor = PlayerCardDim, contentColor = tint),
+        colors = IconButtonDefaults.iconButtonColors(containerColor = palette.card, contentColor = tint),
     ) {
         Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(iconSize))
     }
@@ -972,13 +999,14 @@ private fun LyricsView(
     accent: Color,
     modifier: Modifier = Modifier,
 ) {
+    val palette = rememberPlayerPalette()
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when {
             lines == null -> LoadingIndicator(color = accent)
             lines.isEmpty() -> Text(
                 stringResource(R.string.player_lyrics_not_found),
                 style = MaterialTheme.typography.bodyMedium,
-                color = PlayerOnDarkMuted,
+                color = palette.onMuted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 32.dp),
             )
@@ -1047,9 +1075,10 @@ private fun LyricsOffsetControl(
     onAdjustOffset: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val palette = rememberPlayerPalette()
     Surface(
-        color = PlayerCardDim.copy(alpha = 0.9f),
-        contentColor = PlayerOnDarkMuted,
+        color = palette.card.copy(alpha = 0.9f),
+        contentColor = palette.onMuted,
         shape = RoundedCornerShape(50),
         modifier = modifier,
     ) {
@@ -1063,7 +1092,7 @@ private fun LyricsOffsetControl(
             Text(
                 text = "%+.1fs".format(offsetMs / 1000f),
                 style = MaterialTheme.typography.labelMedium,
-                color = PlayerOnDarkMuted,
+                color = palette.onMuted,
                 modifier = Modifier
                     .padding(horizontal = 4.dp)
                     .clickable(
@@ -1086,6 +1115,7 @@ private fun LyricsLineItem(
     isPast: Boolean,
     onClick: () -> Unit,
 ) {
+    val palette = rememberPlayerPalette()
     val scale by animateFloatAsState(
         targetValue = if (isActive) 1f else 0.92f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
@@ -1093,9 +1123,9 @@ private fun LyricsLineItem(
     )
     val color by animateColorAsState(
         targetValue = when {
-            isActive -> PlayerOnDark
-            isPast -> PlayerOnDarkMuted.copy(alpha = 0.35f)
-            else -> PlayerOnDarkMuted.copy(alpha = 0.6f)
+            isActive -> palette.on
+            isPast -> palette.onMuted.copy(alpha = 0.35f)
+            else -> palette.onMuted.copy(alpha = 0.6f)
         },
         animationSpec = tween(500, easing = FastOutSlowInEasing),
         label = "lyricColor",
