@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.savoo.scclient.data.model.UpdateChannel
 import com.savoo.scclient.ui.theme.AppColorTheme
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.map
@@ -33,6 +34,8 @@ data class AppSettings(
     // provider - positive shifts lines later, negative earlier. Some tracks' data is simply off by a fixed amount.
     val lyricsOffsetMs: Long = 0L,
     val onlineFavoritesEnabled: Boolean = false,
+    val updateChannel: UpdateChannel = UpdateChannel.RELEASE,
+    val autoCheckUpdates: Boolean = true,
 )
 
 @Singleton
@@ -48,6 +51,8 @@ class SettingsRepository @Inject constructor(
         val LANGUAGE = stringPreferencesKey("language")
         val LYRICS_OFFSET_MS = longPreferencesKey("lyrics_offset_ms")
         val ONLINE_FAVORITES_ENABLED = booleanPreferencesKey("online_favorites_enabled")
+        val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
+        val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -65,6 +70,10 @@ class SettingsRepository @Inject constructor(
             } ?: LanguageOption.ENGLISH,
             lyricsOffsetMs = prefs[Keys.LYRICS_OFFSET_MS] ?: 0L,
             onlineFavoritesEnabled = prefs[Keys.ONLINE_FAVORITES_ENABLED] ?: false,
+            updateChannel = prefs[Keys.UPDATE_CHANNEL]?.let {
+                runCatching { UpdateChannel.valueOf(it) }.getOrNull()
+            } ?: UpdateChannel.RELEASE,
+            autoCheckUpdates = prefs[Keys.AUTO_CHECK_UPDATES] ?: true,
         )
     }
 
@@ -100,5 +109,13 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setOnlineFavoritesEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.ONLINE_FAVORITES_ENABLED] = value }
+    }
+
+    suspend fun setUpdateChannel(channel: UpdateChannel) {
+        context.dataStore.edit { it[Keys.UPDATE_CHANNEL] = channel.name }
+    }
+
+    suspend fun setAutoCheckUpdates(value: Boolean) {
+        context.dataStore.edit { it[Keys.AUTO_CHECK_UPDATES] = value }
     }
 }

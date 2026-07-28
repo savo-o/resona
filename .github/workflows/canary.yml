@@ -45,12 +45,18 @@ jobs:
           TELEGRAM_API_HASH=$TELEGRAM_API_HASH
           EOF
 
-      - name: Build canary APKs
-        run: ./gradlew assembleCanary --no-daemon
-
       - name: Set build metadata
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        env:
+          # Canary versionCode = base + run number, so it always increases across nightly builds
+          # and always outranks any hand-versioned Release build (small integers, bumped rarely).
+          CANARY_VERSION_CODE_BASE: 100000
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version_code=$((CANARY_VERSION_CODE_BASE + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
+
+      - name: Build canary APKs
+        run: ./gradlew assembleCanary --no-daemon -PappVersionCode=${{ steps.vars.outputs.version_code }}
 
       # softprops/action-gh-release does not overwrite assets on an existing tag,
       # so drop the previous "canary" release/tag before publishing the new one.
@@ -67,6 +73,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: true
           body: |
+            <!-- versionCode: ${{ steps.vars.outputs.version_code }} -->
             Automated build from `${{ steps.vars.outputs.sha_short }}` on `main`. Not for production use.
           files: app/build/outputs/apk/canary/*.apk
         env:

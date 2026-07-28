@@ -7,6 +7,7 @@ import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.local.TelegramImportDao
 import com.savoo.scclient.data.remote.AuthInterceptor
+import com.savoo.scclient.data.remote.GitHubReleaseApi
 import com.savoo.scclient.data.remote.LyricsApi
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.savoo.scclient.debug.DebugLog
@@ -33,6 +34,10 @@ annotation class PlainHttpClient
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class LyricsRetrofit
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class GitHubRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -113,6 +118,32 @@ object NetworkModule {
     @Singleton
     fun provideLyricsApi(@LyricsRetrofit retrofit: Retrofit): LyricsApi =
         retrofit.create(LyricsApi::class.java)
+
+    @Provides
+    @Singleton
+    @GitHubRetrofit
+    fun provideGitHubRetrofit(@PlainHttpClient client: OkHttpClient, moshi: Moshi): Retrofit {
+        val uaClient = client.newBuilder()
+            .addInterceptor { chain ->
+                chain.proceed(
+                    chain.request().newBuilder()
+                        .header("Accept", "application/vnd.github+json")
+                        .header("User-Agent", "Resona (unofficial SoundCloud client)")
+                        .build()
+                )
+            }
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(uaClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideGitHubReleaseApi(@GitHubRetrofit retrofit: Retrofit): GitHubReleaseApi =
+        retrofit.create(GitHubReleaseApi::class.java)
 
     @Provides
     @Singleton

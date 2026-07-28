@@ -13,6 +13,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,7 +60,6 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -90,14 +90,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -223,7 +237,7 @@ private fun FullPlayerSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = PlayerDarkBg,
         dragHandle = null,
     ) {
         FullPlayerContent(
@@ -252,6 +266,57 @@ private fun FullPlayerSheet(
 }
 
 private val PlayButtonShape = RoundedCornerShape(16.dp)
+
+private val PlayerDarkBg = Color(0xFF17181A)
+private val PlayerCardDim = Color(0xFF232420)
+private val PlayerOnDark = Color(0xFFF5F3E7)
+private val PlayerOnDarkMuted = Color(0xFFAFAEA2)
+
+private fun Color.tone(amount: Float, towards: Color): Color = lerp(this, towards, amount)
+
+private const val BlobAmplitude = 0.055f
+private const val BlobBumps = 8
+private const val BlobPhase = 0f
+
+// Shared by BlobShape's clip outline and the artwork's progress ring, so the ring traces the exact
+// same wobbly contour as the artwork clip, just at a bigger size (and, for the ring, rotated to
+// start at the top like a clock).
+private fun buildBlobPath(
+    size: Size,
+    amplitude: Float = BlobAmplitude,
+    bumps: Int = BlobBumps,
+    phase: Float = BlobPhase,
+    startAngleOffset: Float = 0f,
+): Path {
+    val path = Path()
+    val cx = size.width / 2f
+    val cy = size.height / 2f
+    // Divided by (1 + amplitude) so the outward bumps (sin peak = 1) top out exactly at the
+    // box's own half-size instead of overshooting it - otherwise the clip cuts the bumps flush
+    // with the box edge, showing as flattened, "eaten-away" notches instead of a smooth curve.
+    val baseR = minOf(size.width, size.height) / 2f / (1f + amplitude)
+    val segments = 128
+    for (i in 0..segments) {
+        val t = i.toFloat() / segments
+        val theta = startAngleOffset + t * 2f * Math.PI.toFloat()
+        val r = baseR * (1f + amplitude * sin(bumps * theta + phase))
+        val x = cx + r * cos(theta)
+        val y = cy + r * sin(theta)
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    return path
+}
+
+private class BlobShape(
+    private val amplitude: Float = BlobAmplitude,
+    private val bumps: Int = BlobBumps,
+    private val phase: Float = BlobPhase,
+) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        return Outline.Generic(buildBlobPath(size, amplitude, bumps, phase))
+    }
+}
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -443,6 +508,13 @@ private fun FullPlayerContent(
         label = "playFull"
     )
 
+    val themeAccent = MaterialTheme.colorScheme.primary
+    val accent by animateColorAsState(
+        targetValue = (glowColor ?: themeAccent).tone(0.55f, Color.White),
+        animationSpec = tween(1400, easing = FastOutSlowInEasing),
+        label = "playerAccent",
+    )
+
     var prevTrackId by remember { mutableStateOf(state.currentTrack?.id) }
     val slideOffset = remember { androidx.compose.animation.core.Animatable(0f) }
 
@@ -483,7 +555,7 @@ private fun FullPlayerContent(
                     Icons.Filled.KeyboardArrowDown,
                     contentDescription = stringResource(R.string.player_collapse),
                     modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onSurface,
+                    tint = PlayerOnDark,
                 )
             }
             Row {
@@ -492,7 +564,7 @@ private fun FullPlayerContent(
                         Icons.Filled.Lyrics,
                         contentDescription = stringResource(R.string.player_lyrics),
                         modifier = Modifier.size(24.dp),
-                        tint = if (showLyrics) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        tint = if (showLyrics) accent else PlayerOnDark,
                     )
                 }
                 IconButton(onClick = {
@@ -508,7 +580,7 @@ private fun FullPlayerContent(
                         Icons.Filled.Share,
                         contentDescription = stringResource(R.string.player_share),
                         modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        tint = PlayerOnDark,
                     )
                 }
             }
@@ -526,29 +598,37 @@ private fun FullPlayerContent(
                     onSeek = onSeek,
                     offsetMs = lyricsOffsetMs,
                     onAdjustOffset = onAdjustLyricsOffset,
+                    accent = accent,
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Column(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     ArtworkOrb(
                         artworkUrl = state.currentTrack?.artworkUrl,
                         glowColor = glowColor,
                         isPlaying = state.isPlaying,
+                        progress = if (state.durationMs > 0) {
+                            ((if (isDragging) dragPosition else state.positionMs.toFloat()) / state.durationMs.toFloat()).coerceIn(0f, 1f)
+                        } else 0f,
                         slideOffsetX = slideOffset,
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxWidth(0.92f)
                             .padding(top = 8.dp),
                     )
 
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(24.dp))
 
                     state.currentTrack?.let { track ->
                         Text(
                             text = stringResource(R.string.player_playing_from, playingFromSource(state.queueTag, track.user.username)),
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = PlayerOnDarkMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .offset { IntOffset(slideOffset.value.roundToInt(), 0) },
@@ -563,18 +643,22 @@ private fun FullPlayerContent(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         state.currentTrack?.let { track ->
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
                                 Text(
                                     track.title,
-                                    style = MaterialTheme.typography.headlineSmall,
+                                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center,
+                                    color = PlayerOnDark,
                                 )
                                 Text(
                                     track.user.username,
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = PlayerOnDarkMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier
@@ -586,12 +670,16 @@ private fun FullPlayerContent(
                                 )
                             }
                         }
-                        Spacer(Modifier.width(4.dp))
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { heartAnimating = true; onToggleFavorite() }) {
                             Icon(
                                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                 contentDescription = null,
-                                tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (isFavorite) accent else PlayerOnDarkMuted,
                                 modifier = Modifier.scale(heartScale),
                             )
                         }
@@ -599,7 +687,7 @@ private fun FullPlayerContent(
                             Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                                 LoadingIndicator(
                                     modifier = Modifier.size(22.dp),
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = accent,
                                 )
                             }
                         } else if (isOffline) {
@@ -607,7 +695,7 @@ private fun FullPlayerContent(
                                 Icon(
                                     Icons.Filled.CloudDone,
                                     contentDescription = stringResource(R.string.player_saved_offline),
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    tint = accent,
                                     modifier = Modifier.size(22.dp),
                                 )
                             }
@@ -616,7 +704,7 @@ private fun FullPlayerContent(
                                 Icon(
                                     Icons.Filled.CloudDownload,
                                     contentDescription = stringResource(R.string.player_save_offline),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    tint = PlayerOnDarkMuted,
                                     modifier = Modifier.size(22.dp),
                                 )
                             }
@@ -634,9 +722,9 @@ private fun FullPlayerContent(
                 onValueChangeFinished = { onSeek(dragPosition.roundToLong()); isDragging = false },
                 valueRange = 0f..(state.durationMs.coerceAtLeast(1L)).toFloat(),
                 colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    thumbColor = accent,
+                    activeTrackColor = accent,
+                    inactiveTrackColor = PlayerOnDarkMuted.copy(alpha = 0.25f),
                 ),
             )
             Row(
@@ -646,88 +734,95 @@ private fun FullPlayerContent(
                 Text(
                     formatTime(if (isDragging) dragPosition.toLong() else state.positionMs),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = PlayerOnDarkMuted,
                 )
                 Text(
                     formatTime(state.durationMs),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = PlayerOnDarkMuted,
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
+
+            Surface(
+                onClick = onTogglePlay,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .graphicsLayer { scaleX = playScale; scaleY = playScale },
+                shape = RoundedCornerShape(50),
+                color = accent,
+                contentColor = PlayerDarkBg,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (state.isBuffering || state.loadingTrackId != null) {
+                        LoadingIndicator(
+                            modifier = Modifier.size(28.dp),
+                            color = PlayerDarkBg,
+                        )
+                    } else {
+                        Icon(
+                            if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilledIconToggleButton(
-                    checked = state.shuffleEnabled,
-                    onCheckedChange = { onToggleShuffle() },
-                    shapes = IconButtonDefaults.toggleableShapes(),
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.Shuffle,
-                        contentDescription = stringResource(R.string.player_shuffle),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                IconButton(onClick = onPrev, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        Icons.Filled.SkipPrevious,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(36.dp),
-                    )
-                }
-                Surface(
-                    onClick = onTogglePlay,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .graphicsLayer { scaleX = playScale; scaleY = playScale },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (state.isBuffering || state.loadingTrackId != null) {
-                            LoadingIndicator(
-                                modifier = Modifier.size(28.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                        } else {
-                            Icon(
-                                if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(36.dp),
-                            )
-                        }
-                    }
-                }
-                IconButton(onClick = onNext, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        Icons.Filled.SkipNext,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(36.dp),
-                    )
-                }
-                FilledIconToggleButton(
-                    checked = state.repeatMode != Player.REPEAT_MODE_OFF,
-                    onCheckedChange = { onCycleRepeat() },
-                    shapes = IconButtonDefaults.toggleableShapes(),
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
-                        contentDescription = stringResource(R.string.player_repeat),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
+                PlayerCircleIconButton(
+                    icon = Icons.Filled.Shuffle,
+                    contentDescription = stringResource(R.string.player_shuffle),
+                    onClick = onToggleShuffle,
+                    tint = if (state.shuffleEnabled) accent else PlayerOnDarkMuted,
+                )
+                PlayerCircleIconButton(
+                    icon = Icons.Filled.SkipPrevious,
+                    contentDescription = null,
+                    onClick = onPrev,
+                    tint = PlayerOnDark,
+                )
+                PlayerCircleIconButton(
+                    icon = Icons.Filled.SkipNext,
+                    contentDescription = null,
+                    onClick = onNext,
+                    tint = PlayerOnDark,
+                )
+                PlayerCircleIconButton(
+                    icon = if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
+                    contentDescription = stringResource(R.string.player_repeat),
+                    onClick = onCycleRepeat,
+                    tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else PlayerOnDarkMuted,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun PlayerCircleIconButton(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 52.dp,
+    iconSize: Dp = 24.dp,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.size(size),
+        colors = IconButtonDefaults.iconButtonColors(containerColor = PlayerCardDim, contentColor = tint),
+    ) {
+        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(iconSize))
     }
 }
 
@@ -737,6 +832,7 @@ private fun ArtworkOrb(
     artworkUrl: String?,
     glowColor: Color?,
     isPlaying: Boolean,
+    progress: Float,
     slideOffsetX: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
     modifier: Modifier = Modifier,
 ) {
@@ -794,11 +890,22 @@ private fun ArtworkOrb(
         label = "orbBreathe",
     )
 
+    val blobShape = remember { BlobShape() }
+    val ringColor = orbA.tone(0.45f, Color.White)
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(300, easing = LinearEasing),
+        label = "artworkRingProgress",
+    )
+
     // requiredSize lets the orb overflow past the artwork's own bounds (unlike fillMaxWidth, it isn't clamped to the parent's constraints).
     // The inner Box is pinned to exactly artSize so that overflow, so it doesn't push the title/controls below it further down the screen.
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
         val artSize = maxWidth
-        val orbSize = artSize * 1.28f
+        val orbSize = artSize * 1.1f
+        val ringGap = 14.dp
+        val ringStroke = 4.dp
+        val ringSize = artSize + ringGap * 2 + ringStroke
         Box(modifier = Modifier.size(artSize), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
@@ -810,12 +917,12 @@ private fun ArtworkOrb(
                         translationX = (cos(rad) * 70f).toFloat()
                         translationY = (sin(rad) * 70f).toFloat()
                     }
-                    .background(softGradient(orbA.copy(alpha = 0.95f)), CircleShape)
-                    .blur(80.dp, BlurredEdgeTreatment.Unbounded)
+                    .background(softGradient(orbA.copy(alpha = 1f)), CircleShape)
+                    .blur(46.dp, BlurredEdgeTreatment.Unbounded)
             )
             Box(
                 modifier = Modifier
-                    .requiredSize(orbSize * 0.82f)
+                    .requiredSize(orbSize * 0.85f)
                     .graphicsLayer {
                         scaleX = breathe * presence; scaleY = breathe * presence
                         alpha = presenceAlpha
@@ -823,17 +930,33 @@ private fun ArtworkOrb(
                         translationX = (cos(rad) * 65f).toFloat()
                         translationY = (sin(rad) * 65f).toFloat()
                     }
-                    .background(softGradient(orbB.copy(alpha = 0.85f)), CircleShape)
-                    .blur(80.dp, BlurredEdgeTreatment.Unbounded)
+                    .background(softGradient(orbB.copy(alpha = 1f)), CircleShape)
+                    .blur(46.dp, BlurredEdgeTreatment.Unbounded)
             )
             TrackArtwork(
                 artworkUrl = artworkUrl,
                 contentDescription = null,
-                shape = RoundedCornerShape(32.dp),
+                shape = blobShape,
                 modifier = Modifier
                     .fillMaxSize()
                     .offset { IntOffset(slideOffsetX.value.roundToInt(), 0) },
             )
+            Canvas(modifier = Modifier.requiredSize(ringSize)) {
+                val strokePx = ringStroke.toPx()
+                val inset = strokePx / 2f
+                val pathBox = Size(size.width - strokePx, size.height - strokePx)
+                val ringPath = buildBlobPath(pathBox, startAngleOffset = -(Math.PI / 2).toFloat())
+                ringPath.translate(Offset(inset, inset))
+
+                val measure = PathMeasure()
+                measure.setPath(ringPath, forceClosed = true)
+                val progressPath = Path()
+                measure.getSegment(0f, measure.length * animatedProgress, progressPath, startWithMoveTo = true)
+
+                val strokeStyle = Stroke(strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                drawPath(ringPath, color = ringColor.copy(alpha = 0.25f), style = strokeStyle)
+                drawPath(progressPath, color = ringColor, style = strokeStyle)
+            }
         }
     }
 }
@@ -846,15 +969,16 @@ private fun LyricsView(
     onSeek: (Long) -> Unit,
     offsetMs: Long,
     onAdjustOffset: (Long) -> Unit,
+    accent: Color,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when {
-            lines == null -> LoadingIndicator(color = MaterialTheme.colorScheme.primary)
+            lines == null -> LoadingIndicator(color = accent)
             lines.isEmpty() -> Text(
                 stringResource(R.string.player_lyrics_not_found),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = PlayerOnDarkMuted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 32.dp),
             )
@@ -924,7 +1048,8 @@ private fun LyricsOffsetControl(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+        color = PlayerCardDim.copy(alpha = 0.9f),
+        contentColor = PlayerOnDarkMuted,
         shape = RoundedCornerShape(50),
         modifier = modifier,
     ) {
@@ -938,7 +1063,7 @@ private fun LyricsOffsetControl(
             Text(
                 text = "%+.1fs".format(offsetMs / 1000f),
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = PlayerOnDarkMuted,
                 modifier = Modifier
                     .padding(horizontal = 4.dp)
                     .clickable(
@@ -968,9 +1093,9 @@ private fun LyricsLineItem(
     )
     val color by animateColorAsState(
         targetValue = when {
-            isActive -> MaterialTheme.colorScheme.onSurface
-            isPast -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            isActive -> PlayerOnDark
+            isPast -> PlayerOnDarkMuted.copy(alpha = 0.35f)
+            else -> PlayerOnDarkMuted.copy(alpha = 0.6f)
         },
         animationSpec = tween(500, easing = FastOutSlowInEasing),
         label = "lyricColor",

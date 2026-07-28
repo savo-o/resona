@@ -143,6 +143,23 @@
     <string name="settings_version">Version %s</string>
     <string name="settings_debug_menu">Debug Menu</string>
     <string name="settings_debug_menu_desc">Developer tools and diagnostics</string>
+    <string name="settings_updates">Updates</string>
+    <string name="settings_update_channel_release">Release</string>
+    <string name="settings_update_channel_canary">Canary</string>
+    <string name="settings_auto_check_updates">Automatically check for updates</string>
+    <string name="settings_check_for_updates">Check for updates</string>
+    <string name="settings_checking_for_updates">Checking…</string>
+    <string name="settings_update_up_to_date">You\'re using the latest version.</string>
+    <string name="settings_update_check_failed">Couldn\'t check for updates. Try again later.</string>
+
+    <!-- Update dialogs -->
+    <string name="update_dialog_title_release">Update available</string>
+    <string name="update_dialog_message_release">Version: %1$s\n\nWhat\'s new:\n%2$s</string>
+    <string name="update_dialog_no_changelog">No changelog provided.</string>
+    <string name="update_dialog_title_canary">New Canary build available</string>
+    <string name="update_dialog_message_canary">A newer Canary build is available.</string>
+    <string name="update_dialog_later">Later</string>
+    <string name="update_dialog_open_github">Open GitHub</string>
 
     <!-- Debug Menu -->
     <string name="debug_menu_title">Debug Menu</string>

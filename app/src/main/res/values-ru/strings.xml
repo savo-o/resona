@@ -143,6 +143,23 @@
     <string name="settings_version">Версия %s</string>
     <string name="settings_debug_menu">Меню отладки</string>
     <string name="settings_debug_menu_desc">Инструменты и диагностика для разработки</string>
+    <string name="settings_updates">Обновления</string>
+    <string name="settings_update_channel_release">Релиз</string>
+    <string name="settings_update_channel_canary">Canary</string>
+    <string name="settings_auto_check_updates">Автоматически проверять обновления</string>
+    <string name="settings_check_for_updates">Проверить обновления</string>
+    <string name="settings_checking_for_updates">Проверка…</string>
+    <string name="settings_update_up_to_date">У вас установлена последняя версия.</string>
+    <string name="settings_update_check_failed">Не удалось проверить обновления. Попробуйте позже.</string>
+
+    <!-- Update dialogs -->
+    <string name="update_dialog_title_release">Доступно обновление</string>
+    <string name="update_dialog_message_release">Версия: %1$s\n\nЧто нового:\n%2$s</string>
+    <string name="update_dialog_no_changelog">Список изменений не указан.</string>
+    <string name="update_dialog_title_canary">Доступна новая Canary-сборка</string>
+    <string name="update_dialog_message_canary">Доступна более новая Canary-сборка.</string>
+    <string name="update_dialog_later">Позже</string>
+    <string name="update_dialog_open_github">Открыть GitHub</string>
 
     <!-- Debug Menu -->
     <string name="debug_menu_title">Меню отладки</string>

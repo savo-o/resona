@@ -53,6 +53,7 @@ import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,14 +74,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import coil.ImageLoader
 import com.savoo.scclient.R
+import com.savoo.scclient.data.model.UpdateChannel
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
+import com.savoo.scclient.data.repository.UpdateCheckResult
+import com.savoo.scclient.data.repository.UpdateRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.ui.components.SwitchItem
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.BuildConfig
+import androidx.compose.material.icons.filled.SystemUpdate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -93,14 +98,26 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
+sealed interface UpdateCheckUiState {
+    data object Idle : UpdateCheckUiState
+    data object Checking : UpdateCheckUiState
+    data class Available(val result: UpdateCheckResult.Available) : UpdateCheckUiState
+    data object UpToDate : UpdateCheckUiState
+    data object Error : UpdateCheckUiState
+}
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
+    private val updateRepository: UpdateRepository,
     private val offlineTrackManager: OfflineTrackManager,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
     val settings = repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
     val autoplayNext = repository.autoplayNext.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    private val _updateCheckState = MutableStateFlow<UpdateCheckUiState>(UpdateCheckUiState.Idle)
+    val updateCheckState = _updateCheckState.asStateFlow()
 
     private val _cacheSize = MutableStateFlow("Calculating...")
     val cacheSize = _cacheSize.asStateFlow()
@@ -121,6 +138,24 @@ class SettingsViewModel @Inject constructor(
     fun setAutoplayNext(value: Boolean) = viewModelScope.launch { repository.setAutoplayNext(value) }
     fun setDynamicFromTrack(value: Boolean) = viewModelScope.launch { repository.setDynamicFromTrack(value) }
     fun setDeveloperMode(value: Boolean) = viewModelScope.launch { repository.setDeveloperMode(value) }
+    fun setUpdateChannel(channel: UpdateChannel) = viewModelScope.launch { repository.setUpdateChannel(channel) }
+    fun setAutoCheckUpdates(value: Boolean) = viewModelScope.launch { repository.setAutoCheckUpdates(value) }
+
+    fun checkForUpdates() {
+        viewModelScope.launch {
+            _updateCheckState.value = UpdateCheckUiState.Checking
+            val channel = settings.value.updateChannel
+            _updateCheckState.value = when (val result = updateRepository.checkForUpdate(channel)) {
+                is UpdateCheckResult.Available -> UpdateCheckUiState.Available(result)
+                UpdateCheckResult.UpToDate -> UpdateCheckUiState.UpToDate
+                UpdateCheckResult.Error -> UpdateCheckUiState.Error
+            }
+        }
+    }
+
+    fun consumeUpdateCheckState() {
+        _updateCheckState.value = UpdateCheckUiState.Idle
+    }
     fun setLanguage(language: LanguageOption) = viewModelScope.launch {
         repository.setLanguage(language)
         context.getSharedPreferences("sc_settings", android.content.Context.MODE_PRIVATE)
@@ -277,11 +312,34 @@ fun SettingsScreen(
     val cacheSize by viewModel.cacheSize.collectAsState()
     val offlineCount by viewModel.offlineCount.collectAsState()
     val offlineSize by viewModel.offlineSize.collectAsState()
+    val updateCheckState by viewModel.updateCheckState.collectAsState()
     var showAbout by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val activity = context as? Activity
+
+    LaunchedEffect(updateCheckState) {
+        when (val state = updateCheckState) {
+            UpdateCheckUiState.UpToDate -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.settings_update_up_to_date))
+                viewModel.consumeUpdateCheckState()
+            }
+            UpdateCheckUiState.Error -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.settings_update_check_failed))
+                viewModel.consumeUpdateCheckState()
+            }
+            is UpdateCheckUiState.Available -> Unit // rendered as a dialog below, dismissed explicitly
+            UpdateCheckUiState.Checking, UpdateCheckUiState.Idle -> Unit
+        }
+    }
+
+    (updateCheckState as? UpdateCheckUiState.Available)?.let { state ->
+        UpdateAvailableDialog(
+            result = state.result,
+            onDismiss = { viewModel.consumeUpdateCheckState() },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -367,6 +425,64 @@ fun SettingsScreen(
                             shapes = shapes,
                         ) {
                             Text(stringResource(langLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_updates)) {
+                val channels = UpdateChannel.entries
+                val channelLabelResIds = listOf(R.string.settings_update_channel_release, R.string.settings_update_channel_canary)
+                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    channels.forEachIndexed { index, channel ->
+                        val shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            channels.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                        ToggleButton(
+                            checked = settings.updateChannel == channel,
+                            onCheckedChange = { checked -> if (checked) viewModel.setUpdateChannel(channel) },
+                            modifier = Modifier.weight(1f),
+                            shapes = shapes,
+                        ) {
+                            Text(stringResource(channelLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+
+                SettingsDivider()
+
+                SwitchItem(
+                    title = stringResource(R.string.settings_auto_check_updates),
+                    checked = settings.autoCheckUpdates,
+                    onCheckedChange = { viewModel.setAutoCheckUpdates(it) }
+                )
+
+                SettingsDivider()
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = updateCheckState != UpdateCheckUiState.Checking) { viewModel.checkForUpdates() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.SystemUpdate,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_check_for_updates), style = MaterialTheme.typography.bodyLarge)
+                        if (updateCheckState == UpdateCheckUiState.Checking) {
+                            Text(
+                                stringResource(R.string.settings_checking_for_updates),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }

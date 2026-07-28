@@ -22,7 +22,9 @@ android {
         applicationId = "com.savoo.scclient"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
+        // Canary CI builds override this via -PappVersionCode so each nightly build's
+        // BuildConfig.VERSION_CODE keeps increasing without editing this file every run.
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 8
         versionName = "1.0"
 
         buildConfigField("String", "SC_CLIENT_ID_FALLBACK", "\"\"")
