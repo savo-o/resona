@@ -75,6 +75,8 @@ import androidx.lifecycle.viewModelScope
 import coil.ImageLoader
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.UpdateChannel
+import com.savoo.scclient.data.repository.AppIconManager
+import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
@@ -140,6 +142,10 @@ class SettingsViewModel @Inject constructor(
     fun setDeveloperMode(value: Boolean) = viewModelScope.launch { repository.setDeveloperMode(value) }
     fun setUpdateChannel(channel: UpdateChannel) = viewModelScope.launch { repository.setUpdateChannel(channel) }
     fun setAutoCheckUpdates(value: Boolean) = viewModelScope.launch { repository.setAutoCheckUpdates(value) }
+    fun setAppIcon(option: AppIconOption) = viewModelScope.launch {
+        repository.setAppIcon(option)
+        AppIconManager.apply(context, option)
+    }
 
     fun checkForUpdates() {
         viewModelScope.launch {
@@ -377,6 +383,34 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_app_icon)) {
+                val iconOptions = AppIconOption.entries
+                val iconLabelResIds = listOf(R.string.settings_app_icon_normal, R.string.settings_app_icon_dynamic)
+                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    iconOptions.forEachIndexed { index, option ->
+                        val shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            iconOptions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                        ToggleButton(
+                            checked = settings.appIcon == option,
+                            onCheckedChange = { checked -> if (checked) viewModel.setAppIcon(option) },
+                            modifier = Modifier.weight(1f),
+                            shapes = shapes,
+                        ) {
+                            Text(stringResource(iconLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+                Text(
+                    stringResource(R.string.settings_app_icon_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                )
             }
 
             SettingsSectionCard(title = stringResource(R.string.settings_dark_theme)) {

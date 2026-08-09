@@ -19,6 +19,8 @@ private val Context.dataStore by preferencesDataStore(name = "sc_settings")
 
 enum class DarkModeOption { SYSTEM, LIGHT, DARK }
 
+enum class AppIconOption { NORMAL, DYNAMIC }
+
 enum class LanguageOption(val locale: Locale?, val displayName: String) {
     ENGLISH(Locale.ENGLISH, "English"),
     RUSSIAN(Locale("ru"), "Русский"),
@@ -36,6 +38,7 @@ data class AppSettings(
     val onlineFavoritesEnabled: Boolean = false,
     val updateChannel: UpdateChannel = UpdateChannel.RELEASE,
     val autoCheckUpdates: Boolean = true,
+    val appIcon: AppIconOption = AppIconOption.DYNAMIC,
 )
 
 @Singleton
@@ -53,6 +56,7 @@ class SettingsRepository @Inject constructor(
         val ONLINE_FAVORITES_ENABLED = booleanPreferencesKey("online_favorites_enabled")
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
+        val APP_ICON = stringPreferencesKey("app_icon")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -74,6 +78,9 @@ class SettingsRepository @Inject constructor(
                 runCatching { UpdateChannel.valueOf(it) }.getOrNull()
             } ?: UpdateChannel.RELEASE,
             autoCheckUpdates = prefs[Keys.AUTO_CHECK_UPDATES] ?: true,
+            appIcon = prefs[Keys.APP_ICON]?.let {
+                runCatching { AppIconOption.valueOf(it) }.getOrNull()
+            } ?: AppIconOption.DYNAMIC,
         )
     }
 
@@ -117,5 +124,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setAutoCheckUpdates(value: Boolean) {
         context.dataStore.edit { it[Keys.AUTO_CHECK_UPDATES] = value }
+    }
+
+    suspend fun setAppIcon(option: AppIconOption) {
+        context.dataStore.edit { it[Keys.APP_ICON] = option.name }
     }
 }

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(unzip -l classes.jar)",
+      "Bash(awk '{print $4}')",
+      "Bash(unzip -p classes.jar androidx/compose/material3/IconButtonDefaults.class)",
+      "Bash(javap -p /tmp/IconButtonDefaults.class)",
+      "Bash(unzip -p classes.jar androidx/compose/material3/IconButtonKt.class)",
+      "Bash(javap -p /tmp/IconButtonKt.class)",
+      "Bash(unzip -p classes.jar androidx/compose/material3/LoadingIndicatorKt.class)",
+      "Bash(javap -p /tmp/LoadingIndicatorKt.class)",
+      "Bash(unzip -p classes.jar androidx/compose/material3/MaterialThemeKt.class)",
+      "Bash(javap -p -v /tmp/MaterialThemeKt.class)",
+      "Bash(javap -v /tmp/MaterialThemeKt.class)",
+      "Bash(awk '/public static final void MaterialExpressiveTheme/,/^$/')",
+      "Read(//home/savo/td/example/android/tdlib/**)",
+      "Read(//home/savo/td/example/android/tdlib/libs/**)",
+      "Read(//home/savo/td/example/android/tdlib/java/**)",
+      "Bash(rm -rf /home/savo/Downloads/scclient/app/src/main/jniLibs/x86)",
+      "Bash(rm -rf /home/savo/Downloads/scclient/app/src/main/jniLibs/x86_64)",
+      "Bash(timeout 590 ./gradlew :app:compileDebugKotlin --console=plain -q)",
+      "Bash(adb devices *)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --msg-filter 'sed \"/^Co-Authored-By: Claude/d\" | sed \"/^$/N;/\\\\n$/D\"' -- 70f1ff8^..main)"
+    ]
+  }
+}

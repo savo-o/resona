@@ -117,6 +117,10 @@
     <!-- Settings -->
     <string name="settings_title">Настройки</string>
     <string name="settings_color_theme">Цветовая тема</string>
+    <string name="settings_app_icon">Значок приложения</string>
+    <string name="settings_app_icon_normal">Обычный</string>
+    <string name="settings_app_icon_dynamic">Динамический</string>
+    <string name="settings_app_icon_desc">Динамический подстраивается под цвета обоев на Android 13+, если в настройках обоев системы включены \"Цветные значки\".</string>
     <string name="settings_dark_theme">Тёмная тема</string>
     <string name="settings_dark_system">Системная</string>
     <string name="settings_dark_light">Светлая</string>

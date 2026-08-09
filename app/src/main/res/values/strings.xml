@@ -117,6 +117,10 @@
     <!-- Settings -->
     <string name="settings_title">Settings</string>
     <string name="settings_color_theme">Color Theme</string>
+    <string name="settings_app_icon">App Icon</string>
+    <string name="settings_app_icon_normal">Normal</string>
+    <string name="settings_app_icon_dynamic">Dynamic</string>
+    <string name="settings_app_icon_desc">Dynamic matches your wallpaper colors on Android 13+, if \"Themed icons\" is enabled in your system\'s wallpaper settings.</string>
     <string name="settings_dark_theme">Dark Theme</string>
     <string name="settings_dark_system">System</string>
     <string name="settings_dark_light">Light</string>
