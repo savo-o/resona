@@ -413,6 +413,49 @@ private fun tryCreateTrack(pcm: ShortArray): AudioTrack? = runCatching {
     track
 }.getOrNull()
 
+private class NoisePlayer {
+    private val sampleRate = 44100
+    private val audioTrack = AudioTrack(
+        AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build(),
+        AudioFormat.Builder()
+            .setSampleRate(sampleRate)
+            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+            .build(),
+        AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+            .coerceAtLeast(4096),
+        AudioTrack.MODE_STREAM,
+        AudioManager.AUDIO_SESSION_ID_GENERATE,
+    )
+
+    @Volatile private var gain = 0f
+    @Volatile private var running = true
+
+    private val thread = Thread {
+        val chunk = ShortArray(1024)
+        audioTrack.play()
+        while (running) {
+            for (i in chunk.indices) {
+                chunk[i] = ((Random.nextFloat() * 2f - 1f) * Short.MAX_VALUE * gain).toInt().toShort()
+            }
+            audioTrack.write(chunk, 0, chunk.size)
+        }
+        audioTrack.stop()
+        audioTrack.release()
+    }.apply { start() }
+
+    fun setGain(target: Float) {
+        gain = target.coerceIn(0f, 1f)
+    }
+
+    fun release() {
+        running = false
+    }
+}
+
 private class SpectrumEngine(private val context: Context) {
     var grid by mutableStateOf(emptyGrid())
         private set
@@ -422,16 +465,26 @@ private class SpectrumEngine(private val context: Context) {
     }
     private var t = 0f
     private var activeTrack: AudioTrack? = null
+    private var noisePlayer: NoisePlayer? = null
     private var job: Job? = null
 
     fun start(scope: CoroutineScope) {
-        job = scope.launch { loop() }
+        job = scope.launch {
+            if (isAudioAllowed(context)) {
+                val player = NoisePlayer()
+                noisePlayer = player
+                animatePhase(900L) { frac -> player.setGain(frac * 0.025f) }
+            }
+            loop()
+        }
     }
 
     fun release() {
         job?.cancel()
         activeTrack?.let { runCatching { it.stop(); it.release() } }
         activeTrack = null
+        noisePlayer?.release()
+        noisePlayer = null
     }
 
     private fun snapshot(): Array<FloatArray> = Array(timeSlices.size) { i -> timeSlices[i] }
@@ -512,6 +565,7 @@ private class SpectrumEngine(private val context: Context) {
         val jingle = JINGLES.random()
         val pcm = JingleSynth.render(jingle)
         val track = tryCreateTrack(pcm)
+        noisePlayer?.setGain(0.008f)
         try {
             track?.let {
                 activeTrack = it
@@ -528,6 +582,7 @@ private class SpectrumEngine(private val context: Context) {
         } finally {
             track?.let { runCatching { it.stop(); it.release() } }
             if (activeTrack === track) activeTrack = null
+            noisePlayer?.setGain(0.025f)
         }
     }
 }
