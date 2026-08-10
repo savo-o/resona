@@ -199,7 +199,9 @@ fun PlayerSheet(
             onAdjustLyricsOffset = { viewModel.adjustLyricsOffset(it) },
             onDismiss = { showFullPlayer = false },
             onTogglePlay = { viewModel.controller.togglePlayPause() },
-            onSeek = { viewModel.controller.seekTo(it) },
+            onScrubStart = { viewModel.controller.beginScrub() },
+            onScrub = { viewModel.controller.scrubTo(it) },
+            onSeek = { viewModel.controller.endScrub(it) },
             onToggleFavorite = { viewModel.toggleFavorite() },
             onSaveForOffline = { viewModel.saveForOffline() },
             onRemoveFromOffline = { viewModel.removeFromOffline() },
@@ -226,6 +228,8 @@ private fun FullPlayerSheet(
     onAdjustLyricsOffset: (Long) -> Unit,
     onDismiss: () -> Unit,
     onTogglePlay: () -> Unit,
+    onScrubStart: () -> Unit,
+    onScrub: (Long) -> Unit,
     onSeek: (Long) -> Unit,
     onToggleFavorite: () -> Unit,
     onSaveForOffline: () -> Unit,
@@ -258,6 +262,8 @@ private fun FullPlayerSheet(
             onAdjustLyricsOffset = onAdjustLyricsOffset,
             onCollapse = onDismiss,
             onTogglePlay = onTogglePlay,
+            onScrubStart = onScrubStart,
+            onScrub = onScrub,
             onSeek = onSeek,
             onToggleFavorite = onToggleFavorite,
             onSaveForOffline = onSaveForOffline,
@@ -512,6 +518,8 @@ private fun FullPlayerContent(
     onAdjustLyricsOffset: (Long) -> Unit,
     onCollapse: () -> Unit,
     onTogglePlay: () -> Unit,
+    onScrubStart: () -> Unit,
+    onScrub: (Long) -> Unit,
     onSeek: (Long) -> Unit,
     onToggleFavorite: () -> Unit,
     onSaveForOffline: () -> Unit,
@@ -645,9 +653,10 @@ private fun FullPlayerContent(
                     BoxWithConstraints(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .padding(bottom = 20.dp),
                     ) {
-                        val artSize = maxWidth * 0.92f
+                        val artSize = minOf(maxWidth * 0.92f, maxHeight).coerceAtLeast(120.dp)
                         ArtworkOrb(
                             artworkUrl = state.currentTrack?.artworkUrl,
                             glowColor = glowColor,
@@ -662,7 +671,7 @@ private fun FullPlayerContent(
                         )
                     }
 
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(16.dp))
 
                     state.currentTrack?.let { track ->
                         Text(
@@ -765,12 +774,14 @@ private fun FullPlayerContent(
                     if (!isDragging) {
                         haptics.seekEdge()
                         lastSeekTickSecond = second
+                        onScrubStart()
                     } else if (second != lastSeekTickSecond) {
                         haptics.seekTick()
                         lastSeekTickSecond = second
                     }
                     dragPosition = value
                     isDragging = true
+                    onScrub(value.roundToLong())
                 },
                 onValueChangeFinished = {
                     haptics.seekEdge()

@@ -91,10 +91,20 @@ class PlayerController @Inject constructor(
     // resolutions for the next and previous track were issuing these commands at overlapping times, which is
     // suspected to be involved in the shuffle-skip cascade (the player jumping through several unrelated tracks).
     private val playerCommandMutex = Mutex()
+    private var isScrubbing = false
+    private var wasPlayingBeforeScrub = false
+    private var lastScrubSeekAtMs = 0L
+    private var pendingScrubJob: kotlinx.coroutines.Job? = null
+    private var fadeJob: kotlinx.coroutines.Job? = null
+    private var fadeOutStartedForMediaId: Long? = null
 
     private companion object {
         const val TAG = "PlayerController"
         private const val PENDING_SCHEME = "rawresource"
+        private const val SCRUB_THROTTLE_MS = 140L
+        private const val FADE_OUT_LEAD_MS = 1500L
+        private const val FADE_IN_MS = 900L
+        private const val FADE_STEP_MS = 60L
 
         // Placeholder items point at a real, always-loadable local silent file rather than an invalid URI (which used
         // to make ExoPlayer choke while probing it during buffering/look-ahead). Every placeholder gets a distinct
@@ -198,6 +208,10 @@ class PlayerController @Inject constructor(
                 if (!isSelfEcho) {
                     _state.update { it.copy(currentTrack = track, durationMs = track.durationMs, loadingTrackId = null) }
                     extractSeedColor(track.artworkUrl)
+                    fadeOutStartedForMediaId = null
+                    fadeJob?.cancel()
+                    controller?.volume = 0f
+                    startFade(from = 0f, to = 1f, durationMs = FADE_IN_MS)
                 }
 
                 if (isPending(mediaItem) && resolvingMediaIds.add(mediaId)) {
@@ -386,6 +400,37 @@ class PlayerController @Inject constructor(
         val pos = controller?.currentPosition ?: return
         val dur = controller?.duration ?: return
         _state.update { it.copy(positionMs = pos, durationMs = dur.coerceAtLeast(0L)) }
+        maybeStartFadeOut(pos, dur)
+    }
+
+    private fun maybeStartFadeOut(pos: Long, dur: Long) {
+        if (dur <= 0 || isScrubbing) return
+        val mediaId = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        val remaining = dur - pos
+        if (remaining in 0..FADE_OUT_LEAD_MS && fadeOutStartedForMediaId != mediaId) {
+            fadeOutStartedForMediaId = mediaId
+            startFade(from = controller?.volume ?: 1f, to = 0f, durationMs = remaining)
+        } else if (remaining > FADE_OUT_LEAD_MS && fadeOutStartedForMediaId == mediaId) {
+            fadeOutStartedForMediaId = null
+            fadeJob?.cancel()
+            controller?.volume = 1f
+        }
+    }
+
+    private fun startFade(from: Float, to: Float, durationMs: Long) {
+        fadeJob?.cancel()
+        if (durationMs <= 0) {
+            controller?.volume = to
+            return
+        }
+        fadeJob = scope.launch {
+            val steps = (durationMs / FADE_STEP_MS).toInt().coerceAtLeast(1)
+            for (i in 1..steps) {
+                controller?.volume = from + (to - from) * (i.toFloat() / steps)
+                delay(FADE_STEP_MS)
+            }
+            controller?.volume = to
+        }
     }
 
     fun play(track: Track) {
@@ -550,6 +595,37 @@ class PlayerController @Inject constructor(
 
     fun seekTo(positionMs: Long) {
         controller?.seekTo(positionMs)
+    }
+
+    fun beginScrub() {
+        isScrubbing = true
+        wasPlayingBeforeScrub = controller?.isPlaying == true
+        if (!wasPlayingBeforeScrub) controller?.play()
+    }
+
+    fun scrubTo(positionMs: Long) {
+        if (!isScrubbing) return
+        pendingScrubJob?.cancel()
+        val now = System.currentTimeMillis()
+        val elapsed = now - lastScrubSeekAtMs
+        if (elapsed >= SCRUB_THROTTLE_MS) {
+            lastScrubSeekAtMs = now
+            controller?.seekTo(positionMs)
+        } else {
+            pendingScrubJob = scope.launch {
+                delay(SCRUB_THROTTLE_MS - elapsed)
+                lastScrubSeekAtMs = System.currentTimeMillis()
+                controller?.seekTo(positionMs)
+            }
+        }
+    }
+
+    fun endScrub(positionMs: Long) {
+        pendingScrubJob?.cancel()
+        pendingScrubJob = null
+        isScrubbing = false
+        controller?.seekTo(positionMs)
+        if (!wasPlayingBeforeScrub) controller?.pause()
     }
 
     fun currentPosition(): Long = controller?.currentPosition ?: 0L
