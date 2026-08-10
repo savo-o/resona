@@ -134,7 +134,12 @@ class MainActivity : ComponentActivity() {
                 darkTheme = isDark,
                 overrideSeedColor = if (settings.dynamicFromTrack) trackSeedColor else null,
             ) {
-                RootScreen(initialDeepLink = deepLinkTarget)
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.savoo.scclient.ui.haptics.LocalHapticsEnabled provides settings.hapticsEnabled,
+                    com.savoo.scclient.ui.haptics.LocalHapticsIntensity provides settings.hapticsIntensity,
+                ) {
+                    RootScreen(initialDeepLink = deepLinkTarget)
+                }
             }
         }
     }

@@ -128,6 +128,12 @@
     <string name="settings_dynamic_color">Динамический цвет из трека</string>
     <string name="settings_dynamic_color_desc">Акцентный цвет меняется в зависимости от текущего трека</string>
     <string name="settings_autoplay">Автовоспроизведение следующего трека</string>
+    <string name="settings_haptics">Тактильный отклик</string>
+    <string name="settings_haptics_desc">Вибрация при нажатиях и действиях</string>
+    <string name="settings_haptics_intensity">Сила вибрации</string>
+    <string name="settings_haptics_intensity_low">Слабая</string>
+    <string name="settings_haptics_intensity_medium">Средняя</string>
+    <string name="settings_haptics_intensity_high">Сильная</string>
     <string name="settings_developer_mode">Режим разработчика</string>
     <string name="settings_developer_mode_desc">Показывать ID пользователей в профилях</string>
     <string name="settings_language">Язык</string>

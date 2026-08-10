@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.savoo.scclient.ui.haptics.rememberHapticTick
 
 private val PillShape = RoundedCornerShape(50)
 
@@ -78,6 +79,7 @@ private fun DockItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val haptic = rememberHapticTick()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale by androidx.compose.animation.core.animateFloatAsState(
@@ -110,7 +112,7 @@ private fun DockItem(
                 selected = selected,
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick,
+                onClick = { haptic(); onClick() },
             )
             .padding(horizontal = horizontalPadding, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

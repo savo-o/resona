@@ -3,7 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resona — Open Source SoundCloud Client</title>
+    <title>resona</title>
+    <script>
+        (function () {
+            var stored = localStorage.getItem('theme');
+            var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -32,10 +39,12 @@
             --md-sys-color-surface-container: #F1ECF4;
             --md-sys-color-surface-container-high: #ECE6EF;
             --md-sys-color-surface-container-highest: #E6E0E9;
-            --md-sys-shape-corner-extra-large: 28px;
+            --md-sys-shape-corner-extra-large: 32px;
             --md-sys-shape-corner-large: 16px;
             --md-sys-shape-corner-medium: 12px;
             --md-sys-shape-corner-small: 8px;
+            --md-sys-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --md-sys-motion-emphasized: cubic-bezier(0.2, 0, 0, 1);
         }
 
         [data-theme="dark"] {
@@ -105,7 +114,12 @@
         .nav-brand img {
             width: 36px;
             height: 36px;
-            border-radius: 10px;
+            border-radius: 30% 70% 65% 35% / 40% 35% 65% 60%;
+            transition: border-radius 0.6s var(--md-sys-motion-spring);
+        }
+
+        .nav-brand:hover img {
+            border-radius: 50%;
         }
 
         .nav-brand span {
@@ -145,6 +159,11 @@
             filter: brightness(1.1);
         }
 
+        .nav-links a.nav-github:active {
+            transform: scale(0.92);
+            border-radius: 12px;
+        }
+
         .theme-toggle {
             width: 40px;
             height: 40px;
@@ -156,11 +175,17 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.2s;
+            transition: background 0.2s, border-radius 0.35s var(--md-sys-motion-spring), transform 0.25s var(--md-sys-motion-spring);
         }
 
         .theme-toggle:hover {
             background: var(--md-sys-color-surface-container-high);
+            border-radius: 14px;
+        }
+
+        .theme-toggle:active {
+            transform: scale(0.88);
+            border-radius: 10px;
         }
 
         .theme-toggle .material-symbols-rounded { font-size: 22px; }
@@ -256,13 +281,19 @@
             font-weight: 500;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+            transition: transform 0.35s var(--md-sys-motion-spring), border-radius 0.35s var(--md-sys-motion-spring), box-shadow 0.3s var(--md-sys-motion-emphasized), background 0.3s;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06);
         }
 
         .btn-filled:hover {
             box-shadow: 0 2px 6px rgba(0,0,0,0.15), 0 8px 16px rgba(0,0,0,0.1);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            border-radius: 24px;
+        }
+
+        .btn-filled:active {
+            transform: translateY(0) scale(0.94);
+            border-radius: 12px;
         }
 
         .btn-filled .material-symbols-rounded { font-size: 20px; }
@@ -281,12 +312,18 @@
             font-weight: 500;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+            transition: transform 0.35s var(--md-sys-motion-spring), border-radius 0.35s var(--md-sys-motion-spring), box-shadow 0.3s var(--md-sys-motion-emphasized);
         }
 
         .btn-tonal:hover {
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
+            border-radius: 24px;
+        }
+
+        .btn-tonal:active {
+            transform: translateY(0) scale(0.94);
+            border-radius: 12px;
         }
 
         .btn-tonal .material-symbols-rounded { font-size: 20px; }
@@ -296,24 +333,24 @@
             width: 280px;
             height: 560px;
             background: var(--md-sys-color-surface-container);
-            border-radius: 36px;
+            border-radius: 40px;
             border: 4px solid var(--md-sys-color-outline);
             overflow: hidden;
             position: relative;
             box-shadow: 0 24px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.08);
             animation: float 6s ease-in-out infinite;
             cursor: pointer;
-            transition: transform 0.4s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.4s cubic-bezier(0.2, 0, 0, 1);
+            transition: transform 0.45s var(--md-sys-motion-spring), box-shadow 0.4s var(--md-sys-motion-emphasized);
         }
 
         .hero-mockup:hover {
-            transform: translateY(-8px) scale(1.02);
+            transform: translateY(-8px) scale(1.03);
             box-shadow: 0 32px 64px rgba(0,0,0,0.18), 0 12px 24px rgba(0,0,0,0.12);
         }
 
         .hero-mockup:active {
-            transform: translateY(-2px) scale(0.98);
-            transition-duration: 0.1s;
+            transform: translateY(-2px) scale(0.97);
+            transition-duration: 0.15s;
         }
 
         .mockup-screen {
@@ -480,11 +517,14 @@
             align-items: center;
             gap: 6px;
             font-size: 13px;
-            font-weight: 500;
-            color: var(--md-sys-color-primary);
+            font-weight: 600;
+            color: var(--md-sys-color-on-primary-container);
+            background: var(--md-sys-color-primary-container);
+            padding: 8px 18px 8px 14px;
+            border-radius: 100px;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
         }
 
         .section-label .material-symbols-rounded { font-size: 18px; }
@@ -516,7 +556,7 @@
             background: var(--md-sys-color-surface-container-low);
             border-radius: var(--md-sys-shape-corner-extra-large);
             padding: 32px;
-            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
+            transition: transform 0.45s var(--md-sys-motion-spring), box-shadow 0.3s var(--md-sys-motion-emphasized), border-radius 0.45s var(--md-sys-motion-spring);
             position: relative;
             overflow: hidden;
         }
@@ -534,7 +574,8 @@
         }
 
         .feature-card:hover {
-            transform: translateY(-4px);
+            transform: translateY(-6px);
+            border-radius: 40px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.08);
         }
 
@@ -543,13 +584,19 @@
         .feature-icon {
             width: 56px;
             height: 56px;
-            border-radius: 16px;
+            border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
             background: var(--md-sys-color-primary-container);
             color: var(--md-sys-color-on-primary-container);
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 20px;
+            transition: border-radius 0.5s var(--md-sys-motion-spring), transform 0.5s var(--md-sys-motion-spring);
+        }
+
+        .feature-card:hover .feature-icon {
+            border-radius: 50%;
+            transform: rotate(10deg) scale(1.08);
         }
 
         .feature-icon .material-symbols-rounded { font-size: 28px; }
@@ -589,6 +636,13 @@
             border-radius: var(--md-sys-shape-corner-large);
             padding: 24px;
             text-align: center;
+            transition: transform 0.4s var(--md-sys-motion-spring), border-radius 0.4s var(--md-sys-motion-spring), background 0.3s;
+        }
+
+        .spec-card:hover {
+            transform: translateY(-4px) scale(1.03);
+            border-radius: 24px;
+            background: var(--md-sys-color-surface-container-high);
         }
 
         .spec-card .material-symbols-rounded {
@@ -788,18 +842,74 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .fade-up {
-            opacity: 0;
-            animation: fadeUp 0.8s ease forwards;
+        .fade-up { opacity: 0; }
+
+        .content-ready .fade-up {
+            animation: fadeUp 0.9s var(--md-sys-motion-emphasized) forwards;
         }
 
         .fade-up.d1 { animation-delay: 0.1s; }
         .fade-up.d2 { animation-delay: 0.2s; }
         .fade-up.d3 { animation-delay: 0.3s; }
         .fade-up.d4 { animation-delay: 0.4s; }
+
+        /* LOADER (Material 3 Expressive-style morphing shape indicator) */
+        #loader {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--md-sys-color-surface);
+            transition: opacity 0.5s var(--md-sys-motion-emphasized), visibility 0.5s;
+        }
+
+        #loader.loader-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .loader-blob {
+            width: 176px;
+            height: 176px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
+            animation: loaderMorph 2.1s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .loader-blob img {
+            width: 116px;
+            height: 116px;
+            object-fit: contain;
+            animation: loaderPulse 2.1s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes loaderMorph {
+            0%   { border-radius: 50%; transform: rotate(0deg); }
+            25%  { border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%; transform: rotate(20deg); }
+            50%  { border-radius: 22px; transform: rotate(0deg); }
+            75%  { border-radius: 30% 70% 40% 60% / 60% 35% 65% 40%; transform: rotate(-20deg); }
+            100% { border-radius: 50%; transform: rotate(0deg); }
+        }
+
+        @keyframes loaderPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(0.82); }
+        }
     </style>
 </head>
 <body>
+    <div id="loader" aria-hidden="true">
+        <div class="loader-blob">
+            <img src="logo-mono.png" alt="">
+        </div>
+    </div>
+    <noscript><style>#loader { display: none !important; } .fade-up { opacity: 1 !important; }</style></noscript>
+
     <nav>
         <a href="#" class="nav-brand">
             <img src="logo.png" alt="Resona">
@@ -1001,14 +1111,14 @@
 
     <script>
         function toggleTheme() {
-            const body = document.body;
+            const root = document.documentElement;
             const icon = document.getElementById('themeIcon');
-            if (body.getAttribute('data-theme') === 'dark') {
-                body.removeAttribute('data-theme');
+            if (root.getAttribute('data-theme') === 'dark') {
+                root.removeAttribute('data-theme');
                 icon.textContent = 'dark_mode';
                 localStorage.setItem('theme', 'light');
             } else {
-                body.setAttribute('data-theme', 'dark');
+                root.setAttribute('data-theme', 'dark');
                 icon.textContent = 'light_mode';
                 localStorage.setItem('theme', 'dark');
             }
@@ -1016,36 +1126,55 @@
 
         function resetTheme() {
             localStorage.removeItem('theme');
+            const root = document.documentElement;
+            const icon = document.getElementById('themeIcon');
             if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.body.setAttribute('data-theme', 'dark');
-                document.getElementById('themeIcon').textContent = 'light_mode';
+                root.setAttribute('data-theme', 'dark');
+                icon.textContent = 'light_mode';
             } else {
-                document.body.removeAttribute('data-theme');
-                document.getElementById('themeIcon').textContent = 'dark_mode';
+                root.removeAttribute('data-theme');
+                icon.textContent = 'dark_mode';
             }
         }
 
-        if (!localStorage.getItem('theme')) {
-            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.body.setAttribute('data-theme', 'dark');
-                document.getElementById('themeIcon').textContent = 'light_mode';
-            }
-        } else if (localStorage.getItem('theme') === 'dark') {
-            document.body.setAttribute('data-theme', 'dark');
+        // The <head> script already resolved data-theme before first paint (avoids a flash of
+        // the wrong theme) - just sync the toggle icon to whatever it landed on.
+        if (document.documentElement.getAttribute('data-theme') === 'dark') {
             document.getElementById('themeIcon').textContent = 'light_mode';
         }
 
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
             if (!localStorage.getItem('theme')) {
+                const root = document.documentElement;
+                const icon = document.getElementById('themeIcon');
                 if (e.matches) {
-                    document.body.setAttribute('data-theme', 'dark');
-                    document.getElementById('themeIcon').textContent = 'light_mode';
+                    root.setAttribute('data-theme', 'dark');
+                    icon.textContent = 'light_mode';
                 } else {
-                    document.body.removeAttribute('data-theme');
-                    document.getElementById('themeIcon').textContent = 'dark_mode';
+                    root.removeAttribute('data-theme');
+                    icon.textContent = 'dark_mode';
                 }
             }
         });
+
+        // Expressive loading indicator: show the morphing shape for at least ~700ms so it reads
+        // as an intentional beat, then reveal the hero fade-up sequence once assets are ready.
+        (function () {
+            const loader = document.getElementById('loader');
+            const shownAt = performance.now();
+            let revealed = false;
+            function reveal() {
+                if (revealed) return;
+                revealed = true;
+                loader.classList.add('loader-hidden');
+                document.body.classList.add('content-ready');
+                setTimeout(() => loader.remove(), 550);
+            }
+            window.addEventListener('load', () => {
+                setTimeout(reveal, Math.max(0, 700 - (performance.now() - shownAt)));
+            });
+            setTimeout(reveal, 4000);
+        })();
 
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {

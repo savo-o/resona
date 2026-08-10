@@ -26,6 +26,8 @@ enum class LanguageOption(val locale: Locale?, val displayName: String) {
     RUSSIAN(Locale("ru"), "Русский"),
 }
 
+enum class HapticsIntensity { LOW, MEDIUM, HIGH }
+
 data class AppSettings(
     val colorTheme: AppColorTheme = AppColorTheme.DYNAMIC,
     val darkMode: DarkModeOption = DarkModeOption.SYSTEM,
@@ -39,6 +41,8 @@ data class AppSettings(
     val updateChannel: UpdateChannel = UpdateChannel.RELEASE,
     val autoCheckUpdates: Boolean = true,
     val appIcon: AppIconOption = AppIconOption.DYNAMIC,
+    val hapticsEnabled: Boolean = true,
+    val hapticsIntensity: HapticsIntensity = HapticsIntensity.MEDIUM,
 )
 
 @Singleton
@@ -57,6 +61,8 @@ class SettingsRepository @Inject constructor(
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
         val APP_ICON = stringPreferencesKey("app_icon")
+        val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
+        val HAPTICS_INTENSITY = stringPreferencesKey("haptics_intensity")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -81,6 +87,10 @@ class SettingsRepository @Inject constructor(
             appIcon = prefs[Keys.APP_ICON]?.let {
                 runCatching { AppIconOption.valueOf(it) }.getOrNull()
             } ?: AppIconOption.DYNAMIC,
+            hapticsEnabled = prefs[Keys.HAPTICS_ENABLED] ?: true,
+            hapticsIntensity = prefs[Keys.HAPTICS_INTENSITY]?.let {
+                runCatching { HapticsIntensity.valueOf(it) }.getOrNull()
+            } ?: HapticsIntensity.MEDIUM,
         )
     }
 
@@ -128,5 +138,13 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setAppIcon(option: AppIconOption) {
         context.dataStore.edit { it[Keys.APP_ICON] = option.name }
+    }
+
+    suspend fun setHapticsEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.HAPTICS_ENABLED] = value }
+    }
+
+    suspend fun setHapticsIntensity(value: HapticsIntensity) {
+        context.dataStore.edit { it[Keys.HAPTICS_INTENSITY] = value.name }
     }
 }

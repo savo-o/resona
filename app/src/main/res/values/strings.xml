@@ -128,6 +128,12 @@
     <string name="settings_dynamic_color">Dynamic Color from Track</string>
     <string name="settings_dynamic_color_desc">Accent color changes based on the current track</string>
     <string name="settings_autoplay">Autoplay Next Track</string>
+    <string name="settings_haptics">Haptic Feedback</string>
+    <string name="settings_haptics_desc">Vibrate on taps and interactions</string>
+    <string name="settings_haptics_intensity">Vibration Intensity</string>
+    <string name="settings_haptics_intensity_low">Low</string>
+    <string name="settings_haptics_intensity_medium">Medium</string>
+    <string name="settings_haptics_intensity_high">High</string>
     <string name="settings_developer_mode">Developer Mode</string>
     <string name="settings_developer_mode_desc">Show user IDs in profiles</string>
     <string name="settings_language">Language</string>

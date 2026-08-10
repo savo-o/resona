@@ -37,6 +37,7 @@ fun AlbumRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptic = com.savoo.scclient.ui.haptics.rememberHapticTick()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -49,7 +50,7 @@ fun AlbumRow(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = { haptic(); onClick() }),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         shape = RoundedCornerShape(24.dp),
     ) {

@@ -79,12 +79,14 @@ import com.savoo.scclient.data.repository.AppIconManager
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
+import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.UpdateCheckResult
 import com.savoo.scclient.data.repository.UpdateRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.ui.components.SwitchItem
+import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.BuildConfig
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -140,6 +142,8 @@ class SettingsViewModel @Inject constructor(
     fun setAutoplayNext(value: Boolean) = viewModelScope.launch { repository.setAutoplayNext(value) }
     fun setDynamicFromTrack(value: Boolean) = viewModelScope.launch { repository.setDynamicFromTrack(value) }
     fun setDeveloperMode(value: Boolean) = viewModelScope.launch { repository.setDeveloperMode(value) }
+    fun setHapticsEnabled(value: Boolean) = viewModelScope.launch { repository.setHapticsEnabled(value) }
+    fun setHapticsIntensity(value: HapticsIntensity) = viewModelScope.launch { repository.setHapticsIntensity(value) }
     fun setUpdateChannel(channel: UpdateChannel) = viewModelScope.launch { repository.setUpdateChannel(channel) }
     fun setAutoCheckUpdates(value: Boolean) = viewModelScope.launch { repository.setAutoCheckUpdates(value) }
     fun setAppIcon(option: AppIconOption) = viewModelScope.launch {
@@ -324,6 +328,7 @@ fun SettingsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val activity = context as? Activity
+    val haptic = rememberHapticTick()
 
     LaunchedEffect(updateCheckState) {
         when (val state = updateCheckState) {
@@ -397,7 +402,7 @@ fun SettingsScreen(
                         }
                         ToggleButton(
                             checked = settings.appIcon == option,
-                            onCheckedChange = { checked -> if (checked) viewModel.setAppIcon(option) },
+                            onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setAppIcon(option) } },
                             modifier = Modifier.weight(1f),
                             shapes = shapes,
                         ) {
@@ -425,7 +430,7 @@ fun SettingsScreen(
                         }
                         ToggleButton(
                             checked = settings.darkMode == mode,
-                            onCheckedChange = { checked -> if (checked) viewModel.setDarkMode(mode) },
+                            onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setDarkMode(mode) } },
                             modifier = Modifier.weight(1f),
                             shapes = shapes,
                         ) {
@@ -449,6 +454,7 @@ fun SettingsScreen(
                             checked = settings.language == lang,
                             onCheckedChange = { checked ->
                                 if (checked) {
+                                    haptic()
                                     viewModel.setLanguage(lang)
                                     context.getSharedPreferences("sc_settings", android.content.Context.MODE_PRIVATE)
                                         .edit().putString("language", lang.name).commit()
@@ -476,7 +482,7 @@ fun SettingsScreen(
                         }
                         ToggleButton(
                             checked = settings.updateChannel == channel,
-                            onCheckedChange = { checked -> if (checked) viewModel.setUpdateChannel(channel) },
+                            onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setUpdateChannel(channel) } },
                             modifier = Modifier.weight(1f),
                             shapes = shapes,
                         ) {
@@ -498,7 +504,7 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = updateCheckState != UpdateCheckUiState.Checking) { viewModel.checkForUpdates() }
+                        .clickable(enabled = updateCheckState != UpdateCheckUiState.Checking) { haptic(); viewModel.checkForUpdates() }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -537,6 +543,44 @@ fun SettingsScreen(
                 )
                 SettingsDivider()
                 SwitchItem(
+                    title = stringResource(R.string.settings_haptics),
+                    subtitle = stringResource(R.string.settings_haptics_desc),
+                    checked = settings.hapticsEnabled,
+                    onCheckedChange = { viewModel.setHapticsEnabled(it) }
+                )
+                if (settings.hapticsEnabled) {
+                    Text(
+                        stringResource(R.string.settings_haptics_intensity),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                    )
+                    val intensityOptions = HapticsIntensity.entries
+                    val intensityLabelResIds = listOf(
+                        R.string.settings_haptics_intensity_low,
+                        R.string.settings_haptics_intensity_medium,
+                        R.string.settings_haptics_intensity_high,
+                    )
+                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        intensityOptions.forEachIndexed { index, option ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                intensityOptions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.hapticsIntensity == option,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setHapticsIntensity(option) } },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(stringResource(intensityLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+                SettingsDivider()
+                SwitchItem(
                     title = stringResource(R.string.settings_developer_mode),
                     subtitle = stringResource(R.string.settings_developer_mode_desc),
                     checked = settings.developerMode,
@@ -549,7 +593,7 @@ fun SettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onOpenDebugMenu() }
+                            .clickable { haptic(); onOpenDebugMenu() }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -599,6 +643,7 @@ fun SettingsScreen(
                             .clip(RoundedCornerShape(20.dp))
                             .background(MaterialTheme.colorScheme.errorContainer)
                             .clickable {
+                                haptic()
                                 viewModel.clearCache {
                                     scope.launch {
                                         snackbarHostState.showSnackbar(context.getString(R.string.settings_cache_cleared))
@@ -652,6 +697,7 @@ fun SettingsScreen(
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(MaterialTheme.colorScheme.errorContainer)
                                 .clickable {
+                                    haptic()
                                     viewModel.clearOffline {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(context.getString(R.string.settings_offline_cleared))
@@ -708,7 +754,7 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { showAbout = true }
+                        .clickable { haptic(); showAbout = true }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

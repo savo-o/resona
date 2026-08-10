@@ -113,6 +113,8 @@ fun TrackRow(
     onTogglePlayPause: (() -> Unit)? = null,
     favoriteSource: FavoriteSource? = null,
 ) {
+    val haptic = com.savoo.scclient.ui.haptics.rememberHapticTick()
+    val haptics = com.savoo.scclient.ui.haptics.rememberHaptics()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -139,7 +141,7 @@ fun TrackRow(
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick,
+                onClick = { haptic(); onClick() },
             ),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         shape = RoundedCornerShape(20.dp),
@@ -194,6 +196,7 @@ fun TrackRow(
             }
             if (onToggleFavorite != null) {
                 IconButton(onClick = {
+                    haptics.click()
                     heartAnimating = true
                     onToggleFavorite()
                 }) {
@@ -206,7 +209,7 @@ fun TrackRow(
                 }
             }
             Surface(
-                onClick = { onTogglePlayPause?.invoke() ?: onClick() },
+                onClick = { haptics.click(); onTogglePlayPause?.invoke() ?: onClick() },
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.size(40.dp),

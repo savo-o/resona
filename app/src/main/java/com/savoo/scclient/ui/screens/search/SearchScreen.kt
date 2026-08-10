@@ -62,6 +62,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.ui.components.AlbumRow
 import com.savoo.scclient.ui.components.ArtistRow
 import com.savoo.scclient.ui.components.TrackRow
+import com.savoo.scclient.ui.haptics.rememberHapticTick
 
 private fun iconFor(tab: SearchTab): ImageVector = when (tab) {
     SearchTab.TRACKS -> Icons.Filled.MusicNote
@@ -80,6 +81,7 @@ fun SearchScreen(
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val history by viewModel.history.collectAsState()
+    val haptic = rememberHapticTick()
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         viewModel.navEvent.collect { event ->
@@ -116,7 +118,7 @@ fun SearchScreen(
                     },
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.onQueryChange("") }) {
+                            IconButton(onClick = { haptic(); viewModel.onQueryChange("") }) {
                                 Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.search_clear))
                             }
                         }
@@ -144,7 +146,7 @@ fun SearchScreen(
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable { viewModel.clearHistory() }
+                                .clickable { haptic(); viewModel.clearHistory() }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -156,8 +158,8 @@ fun SearchScreen(
                         items(history, key = { it }) { query ->
                             HistoryRow(
                                 query = query,
-                                onClick = { viewModel.selectFromHistory(query) },
-                                onRemove = { viewModel.removeHistoryItem(query) },
+                                onClick = { haptic(); viewModel.selectFromHistory(query) },
+                                onRemove = { haptic(); viewModel.removeHistoryItem(query) },
                             )
                         }
                     }
@@ -177,7 +179,7 @@ fun SearchScreen(
                             }
                             ToggleButton(
                                 checked = selectedIndex == index,
-                                onCheckedChange = { checked -> if (checked) viewModel.onTabChange(tab) },
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.onTabChange(tab) } },
                                 modifier = Modifier.weight(1f),
                                 shapes = shapes,
                             ) {

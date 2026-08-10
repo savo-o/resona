@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.savoo.scclient.ui.haptics.rememberHapticTick
 
 /** A titled row with a trailing [Switch], tapping anywhere on the row toggles it. */
 @Composable
@@ -23,10 +24,11 @@ fun SwitchItem(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptic = rememberHapticTick()
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .clickable { haptic(); onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -38,7 +40,7 @@ fun SwitchItem(
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = { haptic(); onCheckedChange(it) },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                 checkedTrackColor = MaterialTheme.colorScheme.primary,

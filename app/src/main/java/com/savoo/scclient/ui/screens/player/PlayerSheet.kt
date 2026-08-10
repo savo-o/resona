@@ -125,6 +125,8 @@ import android.content.Intent
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.LyricsLine
 import com.savoo.scclient.player.PlaybackState
+import com.savoo.scclient.ui.haptics.rememberHapticTick
+import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.components.TrackArtwork
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -357,6 +359,8 @@ private fun MiniPlayerRow(
     onNext: () -> Unit,
     onPrev: () -> Unit,
 ) {
+    val haptic = rememberHapticTick()
+    val haptics = rememberHaptics()
     var heartAnimating by remember { mutableStateOf(false) }
     val heartScale by animateFloatAsState(
         targetValue = if (heartAnimating) 1.4f else 1f,
@@ -393,7 +397,7 @@ private fun MiniPlayerRow(
     Column(
         modifier = Modifier
             .scale(pressScale)
-            .clickable(interactionSource = interactionSource, indication = null) { onExpand() },
+            .clickable(interactionSource = interactionSource, indication = null) { haptic(); onExpand() },
     ) {
         Row(
             modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
@@ -421,7 +425,7 @@ private fun MiniPlayerRow(
                 )
             }
             if (state.hasPrev) {
-                IconButton(onClick = onPrev, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = { haptic(); onPrev() }, modifier = Modifier.size(32.dp)) {
                     Icon(
                         Icons.Filled.SkipPrevious,
                         contentDescription = null,
@@ -431,7 +435,7 @@ private fun MiniPlayerRow(
                 }
             }
             Surface(
-                onClick = onTogglePlay,
+                onClick = { haptics.click(); onTogglePlay() },
                 interactionSource = playInteractionSource,
                 shape = PlayButtonShape,
                 color = MaterialTheme.colorScheme.primary,
@@ -457,7 +461,7 @@ private fun MiniPlayerRow(
                 }
             }
             if (state.hasNext) {
-                IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = { haptic(); onNext() }, modifier = Modifier.size(32.dp)) {
                     Icon(
                         Icons.Filled.SkipNext,
                         contentDescription = null,
@@ -466,7 +470,7 @@ private fun MiniPlayerRow(
                     )
                 }
             }
-            IconButton(onClick = { heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = { haptics.click(); heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = null,
@@ -520,9 +524,12 @@ private fun FullPlayerContent(
 ) {
     val context = LocalContext.current
     val palette = rememberPlayerPalette()
+    val haptic = rememberHapticTick()
+    val haptics = rememberHaptics()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
+    var lastSeekTickSecond by remember { mutableStateOf(-1L) }
     var heartAnimating by remember { mutableStateOf(false) }
     val heartScale by animateFloatAsState(
         targetValue = if (heartAnimating) 1.4f else 1f,
@@ -578,7 +585,7 @@ private fun FullPlayerContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onCollapse) {
+            IconButton(onClick = { haptic(); onCollapse() }) {
                 Icon(
                     Icons.Filled.KeyboardArrowDown,
                     contentDescription = stringResource(R.string.player_collapse),
@@ -587,7 +594,7 @@ private fun FullPlayerContent(
                 )
             }
             Row {
-                IconButton(onClick = { showLyrics = !showLyrics }) {
+                IconButton(onClick = { haptic(); showLyrics = !showLyrics }) {
                     Icon(
                         Icons.Filled.Lyrics,
                         contentDescription = stringResource(R.string.player_lyrics),
@@ -596,6 +603,7 @@ private fun FullPlayerContent(
                     )
                 }
                 IconButton(onClick = {
+                    haptic()
                     state.currentTrack?.permalinkUrl?.let { url ->
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
@@ -631,23 +639,28 @@ private fun FullPlayerContent(
                 )
             } else {
                 Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    ArtworkOrb(
-                        artworkUrl = state.currentTrack?.artworkUrl,
-                        glowColor = glowColor,
-                        isPlaying = state.isPlaying,
-                        progress = if (state.durationMs > 0) {
-                            ((if (isDragging) dragPosition else state.positionMs.toFloat()) / state.durationMs.toFloat()).coerceIn(0f, 1f)
-                        } else 0f,
-                        slideOffsetX = slideOffset,
+                    BoxWithConstraints(
                         modifier = Modifier
-                            .fillMaxWidth(0.92f)
-                            .padding(top = 8.dp),
-                    )
+                            .weight(1f)
+                            .fillMaxWidth(),
+                    ) {
+                        val artSize = maxWidth * 0.92f
+                        ArtworkOrb(
+                            artworkUrl = state.currentTrack?.artworkUrl,
+                            glowColor = glowColor,
+                            isPlaying = state.isPlaying,
+                            progress = if (state.durationMs > 0) {
+                                ((if (isDragging) dragPosition else state.positionMs.toFloat()) / state.durationMs.toFloat()).coerceIn(0f, 1f)
+                            } else 0f,
+                            slideOffsetX = slideOffset,
+                            modifier = Modifier
+                                .size(artSize)
+                                .align(Alignment.BottomCenter),
+                        )
+                    }
 
                     Spacer(Modifier.height(24.dp))
 
@@ -696,7 +709,7 @@ private fun FullPlayerContent(
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
-                                        ) { onArtistClick(track.user.id) },
+                                        ) { haptic(); onArtistClick(track.user.id) },
                                 )
                             }
                         }
@@ -705,7 +718,7 @@ private fun FullPlayerContent(
                     Spacer(Modifier.height(8.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { heartAnimating = true; onToggleFavorite() }) {
+                        IconButton(onClick = { haptics.click(); heartAnimating = true; onToggleFavorite() }) {
                             Icon(
                                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                 contentDescription = null,
@@ -721,7 +734,7 @@ private fun FullPlayerContent(
                                 )
                             }
                         } else if (isOffline) {
-                            IconButton(onClick = onRemoveFromOffline) {
+                            IconButton(onClick = { haptic(); onRemoveFromOffline() }) {
                                 Icon(
                                     Icons.Filled.CloudDone,
                                     contentDescription = stringResource(R.string.player_saved_offline),
@@ -730,7 +743,7 @@ private fun FullPlayerContent(
                                 )
                             }
                         } else {
-                            IconButton(onClick = onSaveForOffline) {
+                            IconButton(onClick = { haptic(); onSaveForOffline() }) {
                                 Icon(
                                     Icons.Filled.CloudDownload,
                                     contentDescription = stringResource(R.string.player_save_offline),
@@ -747,8 +760,23 @@ private fun FullPlayerContent(
         Column {
             Slider(
                 value = if (isDragging) dragPosition else state.positionMs.toFloat(),
-                onValueChange = { dragPosition = it; isDragging = true },
-                onValueChangeFinished = { onSeek(dragPosition.roundToLong()); isDragging = false },
+                onValueChange = { value ->
+                    val second = (value / 1000L).toLong()
+                    if (!isDragging) {
+                        haptics.seekEdge()
+                        lastSeekTickSecond = second
+                    } else if (second != lastSeekTickSecond) {
+                        haptics.seekTick()
+                        lastSeekTickSecond = second
+                    }
+                    dragPosition = value
+                    isDragging = true
+                },
+                onValueChangeFinished = {
+                    haptics.seekEdge()
+                    onSeek(dragPosition.roundToLong())
+                    isDragging = false
+                },
                 valueRange = 0f..(state.durationMs.coerceAtLeast(1L)).toFloat(),
                 colors = SliderDefaults.colors(
                     thumbColor = accent,
@@ -775,7 +803,7 @@ private fun FullPlayerContent(
             Spacer(Modifier.height(16.dp))
 
             Surface(
-                onClick = onTogglePlay,
+                onClick = { haptics.click(); onTogglePlay() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
@@ -847,8 +875,9 @@ private fun PlayerCircleIconButton(
     iconSize: Dp = 24.dp,
 ) {
     val palette = rememberPlayerPalette()
+    val haptic = rememberHapticTick()
     IconButton(
-        onClick = onClick,
+        onClick = { haptic(); onClick() },
         modifier = modifier.size(size),
         colors = IconButtonDefaults.iconButtonColors(containerColor = palette.card, contentColor = tint),
     ) {
@@ -1079,6 +1108,7 @@ private fun LyricsOffsetControl(
     modifier: Modifier = Modifier,
 ) {
     val palette = rememberPlayerPalette()
+    val haptic = rememberHapticTick()
     Surface(
         color = palette.card.copy(alpha = 0.9f),
         contentColor = palette.onMuted,
@@ -1089,7 +1119,7 @@ private fun LyricsOffsetControl(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
-            IconButton(onClick = { onAdjustOffset(-500L) }, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = { haptic(); onAdjustOffset(-500L) }, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.player_lyrics_offset_earlier), modifier = Modifier.size(18.dp))
             }
             Text(
@@ -1102,9 +1132,9 @@ private fun LyricsOffsetControl(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         enabled = offsetMs != 0L,
-                    ) { onAdjustOffset(-offsetMs) },
+                    ) { haptic(); onAdjustOffset(-offsetMs) },
             )
-            IconButton(onClick = { onAdjustOffset(500L) }, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = { haptic(); onAdjustOffset(500L) }, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.player_lyrics_offset_later), modifier = Modifier.size(18.dp))
             }
         }
@@ -1119,6 +1149,7 @@ private fun LyricsLineItem(
     onClick: () -> Unit,
 ) {
     val palette = rememberPlayerPalette()
+    val haptic = rememberHapticTick()
     val scale by animateFloatAsState(
         targetValue = if (isActive) 1f else 0.92f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
@@ -1146,7 +1177,7 @@ private fun LyricsLineItem(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-            ) { onClick() }
+            ) { haptic(); onClick() }
             .padding(vertical = 10.dp),
     )
 }
