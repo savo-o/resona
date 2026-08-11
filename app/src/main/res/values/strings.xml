@@ -149,6 +149,9 @@
     <string name="settings_offline_tracks">Offline Tracks</string>
     <string name="settings_offline_tracks_count">%1$d tracks · %2$s</string>
     <string name="settings_offline_cleared">Offline tracks cleared</string>
+    <string name="settings_client_id">Update Client ID</string>
+    <string name="settings_client_id_desc">Only needed if playback or search stops working (error 401)</string>
+    <string name="settings_client_id_refreshed">Client ID updated</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_debug_menu">Debug Menu</string>
@@ -180,8 +183,6 @@
     <string name="debug_menu_device">Device</string>
     <string name="debug_menu_client_id">SoundCloud Client ID (dont share it!)</string>
     <string name="debug_menu_client_id_current">Current: %s</string>
-    <string name="debug_menu_client_id_refresh">Refresh</string>
-    <string name="debug_menu_client_id_refreshed">Client ID refreshed</string>
     <string name="debug_menu_client_id_override_hint">Manual override</string>
     <string name="debug_menu_client_id_save">Set</string>
     <string name="debug_menu_database">Local Database</string>

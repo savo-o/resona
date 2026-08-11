@@ -149,6 +149,9 @@
     <string name="settings_offline_tracks">Офлайн треки</string>
     <string name="settings_offline_tracks_count">%1$d треков · %2$s</string>
     <string name="settings_offline_cleared">Офлайн треки очищены</string>
+    <string name="settings_client_id">Обновить Client ID</string>
+    <string name="settings_client_id_desc">Нужно только если есть проблемы с приложением или ошибка 401</string>
+    <string name="settings_client_id_refreshed">Client ID обновлён</string>
     <string name="settings_about">О приложении</string>
     <string name="settings_version">Версия %s</string>
     <string name="settings_debug_menu">Меню отладки</string>
@@ -180,8 +183,6 @@
     <string name="debug_menu_device">Устройство</string>
     <string name="debug_menu_client_id">SoundCloud Client ID</string>
     <string name="debug_menu_client_id_current">Текущий: %s</string>
-    <string name="debug_menu_client_id_refresh">Обновить</string>
-    <string name="debug_menu_client_id_refreshed">Client ID обновлён</string>
     <string name="debug_menu_client_id_override_hint">Ручная замена</string>
     <string name="debug_menu_client_id_save">Задать</string>
     <string name="debug_menu_database">Локальная база данных</string>

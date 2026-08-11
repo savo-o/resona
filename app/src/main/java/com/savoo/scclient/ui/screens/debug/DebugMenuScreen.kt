@@ -26,14 +26,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -125,14 +123,6 @@ class DebugMenuViewModel @Inject constructor(
                 _favoritePlaylists.value = favoritesDao.getAllPlaylistsSync().size
                 _offlineTracks.value = offlineTrackManager.getTrackCount()
             }
-        }
-    }
-
-    fun refreshClientId(onDone: (String) -> Unit) {
-        viewModelScope.launch {
-            val id = withContext(Dispatchers.IO) { clientIdProvider.refresh() }
-            _clientId.value = id
-            onDone(id)
         }
     }
 
@@ -244,16 +234,6 @@ fun DebugMenuScreen(
                     stringResource(R.string.debug_menu_client_id_current, clientId),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                Spacer(Modifier.height(10.dp))
-                OutlinedButton(onClick = {
-                    viewModel.refreshClientId {
-                        scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.debug_menu_client_id_refreshed)) }
-                    }
-                }) {
-                    Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.debug_menu_client_id_refresh))
-                }
                 Spacer(Modifier.height(14.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(

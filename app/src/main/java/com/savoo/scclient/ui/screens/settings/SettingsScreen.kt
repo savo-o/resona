@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,6 +76,7 @@ import androidx.lifecycle.viewModelScope
 import coil.ImageLoader
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.UpdateChannel
+import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.data.repository.AppIconManager
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.AppSettings
@@ -115,6 +117,7 @@ class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
     private val updateRepository: UpdateRepository,
     private val offlineTrackManager: OfflineTrackManager,
+    private val clientIdProvider: ClientIdProvider,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
     val settings = repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
@@ -131,6 +134,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _offlineCount = MutableStateFlow(0)
     val offlineCount = _offlineCount.asStateFlow()
+
+    private val _isRefreshingClientId = MutableStateFlow(false)
+    val isRefreshingClientId = _isRefreshingClientId.asStateFlow()
 
     init {
         calculateCacheSize()
@@ -209,6 +215,15 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             offlineTrackManager.clearAllOffline()
             calculateOfflineSize()
+            onDone()
+        }
+    }
+
+    fun refreshClientId(onDone: () -> Unit) {
+        viewModelScope.launch {
+            _isRefreshingClientId.value = true
+            withContext(Dispatchers.IO) { clientIdProvider.refresh() }
+            _isRefreshingClientId.value = false
             onDone()
         }
     }
@@ -323,6 +338,7 @@ fun SettingsScreen(
     val offlineCount by viewModel.offlineCount.collectAsState()
     val offlineSize by viewModel.offlineSize.collectAsState()
     val updateCheckState by viewModel.updateCheckState.collectAsState()
+    val isRefreshingClientId by viewModel.isRefreshingClientId.collectAsState()
     var showAbout by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -720,6 +736,39 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                             )
                         }
+                    }
+                }
+            }
+
+            SettingsSectionCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !isRefreshingClientId) {
+                            haptic()
+                            viewModel.refreshClientId {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(context.getString(R.string.settings_client_id_refreshed))
+                                }
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_client_id), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.settings_client_id_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
