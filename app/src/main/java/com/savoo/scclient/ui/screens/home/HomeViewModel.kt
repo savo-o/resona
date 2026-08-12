@@ -19,6 +19,9 @@ import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 private fun FavoriteTrack.toTrack() = Track(
@@ -214,16 +218,27 @@ class HomeViewModel @Inject constructor(
         } else {
             knownArtistIds
         }
-        val discovery = discoveryArtistPool.shuffled().take(8).flatMap { artistId ->
-            val artistTracks = runCatching { trackRepository.getUserTracksPage(artistId) }
-                .onFailure { android.util.Log.w(TAG, "buildMix: getUserTracksPage($artistId) failed: $it") }
-                .getOrDefault(emptyList())
-            android.util.Log.d(TAG, "buildMix: artist=$artistId returned ${artistTracks.size} tracks")
-            artistTracks
-                .filterNot { it.id in knownTrackIds }
-                .shuffled()
-                .take(5)
-        }.distinctBy { it.id }.take(30)
+        // Fetched in parallel, each capped at ARTIST_FETCH_TIMEOUT_MS: these are sequential API calls
+        // to a third party (SoundCloud), and one slow/stuck request used to stall mix generation for
+        // as long as that single call took (seen in the wild taking 10+ seconds) since they ran one
+        // after another. A timed-out artist just contributes no discovery tracks this round.
+        val discovery = coroutineScope {
+            discoveryArtistPool.shuffled().take(8).map { artistId ->
+                async {
+                    val artistTracks = runCatching {
+                        withTimeoutOrNull(ARTIST_FETCH_TIMEOUT_MS) { trackRepository.getUserTracksPage(artistId) }
+                    }
+                        .onFailure { android.util.Log.w(TAG, "buildMix: getUserTracksPage($artistId) failed: $it") }
+                        .getOrNull()
+                        .orEmpty()
+                    android.util.Log.d(TAG, "buildMix: artist=$artistId returned ${artistTracks.size} tracks")
+                    artistTracks
+                        .filterNot { it.id in knownTrackIds }
+                        .shuffled()
+                        .take(5)
+                }
+            }.awaitAll()
+        }.flatten().distinctBy { it.id }.take(30)
         android.util.Log.d(TAG, "buildMix: discovery=${discovery.size} localPool=${localPool.size}")
 
         val pool = (localPool.shuffled() + discovery).distinctBy { it.id }
@@ -232,6 +247,7 @@ class HomeViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "HomeViewModel"
+        private const val ARTIST_FETCH_TIMEOUT_MS = 5000L
 
         // Lets the hero Play button tell "the mix is the queue that's actually active" apart from
         // "the current track merely happens to also be somewhere in the mix's pool" - those aren't the

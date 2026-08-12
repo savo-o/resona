@@ -113,7 +113,7 @@
     <string name="player_source_offline">Downloaded</string>
     <string name="player_source_search">Search</string>
     <string name="player_exclude_artist">Don\'t recommend this artist</string>
-    <string name="player_exclude_artist_short">Not this artist</string>
+    <string name="player_exclude_artist_short">Don\'t recommend this artist</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Tracks</string>
