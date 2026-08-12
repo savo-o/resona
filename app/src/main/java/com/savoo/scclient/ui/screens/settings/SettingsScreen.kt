@@ -28,14 +28,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PersonOff
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
@@ -808,25 +809,36 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable {
+                            haptic()
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://keepandroidopen.org/")))
+                        }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.Send,
+                        Icons.Filled.Public,
                         contentDescription = null,
                         modifier = Modifier.size(22.dp).padding(top = 2.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.settings_telegram_disclaimer_title), style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.settings_keep_android_open_title), style = MaterialTheme.typography.bodyLarge)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            stringResource(R.string.settings_telegram_disclaimer_desc),
+                            stringResource(R.string.settings_keep_android_open_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Filled.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp).padding(top = 3.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 

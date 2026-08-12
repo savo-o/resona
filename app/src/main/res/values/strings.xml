@@ -183,8 +183,6 @@
     <string name="settings_language">Language</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_ru">Русский</string>
-    <string name="settings_telegram_disclaimer_title">Telegram Import (BETA)</string>
-    <string name="settings_telegram_disclaimer_desc">This feature uses TDLib, Telegram\'s official client library, to read your chat history locally on your device and match tracks against SoundCloud. Your Telegram login session is stored encrypted on-device only and is never sent to any server other than Telegram\'s own. This is an experimental, unofficial feature - use it at your own discretion and in line with Telegram\'s Terms of Service.</string>
     <string name="settings_storage">Storage</string>
     <string name="settings_cache">Cache</string>
     <string name="settings_cache_size">Calculating…</string>
@@ -196,6 +194,8 @@
     <string name="settings_client_id">Update Client ID</string>
     <string name="settings_client_id_desc">Only needed if playback or search stops working (error 401)</string>
     <string name="settings_client_id_refreshed">Client ID updated</string>
+    <string name="settings_keep_android_open_title">Keep Android Open</string>
+    <string name="settings_keep_android_open_desc">Resona supports the Keep Android Open movement, which opposes Google\'s plan to require identity verification for every Android app - including ones installed outside the Play Store. Learn more at keepandroidopen.org.</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_debug_menu">Debug Menu</string>
