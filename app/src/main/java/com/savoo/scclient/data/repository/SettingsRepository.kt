@@ -50,6 +50,7 @@ data class AppSettings(
     val hapticsIntensity: HapticsIntensity = HapticsIntensity.MEDIUM,
     val mixDiscoveryEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
+    val crossfadeEnabled: Boolean = true,
 )
 
 @Singleton
@@ -72,6 +73,7 @@ class SettingsRepository @Inject constructor(
         val HAPTICS_INTENSITY = stringPreferencesKey("haptics_intensity")
         val MIX_DISCOVERY_ENABLED = booleanPreferencesKey("mix_discovery_enabled")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val CROSSFADE_ENABLED = booleanPreferencesKey("crossfade_enabled")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -104,6 +106,7 @@ class SettingsRepository @Inject constructor(
             // Missing key means either a fresh install (show onboarding) or an upgrade from a version that
             // predates this flag (other settings already exist, so treat onboarding as already seen).
             onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: prefs.asMap().isNotEmpty(),
+            crossfadeEnabled = prefs[Keys.CROSSFADE_ENABLED] ?: true,
         )
     }
 
@@ -167,5 +170,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setOnboardingCompleted(value: Boolean) {
         context.dataStore.edit { it[Keys.ONBOARDING_COMPLETED] = value }
+    }
+
+    suspend fun setCrossfadeEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.CROSSFADE_ENABLED] = value }
     }
 }

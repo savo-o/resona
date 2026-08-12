@@ -22,6 +22,7 @@ import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,6 +32,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -68,6 +71,7 @@ class PlayerController @Inject constructor(
     private val trackCache: TrackCache,
     val offlineTrackManager: OfflineTrackManager,
     private val playHistoryDao: PlayHistoryDao,
+    private val settingsRepository: SettingsRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -100,6 +104,7 @@ class PlayerController @Inject constructor(
     private var pendingScrubJob: kotlinx.coroutines.Job? = null
     private var fadeJob: kotlinx.coroutines.Job? = null
     private var fadeOutStartedForMediaId: Long? = null
+    private var crossfadeEnabled = true
 
     private var listenTrackId: Long? = null
     private var listenTitle: String = ""
@@ -132,6 +137,16 @@ class PlayerController @Inject constructor(
 
     init {
         restoreState()
+        scope.launch {
+            settingsRepository.settings.map { it.crossfadeEnabled }.distinctUntilChanged().collect { enabled ->
+                crossfadeEnabled = enabled
+                if (!enabled) {
+                    fadeJob?.cancel()
+                    fadeOutStartedForMediaId = null
+                    controller?.volume = 1f
+                }
+            }
+        }
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener({
@@ -225,8 +240,12 @@ class PlayerController @Inject constructor(
                     extractSeedColor(track.artworkUrl)
                     fadeOutStartedForMediaId = null
                     fadeJob?.cancel()
-                    controller?.volume = 0f
-                    startFade(from = 0f, to = 1f, durationMs = FADE_IN_MS)
+                    if (crossfadeEnabled) {
+                        controller?.volume = 0f
+                        startFade(from = 0f, to = 1f, durationMs = FADE_IN_MS)
+                    } else {
+                        controller?.volume = 1f
+                    }
                 }
 
                 if (isPending(mediaItem) && resolvingMediaIds.add(mediaId)) {
@@ -419,7 +438,7 @@ class PlayerController @Inject constructor(
     }
 
     private fun maybeStartFadeOut(pos: Long, dur: Long) {
-        if (dur <= 0 || isScrubbing) return
+        if (dur <= 0 || isScrubbing || !crossfadeEnabled) return
         val mediaId = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
         val remaining = dur - pos
         if (remaining in 0..FADE_OUT_LEAD_MS && fadeOutStartedForMediaId != mediaId) {

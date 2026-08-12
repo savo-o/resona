@@ -172,6 +172,8 @@
     <string name="settings_dynamic_color">Dynamic Color from Track</string>
     <string name="settings_dynamic_color_desc">Accent color changes based on the current track</string>
     <string name="settings_autoplay">Autoplay Next Track</string>
+    <string name="settings_crossfade">Crossfade</string>
+    <string name="settings_crossfade_desc">Fade the volume between tracks instead of switching abruptly</string>
     <string name="settings_haptics">Haptic Feedback</string>
     <string name="settings_haptics_desc">Vibrate on taps and interactions</string>
     <string name="settings_haptics_intensity">Vibration Intensity</string>

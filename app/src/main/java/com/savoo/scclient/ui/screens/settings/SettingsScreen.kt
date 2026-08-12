@@ -159,6 +159,7 @@ class SettingsViewModel @Inject constructor(
         repository.setAppIcon(option)
         AppIconManager.apply(context, option)
     }
+    fun setCrossfadeEnabled(value: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(value) }
 
     fun checkForUpdates() {
         viewModelScope.launch {
@@ -560,6 +561,13 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_autoplay),
                     checked = autoplay,
                     onCheckedChange = { viewModel.setAutoplayNext(it) }
+                )
+                SettingsDivider()
+                SwitchItem(
+                    title = stringResource(R.string.settings_crossfade),
+                    subtitle = stringResource(R.string.settings_crossfade_desc),
+                    checked = settings.crossfadeEnabled,
+                    onCheckedChange = { viewModel.setCrossfadeEnabled(it) }
                 )
                 SettingsDivider()
                 SwitchItem(

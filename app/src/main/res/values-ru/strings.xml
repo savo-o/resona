@@ -172,6 +172,8 @@
     <string name="settings_dynamic_color">Динамический цвет из трека</string>
     <string name="settings_dynamic_color_desc">Акцентный цвет меняется в зависимости от текущего трека</string>
     <string name="settings_autoplay">Автовоспроизведение следующего трека</string>
+    <string name="settings_crossfade">Кроссфейд</string>
+    <string name="settings_crossfade_desc">Плавно менять громкость между треками вместо резкого переключения</string>
     <string name="settings_haptics">Тактильный отклик</string>
     <string name="settings_haptics_desc">Вибрация при нажатиях и действиях</string>
     <string name="settings_haptics_intensity">Сила вибрации</string>
