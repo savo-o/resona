@@ -24,6 +24,18 @@
     <string name="home_section_favorites">Из избранного</string>
     <string name="home_section_offline">Доступно офлайн</string>
     <string name="home_section_artists">Ваши исполнители</string>
+    <string name="home_section_playlists">Избранные альбомы</string>
+    <string name="home_action_statistics">Статистика</string>
+
+    <!-- Statistics -->
+    <string name="statistics_title">Статистика</string>
+    <string name="statistics_hours_listened">Часов прослушано</string>
+    <string name="statistics_total_plays">Треков прослушано</string>
+    <string name="statistics_top_artists">Самые прослушиваемые исполнители</string>
+    <string name="statistics_empty">Пока нет истории прослушивания - включите что-нибудь!</string>
+    <string name="statistics_duration_hm">%1$dч %2$dм</string>
+    <string name="statistics_duration_m">%1$dм</string>
+    <string name="statistics_play_count">Прослушиваний: %d</string>
 
     <!-- Search -->
     <string name="search_hint">Треки, исполнители, альбомы…</string>
@@ -70,6 +82,8 @@
     <string name="player_source_favorites">Избранное</string>
     <string name="player_source_offline">Загрузки</string>
     <string name="player_source_search">Поиск</string>
+    <string name="player_exclude_artist">Не рекомендовать этого исполнителя</string>
+    <string name="player_exclude_artist_short">Не рекомендовать исполнителя</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Треки</string>

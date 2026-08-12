@@ -3,13 +3,16 @@ package com.savoo.scclient.ui.screens.player
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.LyricsLine
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.LyricsRepository
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.screens.home.HomeViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -30,11 +33,16 @@ class PlayerViewModel @Inject constructor(
     private val offlineTrackManager: OfflineTrackManager,
     private val lyricsRepository: LyricsRepository,
     private val settingsRepository: SettingsRepository,
+    private val excludedArtistDao: ExcludedArtistDao,
 ) : ViewModel() {
 
     val isFavorite = controller.state.map { it.currentTrack?.id ?: 0L }
         .distinctUntilChanged()
         .flatMapLatest { id -> favoritesDao.isTrackFavorite(id) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val isMixPlaying = controller.state.map { it.queueTag == HomeViewModel.MIX_QUEUE_TAG }
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val isOffline = controller.state.map { it.currentTrack?.id ?: 0L }
@@ -93,5 +101,14 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             offlineTrackManager.removeFromOffline(track.id)
         }
+    }
+
+    fun excludeCurrentArtistAndSkip() {
+        val track = controller.state.value.currentTrack ?: return
+        if (track.user.id == 0L) return
+        viewModelScope.launch {
+            excludedArtistDao.exclude(ExcludedMixArtist(artistId = track.user.id, username = track.user.username))
+        }
+        controller.excludeArtistFromQueue(track.user.id, track.user.username)
     }
 }

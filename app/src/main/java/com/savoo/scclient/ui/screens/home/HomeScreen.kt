@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Pause
@@ -70,6 +71,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.FavoriteArtist
+import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.haptics.rememberHapticTick
@@ -91,13 +93,17 @@ fun HomeScreen(
     onArtistClick: (Long) -> Unit = {},
     onFavorites: () -> Unit = {},
     onFavoriteArtists: () -> Unit = {},
+    onFavoritePlaylists: () -> Unit = {},
+    onPlaylistClick: (Long) -> Unit = {},
     onOfflineTracks: () -> Unit = {},
+    onStatistics: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val user by viewModel.user.collectAsState()
     val favoriteTracks by viewModel.favoriteTracks.collectAsState()
     val offlineTracks by viewModel.offlineTracks.collectAsState()
     val favoriteArtists by viewModel.favoriteArtists.collectAsState()
+    val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val mixTracks by viewModel.mixTracks.collectAsState()
     val mixDataLoading by viewModel.isMixLoading.collectAsState()
@@ -130,6 +136,7 @@ fun HomeScreen(
                 avatarUrl = user?.avatarUrl,
                 onAccount = onAccount,
                 onImportExport = onImportExport,
+                onStatistics = onStatistics,
                 onSettings = onSettings,
             )
 
@@ -210,6 +217,15 @@ fun HomeScreen(
                         onSeeAll = onFavoriteArtists,
                     )
                 }
+
+                if (favoritePlaylists.isNotEmpty()) {
+                    PlaylistSection(
+                        title = stringResource(R.string.home_section_playlists),
+                        playlists = favoritePlaylists.take(10),
+                        onPlaylistClick = onPlaylistClick,
+                        onSeeAll = onFavoritePlaylists,
+                    )
+                }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -244,6 +260,7 @@ private fun HomeTopBar(
     avatarUrl: String?,
     onAccount: () -> Unit,
     onImportExport: () -> Unit,
+    onStatistics: () -> Unit,
     onSettings: () -> Unit,
 ) {
     val haptic = rememberHapticTick()
@@ -278,6 +295,9 @@ private fun HomeTopBar(
             }
         }
         Spacer(Modifier.weight(1f))
+        IconButton(onClick = { haptic(); onStatistics() }) {
+            Icon(Icons.Filled.BarChart, contentDescription = stringResource(R.string.home_action_statistics))
+        }
         IconButton(onClick = { haptic(); onImportExport() }) {
             Icon(Icons.Filled.SwapHoriz, contentDescription = stringResource(R.string.nav_import_export))
         }
@@ -712,6 +732,68 @@ private fun HomeArtistChip(artist: FavoriteArtist, onClick: () -> Unit) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+private fun PlaylistSection(
+    title: String,
+    playlists: List<FavoritePlaylist>,
+    onPlaylistClick: (Long) -> Unit,
+    onSeeAll: (() -> Unit)? = null,
+) {
+    Column {
+        SectionHeader(title = title, onSeeAll = onSeeAll)
+        Spacer(Modifier.height(14.dp))
+        LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(playlists, key = { it.playlistId }) { playlist ->
+                HomePlaylistCard(playlist = playlist, onClick = { onPlaylistClick(playlist.playlistId) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomePlaylistCard(playlist: FavoritePlaylist, onClick: () -> Unit) {
+    val haptic = rememberHapticTick()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+        label = "homePlaylistScale",
+    )
+
+    Column(
+        modifier = Modifier
+            .width(120.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interactionSource = interactionSource, indication = null) { haptic(); onClick() },
+    ) {
+        TrackArtwork(
+            artworkUrl = playlist.artworkUrl,
+            contentDescription = playlist.title,
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier.size(120.dp),
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = playlist.title,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Text(
+            text = playlist.username,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

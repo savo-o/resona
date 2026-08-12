@@ -50,6 +50,7 @@ import com.savoo.scclient.ui.screens.playlist.PlaylistScreen
 import com.savoo.scclient.ui.screens.search.SearchScreen
 import com.savoo.scclient.ui.screens.settings.SettingsScreen
 import com.savoo.scclient.ui.screens.settings.UpdateCheckHost
+import com.savoo.scclient.ui.screens.stats.StatisticsScreen
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 
 private val navOrder = listOf(Screen.Home.route, Screen.Search.route)
@@ -203,7 +204,10 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                         onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) },
                         onFavorites = { navController.navigate(Screen.Favorites.route) },
                         onFavoriteArtists = { navController.navigate(Screen.FavoriteArtists.route) },
+                        onFavoritePlaylists = { navController.navigate(Screen.FavoritePlaylists.route) },
+                        onPlaylistClick = { playlistId -> navController.navigate(Screen.Playlist.createRoute(playlistId)) },
                         onOfflineTracks = { navController.navigate(Screen.OfflineTracks.route) },
+                        onStatistics = { navController.navigate(Screen.Statistics.route) },
                     )
                 }
                 composable(Screen.Search.route) {
@@ -226,6 +230,9 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                         onBack = { navController.popBackStack() },
                         onPlaylistClick = { playlistId -> navController.navigate(Screen.Playlist.createRoute(playlistId)) },
                     )
+                }
+                composable(Screen.Statistics.route) {
+                    StatisticsScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Screen.Account.route) {
                     AccountScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })

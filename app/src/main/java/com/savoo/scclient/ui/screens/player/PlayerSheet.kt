@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -192,6 +193,7 @@ fun PlayerSheet(
             isFavorite = viewModel.isFavorite.collectAsState().value,
             isOffline = viewModel.isOffline.collectAsState().value,
             isSavingOffline = viewModel.isSavingOffline.collectAsState().value,
+            isMixPlaying = viewModel.isMixPlaying.collectAsState().value,
             glowColor = glowColor,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
@@ -210,6 +212,7 @@ fun PlayerSheet(
             onToggleShuffle = { viewModel.controller.toggleShuffle() },
             onCycleRepeat = { viewModel.controller.cycleRepeatMode() },
             onArtistClick = { id -> showFullPlayer = false; onArtistClick(id) },
+            onExcludeArtist = { viewModel.excludeCurrentArtistAndSkip() },
         )
     }
 }
@@ -221,6 +224,7 @@ private fun FullPlayerSheet(
     isFavorite: Boolean,
     isOffline: Boolean,
     isSavingOffline: Boolean,
+    isMixPlaying: Boolean,
     glowColor: Color?,
     lyrics: List<LyricsLine>?,
     activeLyricsLine: Int,
@@ -239,6 +243,7 @@ private fun FullPlayerSheet(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onArtistClick: (Long) -> Unit = {},
+    onExcludeArtist: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val palette = rememberPlayerPalette()
@@ -255,6 +260,7 @@ private fun FullPlayerSheet(
             isFavorite = isFavorite,
             isOffline = isOffline,
             isSavingOffline = isSavingOffline,
+            isMixPlaying = isMixPlaying,
             glowColor = glowColor,
             lyrics = lyrics,
             activeLyricsLine = activeLyricsLine,
@@ -273,6 +279,7 @@ private fun FullPlayerSheet(
             onToggleShuffle = onToggleShuffle,
             onCycleRepeat = onCycleRepeat,
             onArtistClick = onArtistClick,
+            onExcludeArtist = onExcludeArtist,
         )
     }
 }
@@ -511,6 +518,7 @@ private fun FullPlayerContent(
     isFavorite: Boolean,
     isOffline: Boolean,
     isSavingOffline: Boolean,
+    isMixPlaying: Boolean,
     glowColor: Color?,
     lyrics: List<LyricsLine>?,
     activeLyricsLine: Int,
@@ -529,6 +537,7 @@ private fun FullPlayerContent(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onArtistClick: (Long) -> Unit = {},
+    onExcludeArtist: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val palette = rememberPlayerPalette()
@@ -674,17 +683,46 @@ private fun FullPlayerContent(
                     Spacer(Modifier.height(16.dp))
 
                     state.currentTrack?.let { track ->
-                        Text(
-                            text = stringResource(R.string.player_playing_from, playingFromSource(state.queueTag, track.user.username)),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = palette.onMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .offset { IntOffset(slideOffset.value.roundToInt(), 0) },
-                        )
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.player_playing_from, playingFromSource(state.queueTag, track.user.username)),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = palette.onMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (isMixPlaying) {
+                                Spacer(Modifier.width(6.dp))
+                                Surface(
+                                    onClick = { haptic(); onExcludeArtist() },
+                                    shape = RoundedCornerShape(50),
+                                    color = palette.card,
+                                    contentColor = palette.onMuted,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.PersonOff,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(13.dp),
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            stringResource(R.string.player_exclude_artist_short),
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(6.dp))
                     }
 

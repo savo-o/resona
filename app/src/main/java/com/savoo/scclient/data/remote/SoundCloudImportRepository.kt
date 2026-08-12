@@ -11,6 +11,7 @@ import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -372,8 +373,13 @@ class SoundCloudImportRepository @Inject constructor(
         }
     }
 
+    private fun isSoundCloudHost(rawUrl: String): Boolean {
+        val host = (rawUrl.toHttpUrlOrNull() ?: "https://$rawUrl".toHttpUrlOrNull())?.host ?: return false
+        return host == "soundcloud.com" || host.endsWith(".soundcloud.com")
+    }
+
     private fun resolveRedirectUrl(url: String): String? {
-        if (!url.contains("on.soundcloud.com")) return null
+        if (!isSoundCloudHost(url)) return null
         return try {
             Log.d("SCImport", "Resolving redirect: $url")
             val request = Request.Builder()
@@ -386,7 +392,7 @@ class SoundCloudImportRepository @Inject constructor(
                 .newCall(request).execute().use { response ->
                     val finalUrl = response.request.url.toString()
                     Log.d("SCImport", "Final URL: $finalUrl (code: ${response.code})")
-                    if (finalUrl != url && finalUrl.contains("soundcloud.com")) {
+                    if (finalUrl != url && isSoundCloudHost(finalUrl)) {
                         val cleanUrl = finalUrl.substringBefore("?")
                         cleanUrl
                     } else {

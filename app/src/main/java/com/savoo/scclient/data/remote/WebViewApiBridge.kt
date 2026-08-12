@@ -111,10 +111,10 @@ class WebViewApiBridge @Inject constructor(
         val js = """
             (function() {
                 window.$slot = { done: false, result: null };
-                fetch("$fullUrl", {
-                    method: "$method",
+                fetch(${org.json.JSONObject.quote(fullUrl)}, {
+                    method: ${org.json.JSONObject.quote(method)},
                     credentials: 'include',
-                    headers: { 'Authorization': 'OAuth $token' }
+                    headers: { 'Authorization': ${org.json.JSONObject.quote("OAuth $token")} }
                 }).then(function(resp) {
                     return resp.text().then(function(body) {
                         window.$slot.result = JSON.stringify({code: resp.status, ok: resp.ok, body: body});

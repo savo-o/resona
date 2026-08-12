@@ -3,8 +3,10 @@ package com.savoo.scclient.di
 import android.content.Context
 import android.content.SharedPreferences
 import com.savoo.scclient.data.local.AppDatabase
+import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.OfflineDao
+import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.local.TelegramImportDao
 import com.savoo.scclient.data.remote.AuthInterceptor
 import com.savoo.scclient.data.remote.GitHubReleaseApi
@@ -158,4 +160,10 @@ object NetworkModule {
 
     @Provides
     fun provideTelegramImportDao(db: AppDatabase): TelegramImportDao = db.telegramImportDao()
+
+    @Provides
+    fun providePlayHistoryDao(db: AppDatabase): PlayHistoryDao = db.playHistoryDao()
+
+    @Provides
+    fun provideExcludedArtistDao(db: AppDatabase): ExcludedArtistDao = db.excludedArtistDao()
 }

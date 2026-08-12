@@ -276,7 +276,8 @@ class OfflineTrackManager @Inject constructor(
             retriever.release()
 
             val trackId = syntheticLocalId(uri.toString())
-            val ext = displayName.substringAfterLast('.', "mp3")
+            val rawExt = displayName.substringAfterLast('.', "mp3").lowercase()
+            val ext = rawExt.takeIf { it in audioExtensions } ?: "mp3"
             val audioFile = File(offlineDir, "$trackId.$ext")
             context.contentResolver.openInputStream(uri)?.use { input ->
                 audioFile.outputStream().use { output -> input.copyTo(output) }

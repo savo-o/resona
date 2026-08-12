@@ -3,8 +3,11 @@ package com.savoo.scclient.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.savoo.scclient.auth.TokenStore
+import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.FavoriteArtist
+import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.Track
@@ -52,6 +55,7 @@ class HomeViewModel @Inject constructor(
     val playerController: PlayerController,
     favoritesDao: FavoritesDao,
     offlineTrackManager: OfflineTrackManager,
+    private val excludedArtistDao: ExcludedArtistDao,
     private val tokenStore: TokenStore,
     private val trackRepository: TrackRepository,
     private val favoritesRepository: FavoritesRepository,
@@ -66,6 +70,9 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoriteArtists: kotlinx.coroutines.flow.StateFlow<List<FavoriteArtist>> = favoritesDao.getAllArtists()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val favoritePlaylists: kotlinx.coroutines.flow.StateFlow<List<FavoritePlaylist>> = favoritesDao.getAllPlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val offlineTracks = offlineTrackManager.getAllOfflineTracks()
@@ -118,29 +125,42 @@ class HomeViewModel @Inject constructor(
         // window and you get a tiny "mix" (sometimes just the one track that happened to be in
         // recentTracks) that then loops forever, which is what "sometimes just one track" was.
         viewModelScope.launch {
-            combine(favoriteTracks, offlineTracks, favoriteArtists) { fav, off, artists -> Triple(fav, off, artists) }
+            combine(favoriteTracks, offlineTracks, favoriteArtists, excludedArtistDao.excludedArtists()) { fav, off, artists, excluded -> Mix4(fav, off, artists, excluded) }
                 .debounce(400)
-                .collectLatest { (fav, off, artists) ->
-                    _mixTracks.value = buildMix(fav, off, artists)
+                .collectLatest { (fav, off, artists, excluded) ->
+                    _mixTracks.value = buildMix(fav, off, artists, excluded)
                     _isMixLoading.value = false
                 }
         }
     }
 
+    private data class Mix4(
+        val fav: List<Track>,
+        val off: List<Track>,
+        val artists: List<FavoriteArtist>,
+        val excluded: List<ExcludedMixArtist>,
+    )
+
     private suspend fun buildMix(
         favorites: List<Track>,
         offline: List<Track>,
         artists: List<FavoriteArtist>,
+        excludedArtists: List<ExcludedMixArtist>,
     ): List<Track> = withContext(Dispatchers.IO) {
+        val excludedArtistIds = excludedArtists.mapTo(HashSet()) { it.artistId }
+        val excludedNamesLower = excludedArtists.map { it.username.trim().lowercase() }.filter { it.isNotEmpty() }
+        fun isExcluded(track: Track): Boolean =
+            track.user.id in excludedArtistIds || excludedNamesLower.any { track.title.lowercase().contains(it) }
+
         // Deliberately favorites + offline only, no recentTracks: the mix is meant to be favorites,
         // downloads, and favorite-artist discovery - pulling in whatever you happened to play most
         // recently blurred that into "why is this random recent thing in my mix".
-        val localPool = (favorites + offline).distinctBy { it.id }
+        val localPool = (favorites + offline).distinctBy { it.id }.filterNot { isExcluded(it) }
         val knownTrackIds = localPool.mapTo(HashSet()) { it.id }
         val knownArtistIds = (artists.map { it.artistId } + favorites.map { it.user.id } + offline.map { it.user.id })
-            .filter { it != 0L }
+            .filter { it != 0L && it !in excludedArtistIds }
             .distinct()
-        android.util.Log.d(TAG, "buildMix: favorites=${favorites.size} offline=${offline.size} favoriteArtists=${artists.size} knownArtistIds=${knownArtistIds.size}")
+        android.util.Log.d(TAG, "buildMix: favorites=${favorites.size} offline=${offline.size} favoriteArtists=${artists.size} knownArtistIds=${knownArtistIds.size} excluded=${excludedArtistIds.size}")
 
         // "Discovery": pull a few tracks from artists the user already likes that aren't in their
         // library yet, so the mix isn't just a reshuffle of songs they've already heard. The mix is

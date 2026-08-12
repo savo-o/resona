@@ -24,6 +24,18 @@
     <string name="home_section_favorites">From Your Favorites</string>
     <string name="home_section_offline">Offline Ready</string>
     <string name="home_section_artists">Your Artists</string>
+    <string name="home_section_playlists">Favorite Albums</string>
+    <string name="home_action_statistics">Statistics</string>
+
+    <!-- Statistics -->
+    <string name="statistics_title">Statistics</string>
+    <string name="statistics_hours_listened">Hours Listened</string>
+    <string name="statistics_total_plays">Tracks Played</string>
+    <string name="statistics_top_artists">Most Listened Artists</string>
+    <string name="statistics_empty">No listening history yet — play something!</string>
+    <string name="statistics_duration_hm">%1$dh %2$dm</string>
+    <string name="statistics_duration_m">%1$dm</string>
+    <string name="statistics_play_count">%d plays</string>
 
     <!-- Search -->
     <string name="search_hint">Tracks, artists, albums…</string>
@@ -70,6 +82,8 @@
     <string name="player_source_favorites">Favorites</string>
     <string name="player_source_offline">Downloaded</string>
     <string name="player_source_search">Search</string>
+    <string name="player_exclude_artist">Don\'t recommend this artist</string>
+    <string name="player_exclude_artist_short">Not this artist</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Tracks</string>

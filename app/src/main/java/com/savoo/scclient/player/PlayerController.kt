@@ -18,6 +18,8 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.google.common.util.concurrent.MoreExecutors
 import com.savoo.scclient.R
+import com.savoo.scclient.data.local.PlayHistoryDao
+import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.repository.TrackRepository
@@ -65,6 +67,7 @@ class PlayerController @Inject constructor(
     private val trackRepository: TrackRepository,
     private val trackCache: TrackCache,
     val offlineTrackManager: OfflineTrackManager,
+    private val playHistoryDao: PlayHistoryDao,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -97,6 +100,15 @@ class PlayerController @Inject constructor(
     private var pendingScrubJob: kotlinx.coroutines.Job? = null
     private var fadeJob: kotlinx.coroutines.Job? = null
     private var fadeOutStartedForMediaId: Long? = null
+
+    private var listenTrackId: Long? = null
+    private var listenTitle: String = ""
+    private var listenArtistId: Long = 0L
+    private var listenArtistName: String = ""
+    private var listenArtworkUrl: String? = null
+    private var listenAccumulatedMs: Long = 0L
+    private var listenSegmentStartRealtime: Long? = null
+    private val minListenMsToRecord = 5_000L
 
     private companion object {
         const val TAG = "PlayerController"
@@ -142,10 +154,12 @@ class PlayerController @Inject constructor(
             if (isPlaying) {
                 _state.update { it.copy(isPlaying = true, loadingTrackId = null) }
                 controller?.currentMediaItem?.mediaId?.toLongOrNull()?.let { errorRetryCount.remove(it) }
+                resumeListenSegment()
                 startPositionPolling()
             } else {
                 _state.update { it.copy(isPlaying = false) }
                 stopPositionPolling()
+                pauseListenSegment()
                 saveState()
             }
         }
@@ -206,6 +220,7 @@ class PlayerController @Inject constructor(
                 val isSelfEcho = reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
                     _state.value.currentTrack?.id == mediaId
                 if (!isSelfEcho) {
+                    beginListenSegment(track)
                     _state.update { it.copy(currentTrack = track, durationMs = track.durationMs, loadingTrackId = null) }
                     extractSeedColor(track.artworkUrl)
                     fadeOutStartedForMediaId = null
@@ -417,6 +432,50 @@ class PlayerController @Inject constructor(
         }
     }
 
+    private fun beginListenSegment(track: Track) {
+        flushListenSegment()
+        listenTrackId = track.id
+        listenTitle = track.title
+        listenArtistId = track.user.id
+        listenArtistName = track.user.username
+        listenArtworkUrl = track.artworkUrl
+        listenAccumulatedMs = 0L
+        listenSegmentStartRealtime = if (controller?.isPlaying == true) System.currentTimeMillis() else null
+    }
+
+    private fun resumeListenSegment() {
+        if (listenTrackId != null && listenSegmentStartRealtime == null) {
+            listenSegmentStartRealtime = System.currentTimeMillis()
+        }
+    }
+
+    private fun pauseListenSegment() {
+        val start = listenSegmentStartRealtime ?: return
+        listenAccumulatedMs += System.currentTimeMillis() - start
+        listenSegmentStartRealtime = null
+    }
+
+    private fun flushListenSegment() {
+        pauseListenSegment()
+        val trackId = listenTrackId
+        val ms = listenAccumulatedMs
+        if (trackId != null && ms >= minListenMsToRecord) {
+            val event = PlayEvent(
+                trackId = trackId,
+                title = listenTitle,
+                artistId = listenArtistId,
+                artistName = listenArtistName,
+                artworkUrl = listenArtworkUrl,
+                msPlayed = ms,
+                playedAt = System.currentTimeMillis(),
+            )
+            scope.launch(Dispatchers.IO) { runCatching { playHistoryDao.insert(event) } }
+        }
+        listenTrackId = null
+        listenAccumulatedMs = 0L
+        listenSegmentStartRealtime = null
+    }
+
     private fun startFade(from: Float, to: Float, durationMs: Long) {
         fadeJob?.cancel()
         if (durationMs <= 0) {
@@ -486,6 +545,52 @@ class PlayerController @Inject constructor(
 
     fun skipToNext() {
         controller?.let { if (it.hasNextMediaItem()) it.seekToNext() }
+    }
+
+    fun excludeArtistFromQueue(artistId: Long, artistUsername: String) {
+        val usernameLower = artistUsername.trim().lowercase()
+        fun matches(t: Track): Boolean =
+            t.user.id == artistId || (usernameLower.isNotEmpty() && t.title.lowercase().contains(usernameLower))
+
+        if (queue.isEmpty() || queue.none { matches(it) }) return
+
+        var resumeTrack: Track? = null
+        for (offset in 1..queue.size) {
+            val candidate = queue[(queueIndex + offset) % queue.size]
+            if (!matches(candidate)) {
+                resumeTrack = candidate
+                break
+            }
+        }
+
+        val filteredQueue = queue.filterNot { matches(it) }
+        if (filteredQueue.isEmpty()) {
+            queue.clear()
+            originalOrder.clear()
+            queueIndex = -1
+            currentQueueTag = null
+            controller?.stop()
+            controller?.clearMediaItems()
+            flushListenSegment()
+            _state.update {
+                it.copy(currentTrack = null, isPlaying = false, isBuffering = false, hasNext = false, hasPrev = false, queueTag = null)
+            }
+            return
+        }
+
+        if (originalOrder.isNotEmpty()) {
+            val filteredOriginal = originalOrder.filterNot { matches(it) }
+            originalOrder.clear()
+            originalOrder.addAll(filteredOriginal)
+        }
+
+        queue.clear()
+        queue.addAll(filteredQueue)
+        queueIndex = resumeTrack?.let { rt -> queue.indexOfFirst { it.id == rt.id } }?.takeIf { it >= 0 } ?: 0
+
+        _state.update { it.copy(loadingTrackId = queue[queueIndex].id) }
+        updateQueueState()
+        doPlay(queue[queueIndex])
     }
 
     fun skipToPrevious() {
@@ -573,6 +678,7 @@ class PlayerController @Inject constructor(
                 if (i == queueIndex) buildMediaItem(fullTrack, url) else buildPendingMediaItem(t)
             }
 
+            beginListenSegment(fullTrack)
             _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
             extractSeedColor(fullTrack.artworkUrl)
             controller?.apply {
@@ -632,6 +738,7 @@ class PlayerController @Inject constructor(
 
     fun release() {
         stopPositionPolling()
+        flushListenSegment()
         saveState()
         controller?.release()
         controller = null
@@ -686,6 +793,7 @@ class PlayerController @Inject constructor(
             scope.launch {
                 val resolved = resolveTrack(track) ?: return@launch
                 val (fullTrack, url, needsCaching) = resolved
+                beginListenSegment(fullTrack)
                 _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
                 extractSeedColor(fullTrack.artworkUrl)
                 controller?.apply {

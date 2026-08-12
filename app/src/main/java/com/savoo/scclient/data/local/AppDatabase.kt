@@ -6,20 +6,24 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.OfflineTrack
+import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.TelegramImportRecord
 
 @Database(
-    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class],
-    version = 5,
+    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class],
+    version = 6,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
     abstract fun offlineDao(): OfflineDao
     abstract fun telegramImportDao(): TelegramImportDao
+    abstract fun playHistoryDao(): PlayHistoryDao
+    abstract fun excludedArtistDao(): ExcludedArtistDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -93,9 +97,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS play_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        trackId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        artistId INTEGER NOT NULL,
+                        artistName TEXT NOT NULL,
+                        artworkUrl TEXT,
+                        msPlayed INTEGER NOT NULL,
+                        playedAt INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS excluded_mix_artists (
+                        artistId INTEGER NOT NULL PRIMARY KEY,
+                        username TEXT NOT NULL,
+                        excludedAt INTEGER NOT NULL
+                    )
+                """)
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }
