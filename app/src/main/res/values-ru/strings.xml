@@ -33,9 +33,14 @@
     <string name="mix_customizer_your_artists">Ваши исполнители</string>
     <string name="mix_customizer_discover_title">Искать новое</string>
     <string name="mix_customizer_discover_desc">Добавлять треки исполнителей, которых вы ещё не слышали</string>
-    <string name="mix_customizer_blocked_title">Заблокированные исполнители</string>
-    <string name="mix_customizer_unblock">Вернуть</string>
+    <string name="mix_customizer_blocked_title">Дизлайкнутые исполнители</string>
+    <string name="mix_customizer_unblock">Убрать</string>
     <string name="mix_customizer_start">Собрать микс</string>
+
+    <!-- Disliked artists -->
+    <string name="settings_disliked_artists">Дизлайкнутые исполнители</string>
+    <string name="disliked_artists_empty">Вы пока не дизлайкнули ни одного исполнителя</string>
+    <string name="disliked_artists_remove">Убрать</string>
 
     <!-- Statistics -->
     <string name="statistics_title">Статистика</string>

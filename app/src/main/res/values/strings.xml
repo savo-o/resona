@@ -33,9 +33,14 @@
     <string name="mix_customizer_your_artists">Your artists</string>
     <string name="mix_customizer_discover_title">Discover new</string>
     <string name="mix_customizer_discover_desc">Add tracks from artists you haven\'t heard yet</string>
-    <string name="mix_customizer_blocked_title">Blocked artists</string>
-    <string name="mix_customizer_unblock">Unblock</string>
+    <string name="mix_customizer_blocked_title">Disliked artists</string>
+    <string name="mix_customizer_unblock">Remove</string>
     <string name="mix_customizer_start">Build my mix</string>
+
+    <!-- Disliked artists -->
+    <string name="settings_disliked_artists">Disliked artists</string>
+    <string name="disliked_artists_empty">You haven\'t disliked any artists yet</string>
+    <string name="disliked_artists_remove">Remove</string>
 
     <!-- Statistics -->
     <string name="statistics_title">Statistics</string>

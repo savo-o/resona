@@ -39,6 +39,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.ui.screens.account.AccountScreen
 import com.savoo.scclient.ui.screens.artist.ArtistScreen
 import com.savoo.scclient.ui.screens.debug.DebugMenuScreen
+import com.savoo.scclient.ui.screens.disliked.DislikedArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoriteArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritePlaylistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritesScreen
@@ -241,10 +242,14 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     SettingsScreen(
                         onBack = { navController.popBackStack() },
                         onOpenDebugMenu = { navController.navigate(Screen.DebugMenu.route) },
+                        onOpenDislikedArtists = { navController.navigate(Screen.DislikedArtists.route) },
                     )
                 }
                 composable(Screen.DebugMenu.route) {
                     DebugMenuScreen(onBack = { navController.popBackStack() })
+                }
+                composable(Screen.DislikedArtists.route) {
+                    DislikedArtistsScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Screen.ImportExport.route) {
                     ImportExportScreen(onBack = { navController.popBackStack() })

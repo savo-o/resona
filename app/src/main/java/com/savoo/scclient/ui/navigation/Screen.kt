@@ -17,6 +17,7 @@ sealed class Screen(val route: String, val label: String) {
     data object Statistics : Screen("statistics", "Statistics")
     data object ImportExport : Screen("import_export", "Import / Export")
     data object OfflineTracks : Screen("offline_tracks", "Offline Tracks")
+    data object DislikedArtists : Screen("disliked_artists", "Disliked Artists")
     data object DebugMenu : Screen("debug_menu", "Debug Menu")
 }
 
