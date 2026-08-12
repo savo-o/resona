@@ -727,6 +727,10 @@ class PlayerController @Inject constructor(
     }
 
     fun endScrub(positionMs: Long) {
+        if (!isScrubbing) {
+            controller?.seekTo(positionMs)
+            return
+        }
         pendingScrubJob?.cancel()
         pendingScrubJob = null
         isScrubbing = false

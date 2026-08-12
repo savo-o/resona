@@ -11,8 +11,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -307,7 +310,7 @@ private fun HomeTopBar(
     }
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun HomeHero(
     visible: Boolean,
@@ -317,6 +320,7 @@ private fun HomeHero(
     isMixPlaying: Boolean,
     isPlaybackBuffering: Boolean,
     onPlayToggle: () -> Unit,
+    onPlayLongPress: () -> Unit = {},
 ) {
     val titleAlpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -377,11 +381,15 @@ private fun HomeHero(
                     label = "heroPlayPress",
                 )
                 Surface(
-                    onClick = onPlayToggle,
-                    interactionSource = interactionSource,
                     modifier = Modifier
                         .size(72.dp)
-                        .scale(playButtonScale * pressScale),
+                        .scale(playButtonScale * pressScale)
+                        .combinedClickable(
+                            interactionSource = interactionSource,
+                            indication = LocalIndication.current,
+                            onClick = onPlayToggle,
+                            onLongClick = onPlayLongPress,
+                        ),
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,

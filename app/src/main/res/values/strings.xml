@@ -27,6 +27,16 @@
     <string name="home_section_playlists">Favorite Albums</string>
     <string name="home_action_statistics">Statistics</string>
 
+    <!-- Mix customizer -->
+    <string name="mix_customizer_title">Who do you want to listen to today?</string>
+    <string name="mix_customizer_subtitle">Pick some artists and tune how the mix explores</string>
+    <string name="mix_customizer_your_artists">Your artists</string>
+    <string name="mix_customizer_discover_title">Discover new</string>
+    <string name="mix_customizer_discover_desc">Add tracks from artists you haven\'t heard yet</string>
+    <string name="mix_customizer_blocked_title">Blocked artists</string>
+    <string name="mix_customizer_unblock">Unblock</string>
+    <string name="mix_customizer_start">Build my mix</string>
+
     <!-- Statistics -->
     <string name="statistics_title">Statistics</string>
     <string name="statistics_hours_listened">Hours Listened</string>

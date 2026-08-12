@@ -37,6 +37,7 @@ class Haptics internal constructor(
     fun click() = fire(18L, 150)
     fun seekTick() = fire(8L, 70)
     fun seekEdge() = fire(16L, 180)
+    fun longPress() = fire(28L, 220)
 
     private fun fire(durationMs: Long, amplitude: Int) {
         if (!enabled) return

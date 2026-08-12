@@ -43,6 +43,7 @@ data class AppSettings(
     val appIcon: AppIconOption = AppIconOption.DYNAMIC,
     val hapticsEnabled: Boolean = true,
     val hapticsIntensity: HapticsIntensity = HapticsIntensity.MEDIUM,
+    val mixDiscoveryEnabled: Boolean = true,
 )
 
 @Singleton
@@ -63,6 +64,7 @@ class SettingsRepository @Inject constructor(
         val APP_ICON = stringPreferencesKey("app_icon")
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
         val HAPTICS_INTENSITY = stringPreferencesKey("haptics_intensity")
+        val MIX_DISCOVERY_ENABLED = booleanPreferencesKey("mix_discovery_enabled")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -91,6 +93,7 @@ class SettingsRepository @Inject constructor(
             hapticsIntensity = prefs[Keys.HAPTICS_INTENSITY]?.let {
                 runCatching { HapticsIntensity.valueOf(it) }.getOrNull()
             } ?: HapticsIntensity.MEDIUM,
+            mixDiscoveryEnabled = prefs[Keys.MIX_DISCOVERY_ENABLED] ?: true,
         )
     }
 
@@ -146,5 +149,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setHapticsIntensity(value: HapticsIntensity) {
         context.dataStore.edit { it[Keys.HAPTICS_INTENSITY] = value.name }
+    }
+
+    suspend fun setMixDiscoveryEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.MIX_DISCOVERY_ENABLED] = value }
     }
 }

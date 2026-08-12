@@ -1095,23 +1095,18 @@ private fun LyricsView(
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val listState = rememberLazyListState()
                     val viewportPx = with(LocalDensity.current) { maxHeight.toPx() }
-                    // Scoped to `lines`, so it's freshly true again for every new track: the first activeIndex we see
-                    // for a track is skipped (stay at the top instead of jumping straight to wherever playback already
-                    // is), and only subsequent index changes - i.e. the song actually progressing - animate-follow.
-                    var skipNextAutoScroll by remember(lines) { mutableStateOf(true) }
 
-                    // Unconditional reset to the top whenever a new track's lyrics arrive - the player screen can stay
-                    // open across track changes, and without this the list just kept whatever scroll offset the
-                    // previous (often longer) track's lyrics had left it at.
+                    // Jump straight to wherever playback already is when a new track's lyrics arrive - the player
+                    // screen can stay open across track changes and lyrics can be opened mid-song, and without this
+                    // the list either kept the previous track's scroll offset or sat at the top until the next line.
                     LaunchedEffect(lines) {
-                        listState.scrollToItem(0, 0)
+                        listState.scrollToItem(
+                            index = activeIndex.coerceAtLeast(0),
+                            scrollOffset = -(viewportPx * 0.4f).toInt(),
+                        )
                     }
 
                     LaunchedEffect(activeIndex, lines) {
-                        if (skipNextAutoScroll) {
-                            skipNextAutoScroll = false
-                            return@LaunchedEffect
-                        }
                         if (activeIndex >= 0) {
                             listState.animateScrollToItem(
                                 index = activeIndex,
