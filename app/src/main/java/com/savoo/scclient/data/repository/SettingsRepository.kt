@@ -26,6 +26,11 @@ enum class LanguageOption(val locale: Locale?, val displayName: String) {
     RUSSIAN(Locale("ru"), "Русский"),
 }
 
+// Only used when the user has never explicitly chosen a language: Russian devices default to Russian,
+// everything else (including English) defaults to English.
+fun systemDefaultLanguage(context: Context): LanguageOption =
+    if (context.resources.configuration.locales[0].language == "ru") LanguageOption.RUSSIAN else LanguageOption.ENGLISH
+
 enum class HapticsIntensity { LOW, MEDIUM, HIGH }
 
 data class AppSettings(
@@ -44,6 +49,7 @@ data class AppSettings(
     val hapticsEnabled: Boolean = true,
     val hapticsIntensity: HapticsIntensity = HapticsIntensity.MEDIUM,
     val mixDiscoveryEnabled: Boolean = true,
+    val onboardingCompleted: Boolean = false,
 )
 
 @Singleton
@@ -65,6 +71,7 @@ class SettingsRepository @Inject constructor(
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
         val HAPTICS_INTENSITY = stringPreferencesKey("haptics_intensity")
         val MIX_DISCOVERY_ENABLED = booleanPreferencesKey("mix_discovery_enabled")
+        val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -79,7 +86,7 @@ class SettingsRepository @Inject constructor(
             developerMode = prefs[Keys.DEVELOPER_MODE] ?: false,
             language = prefs[Keys.LANGUAGE]?.let {
                 runCatching { LanguageOption.valueOf(it) }.getOrNull()
-            } ?: LanguageOption.ENGLISH,
+            } ?: systemDefaultLanguage(context),
             lyricsOffsetMs = prefs[Keys.LYRICS_OFFSET_MS] ?: 0L,
             onlineFavoritesEnabled = prefs[Keys.ONLINE_FAVORITES_ENABLED] ?: false,
             updateChannel = prefs[Keys.UPDATE_CHANNEL]?.let {
@@ -94,6 +101,9 @@ class SettingsRepository @Inject constructor(
                 runCatching { HapticsIntensity.valueOf(it) }.getOrNull()
             } ?: HapticsIntensity.MEDIUM,
             mixDiscoveryEnabled = prefs[Keys.MIX_DISCOVERY_ENABLED] ?: true,
+            // Missing key means either a fresh install (show onboarding) or an upgrade from a version that
+            // predates this flag (other settings already exist, so treat onboarding as already seen).
+            onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: prefs.asMap().isNotEmpty(),
         )
     }
 
@@ -153,5 +163,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setMixDiscoveryEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.MIX_DISCOVERY_ENABLED] = value }
+    }
+
+    suspend fun setOnboardingCompleted(value: Boolean) {
+        context.dataStore.edit { it[Keys.ONBOARDING_COMPLETED] = value }
     }
 }

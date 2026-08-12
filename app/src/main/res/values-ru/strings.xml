@@ -2,6 +2,21 @@
 <resources>
     <string name="app_name">Resona</string>
 
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Добро пожаловать в Resona</string>
+    <string name="onboarding_welcome_desc">Быстрый и чистый способ слушать SoundCloud — ваш аккаунт, ваши треки, никакого лишнего.</string>
+    <string name="onboarding_mix_title">Ваш микс, настроенный вами</string>
+    <string name="onboarding_mix_desc">Resona собирает бесконечный микс из ваших избранных и офлайн-треков, а вы решаете, кто в нём звучит.</string>
+    <string name="onboarding_lyrics_title">Синхронный текст песен</string>
+    <string name="onboarding_lyrics_desc">Следите за текстом строка за строкой во время воспроизведения, с удобной подстройкой синхронизации.</string>
+    <string name="onboarding_offline_title">Слушайте офлайн</string>
+    <string name="onboarding_offline_desc">Сохраняйте треки для прослушивания без интернета и следите за своей статистикой — всё в одном месте.</string>
+    <string name="onboarding_migrate_title">Перенесите свою библиотеку</string>
+    <string name="onboarding_migrate_desc">Уже есть лайки в SoundCloud или треки в Telegram-чате? Перенесите их в любой момент через Импорт / Экспорт на главном экране.</string>
+    <string name="onboarding_skip">Пропустить</string>
+    <string name="onboarding_next">Далее</string>
+    <string name="onboarding_get_started">Начать</string>
+
     <!-- Navigation -->
     <string name="nav_home">Главная</string>
     <string name="nav_search">Поиск</string>

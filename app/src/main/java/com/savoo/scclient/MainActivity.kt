@@ -12,6 +12,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.media3.common.util.UnstableApi
@@ -19,13 +20,16 @@ import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
+import com.savoo.scclient.data.repository.systemDefaultLanguage
 import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 import com.savoo.scclient.ui.navigation.RootScreen
+import com.savoo.scclient.ui.screens.onboarding.OnboardingScreen
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.ui.theme.ResonaTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import java.util.Locale
 import javax.inject.Inject
 
@@ -45,7 +49,7 @@ class MainActivity : ComponentActivity() {
             val prefs = newBase.getSharedPreferences("sc_settings", MODE_PRIVATE)
             prefs.getString("language", null)?.let {
                 runCatching { LanguageOption.valueOf(it) }.getOrNull()
-            } ?: LanguageOption.ENGLISH
+            } ?: systemDefaultLanguage(newBase)
         } catch (_: Exception) {
             LanguageOption.ENGLISH
         }
@@ -138,7 +142,18 @@ class MainActivity : ComponentActivity() {
                     com.savoo.scclient.ui.haptics.LocalHapticsEnabled provides settings.hapticsEnabled,
                     com.savoo.scclient.ui.haptics.LocalHapticsIntensity provides settings.hapticsIntensity,
                 ) {
-                    RootScreen(initialDeepLink = deepLinkTarget)
+                    var onboardingDismissed by androidx.compose.runtime.remember { mutableStateOf(false) }
+                    if (!settings.onboardingCompleted && !onboardingDismissed) {
+                        val scope = rememberCoroutineScope()
+                        OnboardingScreen(
+                            onFinish = {
+                                onboardingDismissed = true
+                                scope.launch { settingsRepository.setOnboardingCompleted(true) }
+                            },
+                        )
+                    } else {
+                        RootScreen(initialDeepLink = deepLinkTarget)
+                    }
                 }
             }
         }
