@@ -76,9 +76,13 @@ object NetworkModule {
         val builder = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 try {
-                    chain.proceed(chain.request())
+                    val response = chain.proceed(chain.request())
+                    ConnectivityEventBus.notifyReachable()
+                    response
                 } catch (e: java.io.IOException) {
-                    ConnectivityEventBus.notifyUnreachable()
+                    if (!chain.call().isCanceled()) {
+                        ConnectivityEventBus.notifyUnreachable()
+                    }
                     throw e
                 }
             }

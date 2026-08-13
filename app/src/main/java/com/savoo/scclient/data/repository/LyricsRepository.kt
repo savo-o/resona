@@ -100,7 +100,7 @@ class LyricsRepository @Inject constructor(
             .build()
         val candidate = kugouApi.searchLyrics(lyricsSearchUrl.toString()).candidates
             .filter { !it.id.isNullOrBlank() && !it.accesskey.isNullOrBlank() }
-            .bestDurationMatch(track.durationMs)
+            .firstWithinDurationTolerance(track.durationMs)
             ?: return emptyList()
 
         val downloadUrl = HttpUrl.Builder()
@@ -118,7 +118,7 @@ class LyricsRepository @Inject constructor(
         return parseLrc(decoded).filterNot { it.text.lowercase() in selfIdLines }
     }
 
-    private fun List<KugouLyricsCandidate>.bestDurationMatch(trackDurationMs: Long): KugouLyricsCandidate? =
+    private fun List<KugouLyricsCandidate>.firstWithinDurationTolerance(trackDurationMs: Long): KugouLyricsCandidate? =
         firstOrNull { it.duration == null || abs(it.duration - trackDurationMs) <= maxDurationDriftSec * 1000 }
 
     private fun cleanTitle(title: String): String =

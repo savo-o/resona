@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,13 +37,26 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.remote.ConnectivityEventBus
 import kotlinx.coroutines.delay
 
+private enum class ConnectivityBannerMode { OFFLINE, RESTORED }
+
 @Composable
 fun ConnectivityBanner(modifier: Modifier = Modifier) {
-    val tick by ConnectivityEventBus.unreachableTick.collectAsState()
+    val unreachableTick by ConnectivityEventBus.unreachableTick.collectAsState()
+    val restoredTick by ConnectivityEventBus.restoredTick.collectAsState()
+    var mode by remember { mutableStateOf(ConnectivityBannerMode.OFFLINE) }
     var visible by remember { mutableStateOf(false) }
 
-    LaunchedEffect(tick) {
-        if (tick == 0) return@LaunchedEffect
+    LaunchedEffect(unreachableTick) {
+        if (unreachableTick == 0) return@LaunchedEffect
+        mode = ConnectivityBannerMode.OFFLINE
+        visible = true
+        delay(2000)
+        visible = false
+    }
+
+    LaunchedEffect(restoredTick) {
+        if (restoredTick == 0) return@LaunchedEffect
+        mode = ConnectivityBannerMode.RESTORED
         visible = true
         delay(2000)
         visible = false
@@ -57,9 +71,13 @@ fun ConnectivityBanner(modifier: Modifier = Modifier) {
             .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
+        val isOffline = mode == ConnectivityBannerMode.OFFLINE
+        val containerColor = if (isOffline) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+        val contentColor = if (isOffline) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.errorContainer,
+            color = containerColor,
             tonalElevation = 6.dp,
             shadowElevation = 6.dp,
         ) {
@@ -68,15 +86,15 @@ fun ConnectivityBanner(modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             ) {
                 Icon(
-                    Icons.Filled.CloudOff,
+                    if (isOffline) Icons.Filled.CloudOff else Icons.Filled.CloudDone,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    tint = contentColor,
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    stringResource(R.string.network_unavailable),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    stringResource(if (isOffline) R.string.network_unavailable else R.string.network_restored),
+                    color = contentColor,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }

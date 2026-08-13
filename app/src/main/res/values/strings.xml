@@ -86,6 +86,7 @@
     <string name="offline_import_result">Imported %1$d tracks, skipped %2$d</string>
     <string name="offline_import_result_no_skip">Imported %1$d tracks</string>
     <string name="network_unavailable">No connection</string>
+    <string name="network_restored">Connection restored</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Favorites</string>

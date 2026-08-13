@@ -206,13 +206,14 @@ class PlayerController @Inject constructor(
                 return
             }
             val track = queue.find { it.id == mediaId }
-            if (track == null || !resolvingMediaIds.add(mediaId)) {
+            if (track == null) {
                 scope.launch {
                     delay(400)
                     controller?.prepare()
                 }
                 return
             }
+            resolvingMediaIds.add(mediaId)
             scope.launch {
                 try {
                     delay(400)

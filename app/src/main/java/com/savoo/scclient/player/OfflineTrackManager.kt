@@ -229,13 +229,13 @@ class OfflineTrackManager @Inject constructor(
     private val audioExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma")
 
     suspend fun importLocalFolder(treeUri: Uri): LocalImportResult = withContext(Dispatchers.IO) {
-        try {
+        val persisted = runCatching {
             context.contentResolver.takePersistableUriPermission(
                 treeUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
-        } catch (_: Exception) {}
-        addWatchedFolder(treeUri)
+        }.isSuccess
+        if (persisted) addWatchedFolder(treeUri)
         scanFolder(treeUri)
     }
 

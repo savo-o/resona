@@ -86,6 +86,7 @@
     <string name="offline_import_result">Импортировано треков: %1$d, пропущено: %2$d</string>
     <string name="offline_import_result_no_skip">Импортировано треков: %1$d</string>
     <string name="network_unavailable">Отсутствует подключение</string>
+    <string name="network_restored">Подключение восстановлено</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Избранное</string>
