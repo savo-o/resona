@@ -2,6 +2,7 @@ package com.savoo.scclient.data.remote
 
 import android.util.Log
 import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.savoo.scclient.auth.TokenStore
@@ -42,12 +43,21 @@ class WebViewApiBridge @Inject constructor(
     fun setWebView(wv: WebView) {
         wv.settings.javaScriptEnabled = true
         wv.settings.domStorageEnabled = true
+        wv.settings.javaScriptCanOpenWindowsAutomatically = false
+        wv.settings.setSupportMultipleWindows(false)
         wv.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         webView = wv
         wv.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String?) {
                 Log.d(TAG, "page loaded: $url")
                 if (!pageReady.isCompleted) pageReady.complete(Unit)
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val host = request.url.host.orEmpty()
+                val allowed = host == "soundcloud.com" || host.endsWith(".soundcloud.com")
+                if (!allowed) Log.w(TAG, "blocked navigation to $host")
+                return !allowed
             }
         }
         syncCookiesToWebView()
