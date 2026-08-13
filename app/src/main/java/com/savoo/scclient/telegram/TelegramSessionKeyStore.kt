@@ -24,9 +24,16 @@ class TelegramSessionKeyStore @Inject constructor(
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
+    private val prefs: SharedPreferences = runCatching {
+        createPrefs(context)
+    }.recoverCatching {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        createPrefs(context)
+    }.getOrThrow()
+
+    private fun createPrefs(context: Context): SharedPreferences = EncryptedSharedPreferences.create(
         context,
-        "telegram_import_secure_prefs",
+        PREFS_NAME,
         masterKey,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
@@ -45,6 +52,7 @@ class TelegramSessionKeyStore @Inject constructor(
     }
 
     companion object {
+        private const val PREFS_NAME = "telegram_import_secure_prefs"
         private const val KEY_DB_ENC = "db_encryption_key"
     }
 }

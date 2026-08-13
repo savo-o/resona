@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
@@ -58,6 +59,7 @@ class TelegramImportRepository @Inject constructor(
         // stay single-threaded: flatMapMerge runs producers concurrently but delivers results to
         // this collector sequentially.
         telegramClient.getAudioMessages(chatId)
+            .flowOn(Dispatchers.IO)
             .flatMapMerge(concurrency = IMPORT_CONCURRENCY) { message ->
                 if (message.messageId in alreadyImported) {
                     flowOf<Pair<TelegramAudioMessage, ImportItemResult?>>(message to null)
