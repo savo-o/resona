@@ -195,7 +195,6 @@ class PlayerController @Inject constructor(
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             DebugLog.log(TAG, "Playback error: ${error.message}")
-            // Fatal errors drop the player into STATE_IDLE; playWhenReady survives, so re-preparing resumes playback automatically.
             val mediaId = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
             if (mediaId in resolvingMediaIds) return // an in-flight resolution will prepare()/play() or skip once it finishes
             val attempts = (errorRetryCount[mediaId] ?: 0) + 1
@@ -206,9 +205,40 @@ class PlayerController @Inject constructor(
                 controller?.seekToNext()
                 return
             }
+            val track = queue.find { it.id == mediaId }
+            if (track == null || !resolvingMediaIds.add(mediaId)) {
+                scope.launch {
+                    delay(400)
+                    controller?.prepare()
+                }
+                return
+            }
             scope.launch {
-                delay(400)
-                controller?.prepare()
+                try {
+                    delay(400)
+                    val resolved = resolveTrack(track.copy(media = null))
+                    if (resolved == null) {
+                        controller?.seekToNext()
+                        return@launch
+                    }
+                    val i = queue.indexOf(track)
+                    if (i < 0) return@launch
+                    playerCommandMutex.withLock {
+                        controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url))
+                        controller?.let {
+                            if (it.currentMediaItem?.mediaId?.toLongOrNull() == mediaId) {
+                                it.seekTo(i, 0L)
+                                it.prepare()
+                                if (it.playWhenReady) it.play()
+                            }
+                        }
+                    }
+                    if (resolved.needsCaching) {
+                        trackCache.cacheAudioFile(resolved.track, resolved.url)
+                    }
+                } finally {
+                    resolvingMediaIds.remove(mediaId)
+                }
             }
         }
 
@@ -307,7 +337,7 @@ class PlayerController @Inject constructor(
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
 
         repeat(attempts) { attempt ->
-            val fullTrack = if (track.media != null) track
+            val fullTrack = if (attempt == 0 && track.media != null) track
                 else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(track.id) }.getOrNull() } ?: track
             if (fullTrack.media == null) {
                 DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
