@@ -16,7 +16,7 @@ import com.savoo.scclient.data.model.TelegramImportRecord
 
 @Database(
     entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class],
-    version = 6,
+    version = 7,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
@@ -101,7 +101,7 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS play_history (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         trackId INTEGER NOT NULL,
                         title TEXT NOT NULL,
                         artistId INTEGER NOT NULL,
@@ -121,9 +121,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS play_history_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        trackId INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        artistId INTEGER NOT NULL,
+                        artistName TEXT NOT NULL,
+                        artworkUrl TEXT,
+                        msPlayed INTEGER NOT NULL,
+                        playedAt INTEGER NOT NULL
+                    )
+                """)
+                db.execSQL("""
+                    INSERT INTO play_history_new (id, trackId, title, artistId, artistName, artworkUrl, msPlayed, playedAt)
+                    SELECT id, trackId, title, artistId, artistName, artworkUrl, msPlayed, playedAt FROM play_history
+                """)
+                db.execSQL("DROP TABLE play_history")
+                db.execSQL("ALTER TABLE play_history_new RENAME TO play_history")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build()
     }
 }
