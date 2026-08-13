@@ -6,7 +6,6 @@ import com.savoo.scclient.data.model.LyricsLine
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.remote.KugouApi
 import com.savoo.scclient.data.remote.LyricsApi
-import com.savoo.scclient.debug.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -48,12 +47,7 @@ class LyricsRepository @Inject constructor(
                 }
             }
         }
-        outcome.onFailure {
-            DebugLog.log("Lyrics", "getSyncedLyrics($provider, ${track.title}) threw: $it")
-        }
-        val lines = outcome.getOrNull().orEmpty()
-        DebugLog.log("Lyrics", "getSyncedLyrics($provider, ${track.title}) -> ${lines.size} lines")
-        return lines
+        return outcome.getOrNull().orEmpty()
     }
 
     private suspend fun fetchFromLrcLib(track: Track): List<LyricsLine> {
@@ -89,15 +83,11 @@ class LyricsRepository @Inject constructor(
             .addQueryParameter("privilege_filter", "0")
             .build()
         val songs = kugouApi.searchSong(searchUrl.toString()).data?.lists.orEmpty()
-        DebugLog.log("Lyrics", "kugou searchSong(\"$artist $title\") -> ${songs.size} results, closest=${songs.minByOrNull { abs((it.duration ?: 0) - durationSec) }?.let { "${it.songName} by ${it.singerName} dur=${it.duration}s (want ${durationSec}s)" }}")
         val song = songs
             .filter { !it.fileHash.isNullOrBlank() }
             .minByOrNull { abs((it.duration ?: 0) - durationSec) }
             ?.takeIf { abs((it.duration ?: 0) - durationSec) <= maxDurationDriftSec }
-            ?: run {
-                DebugLog.log("Lyrics", "kugou: no song within ${maxDurationDriftSec}s of $durationSec")
-                return emptyList()
-            }
+            ?: return emptyList()
 
         val lyricsSearchUrl = HttpUrl.Builder()
             .scheme("https").host("krcs.kugou.com").addPathSegment("search")
@@ -108,15 +98,10 @@ class LyricsRepository @Inject constructor(
             .addQueryParameter("duration", track.durationMs.toString())
             .addQueryParameter("hash", song.fileHash!!)
             .build()
-        val lyricsCandidates = kugouApi.searchLyrics(lyricsSearchUrl.toString()).candidates
-        DebugLog.log("Lyrics", "kugou searchLyrics(hash=${song.fileHash}) -> ${lyricsCandidates.size} candidates")
-        val candidate = lyricsCandidates
+        val candidate = kugouApi.searchLyrics(lyricsSearchUrl.toString()).candidates
             .filter { !it.id.isNullOrBlank() && !it.accesskey.isNullOrBlank() }
             .bestDurationMatch(track.durationMs)
-            ?: run {
-                DebugLog.log("Lyrics", "kugou: no lyrics candidate within duration tolerance")
-                return emptyList()
-            }
+            ?: return emptyList()
 
         val downloadUrl = HttpUrl.Builder()
             .scheme("https").host("krcs.kugou.com").addPathSegment("download")
@@ -127,15 +112,10 @@ class LyricsRepository @Inject constructor(
             .addQueryParameter("fmt", "lrc")
             .addQueryParameter("charset", "utf8")
             .build()
-        val encoded = kugouApi.downloadLyrics(downloadUrl.toString()).content ?: run {
-            DebugLog.log("Lyrics", "kugou: download response had no content")
-            return emptyList()
-        }
+        val encoded = kugouApi.downloadLyrics(downloadUrl.toString()).content ?: return emptyList()
         val decoded = String(Base64.decode(encoded, Base64.DEFAULT), Charsets.UTF_8)
         val selfIdLines = setOf("$title - $artist".lowercase(), "$artist - $title".lowercase())
-        val parsed = parseLrc(decoded).filterNot { it.text.lowercase() in selfIdLines }
-        DebugLog.log("Lyrics", "kugou: parsed ${parsed.size} lines from downloaded lrc")
-        return parsed
+        return parseLrc(decoded).filterNot { it.text.lowercase() in selfIdLines }
     }
 
     private fun List<KugouLyricsCandidate>.bestDurationMatch(trackDurationMs: Long): KugouLyricsCandidate? =

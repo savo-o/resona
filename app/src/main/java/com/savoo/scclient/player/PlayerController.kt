@@ -104,7 +104,7 @@ class PlayerController @Inject constructor(
     private var pendingScrubJob: kotlinx.coroutines.Job? = null
     private var fadeJob: kotlinx.coroutines.Job? = null
     private var fadeOutStartedForMediaId: Long? = null
-    private var crossfadeEnabled = true
+    private var crossfadeEnabled = false
 
     private var listenTrackId: Long? = null
     private var listenTitle: String = ""

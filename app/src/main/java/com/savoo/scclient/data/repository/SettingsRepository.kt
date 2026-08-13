@@ -53,7 +53,7 @@ data class AppSettings(
     val hapticsIntensity: HapticsIntensity = HapticsIntensity.MEDIUM,
     val mixDiscoveryEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
-    val crossfadeEnabled: Boolean = true,
+    val crossfadeEnabled: Boolean = false,
 )
 
 @Singleton
@@ -113,7 +113,7 @@ class SettingsRepository @Inject constructor(
             // Missing key means either a fresh install (show onboarding) or an upgrade from a version that
             // predates this flag (other settings already exist, so treat onboarding as already seen).
             onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: prefs.asMap().isNotEmpty(),
-            crossfadeEnabled = prefs[Keys.CROSSFADE_ENABLED] ?: true,
+            crossfadeEnabled = prefs[Keys.CROSSFADE_ENABLED] ?: false,
         )
     }
 
