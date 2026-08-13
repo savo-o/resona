@@ -15,6 +15,9 @@ interface OfflineDao {
     @Query("SELECT * FROM offline_tracks WHERE trackId = :trackId")
     suspend fun getOfflineTrack(trackId: Long): OfflineTrack?
 
+    @Query("SELECT * FROM offline_tracks WHERE sourceFolderUri = :folderUri")
+    suspend fun getOfflineTracksBySourceFolder(folderUri: String): List<OfflineTrack>
+
     @Query("SELECT EXISTS(SELECT 1 FROM offline_tracks WHERE trackId = :trackId)")
     fun isOfflineTrack(trackId: Long): Flow<Boolean>
 

@@ -16,4 +16,5 @@ data class OfflineTrack(
     val localPath: String,
     val savedAt: Long = System.currentTimeMillis(),
     val fileSizeBytes: Long = 0,
+    val sourceFolderUri: String? = null,
 )

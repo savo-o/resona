@@ -1,8 +1,10 @@
 package com.savoo.scclient.ui.screens.offline
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,7 +16,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -26,6 +31,7 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -87,12 +94,29 @@ class OfflineTracksViewModel @Inject constructor(
     private val _importResult = MutableStateFlow<OfflineTrackManager.LocalImportResult?>(null)
     val importResult = _importResult.asStateFlow()
 
+    private val _watchedFolders = MutableStateFlow<List<Uri>>(emptyList())
+    val watchedFolders = _watchedFolders.asStateFlow()
+
     init {
+        refreshWatchedFoldersList()
         viewModelScope.launch {
             _isImporting.value = true
             val result = offlineTrackManager.refreshWatchedFolders()
             _isImporting.value = false
             if (result.imported > 0) _importResult.value = result
+        }
+    }
+
+    private fun refreshWatchedFoldersList() {
+        _watchedFolders.value = offlineTrackManager.getWatchedFolders()
+    }
+
+    fun watchedFolderDisplayName(treeUri: Uri): String = offlineTrackManager.watchedFolderDisplayName(treeUri)
+
+    fun unwatchFolder(treeUri: Uri) {
+        viewModelScope.launch {
+            offlineTrackManager.removeWatchedFolder(treeUri)
+            refreshWatchedFoldersList()
         }
     }
 
@@ -113,6 +137,7 @@ class OfflineTracksViewModel @Inject constructor(
             _isImporting.value = true
             _importResult.value = offlineTrackManager.importLocalFolder(treeUri)
             _isImporting.value = false
+            refreshWatchedFoldersList()
         }
     }
 
@@ -132,7 +157,9 @@ fun OfflineTracksScreen(
     val playerState by viewModel.playerController.state.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val importResult by viewModel.importResult.collectAsState()
+    val watchedFolders by viewModel.watchedFolders.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    var showWatchedFolders by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -172,6 +199,11 @@ fun OfflineTracksScreen(
                     if (isImporting) {
                         LoadingIndicator(modifier = Modifier.size(24.dp))
                     } else {
+                        if (watchedFolders.isNotEmpty()) {
+                            IconButton(onClick = { showWatchedFolders = true }) {
+                                Icon(Icons.Filled.Folder, contentDescription = stringResource(R.string.offline_watched_folders_title))
+                            }
+                        }
                         IconButton(onClick = { folderPicker.launch(null) }) {
                             Icon(Icons.Filled.CreateNewFolder, contentDescription = stringResource(R.string.offline_import_folder))
                         }
@@ -232,5 +264,43 @@ fun OfflineTracksScreen(
                 }
             }
         }
+    }
+
+    if (showWatchedFolders) {
+        AlertDialog(
+            onDismissRequest = { showWatchedFolders = false },
+            title = { Text(stringResource(R.string.offline_watched_folders_title)) },
+            text = {
+                if (watchedFolders.isEmpty()) {
+                    Text(stringResource(R.string.offline_watched_folders_empty))
+                } else {
+                    Column {
+                        watchedFolders.forEach { folderUri ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    viewModel.watchedFolderDisplayName(folderUri),
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                                IconButton(onClick = {
+                                    viewModel.unwatchFolder(folderUri)
+                                    if (watchedFolders.size <= 1) showWatchedFolders = false
+                                }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.offline_unwatch_folder))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showWatchedFolders = false }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+        )
     }
 }

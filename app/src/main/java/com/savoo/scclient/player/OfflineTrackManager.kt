@@ -250,11 +250,26 @@ class OfflineTrackManager @Inject constructor(
         LocalImportResult(imported, skipped)
     }
 
-    private fun getWatchedFolders(): Set<Uri> =
+    fun getWatchedFolders(): List<Uri> =
         localFolderPrefs.getStringSet(watchedFolderUrisKey, emptySet())
             .orEmpty()
             .mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
-            .toSet()
+
+    fun watchedFolderDisplayName(treeUri: Uri): String {
+        val docId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull() ?: return treeUri.toString()
+        return docId.substringAfterLast(':').substringAfterLast('/').ifBlank { docId }
+    }
+
+    suspend fun removeWatchedFolder(treeUri: Uri) = withContext(Dispatchers.IO) {
+        val current = localFolderPrefs.getStringSet(watchedFolderUrisKey, emptySet()).orEmpty()
+        localFolderPrefs.edit().putStringSet(watchedFolderUrisKey, current - treeUri.toString()).apply()
+        runCatching {
+            context.contentResolver.releasePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        offlineDao.getOfflineTracksBySourceFolder(treeUri.toString()).forEach { track ->
+            removeFromOffline(track.trackId)
+        }
+    }
 
     private fun addWatchedFolder(treeUri: Uri) {
         val current = localFolderPrefs.getStringSet(watchedFolderUrisKey, emptySet()).orEmpty()
@@ -287,7 +302,7 @@ class OfflineTrackManager @Inject constructor(
                     if (!looksAudio) continue
                     val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(idIdx))
                     if (syntheticLocalId(docUri.toString()).let { offlineDao.getOfflineTrack(it) != null }) continue
-                    if (importLocalFile(docUri, name)) imported++ else skipped++
+                    if (importLocalFile(docUri, name, treeUri)) imported++ else skipped++
                 }
             }
         } catch (e: Exception) {
@@ -296,7 +311,7 @@ class OfflineTrackManager @Inject constructor(
         return LocalImportResult(imported, skipped)
     }
 
-    private suspend fun importLocalFile(uri: Uri, displayName: String): Boolean {
+    private suspend fun importLocalFile(uri: Uri, displayName: String, sourceFolderUri: Uri): Boolean {
         return try {
             val retriever = MediaMetadataRetriever()
             retriever.setDataSource(context, uri)
@@ -339,6 +354,7 @@ class OfflineTrackManager @Inject constructor(
                     userAvatarUrl = null,
                     localPath = audioFile.absolutePath,
                     fileSizeBytes = audioFile.length(),
+                    sourceFolderUri = sourceFolderUri.toString(),
                 )
             )
             true
