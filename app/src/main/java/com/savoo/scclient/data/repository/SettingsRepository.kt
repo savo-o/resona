@@ -33,6 +33,8 @@ fun systemDefaultLanguage(context: Context): LanguageOption =
 
 enum class HapticsIntensity { LOW, MEDIUM, HIGH }
 
+enum class LyricsProvider { LRCLIB, KUGOU }
+
 data class AppSettings(
     val colorTheme: AppColorTheme = AppColorTheme.DYNAMIC,
     val darkMode: DarkModeOption = DarkModeOption.SYSTEM,
@@ -42,6 +44,7 @@ data class AppSettings(
     // Manual correction applied on top of the synced lyrics timestamps from the (community-sourced) lyrics
     // provider - positive shifts lines later, negative earlier. Some tracks' data is simply off by a fixed amount.
     val lyricsOffsetMs: Long = 0L,
+    val lyricsProvider: LyricsProvider = LyricsProvider.LRCLIB,
     val onlineFavoritesEnabled: Boolean = false,
     val updateChannel: UpdateChannel = UpdateChannel.RELEASE,
     val autoCheckUpdates: Boolean = true,
@@ -65,6 +68,7 @@ class SettingsRepository @Inject constructor(
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val LANGUAGE = stringPreferencesKey("language")
         val LYRICS_OFFSET_MS = longPreferencesKey("lyrics_offset_ms")
+        val LYRICS_PROVIDER = stringPreferencesKey("lyrics_provider")
         val ONLINE_FAVORITES_ENABLED = booleanPreferencesKey("online_favorites_enabled")
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
@@ -90,6 +94,9 @@ class SettingsRepository @Inject constructor(
                 runCatching { LanguageOption.valueOf(it) }.getOrNull()
             } ?: systemDefaultLanguage(context),
             lyricsOffsetMs = prefs[Keys.LYRICS_OFFSET_MS] ?: 0L,
+            lyricsProvider = prefs[Keys.LYRICS_PROVIDER]?.let {
+                runCatching { LyricsProvider.valueOf(it) }.getOrNull()
+            } ?: LyricsProvider.LRCLIB,
             onlineFavoritesEnabled = prefs[Keys.ONLINE_FAVORITES_ENABLED] ?: false,
             updateChannel = prefs[Keys.UPDATE_CHANNEL]?.let {
                 runCatching { UpdateChannel.valueOf(it) }.getOrNull()
@@ -138,6 +145,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setLyricsOffsetMs(offsetMs: Long) {
         context.dataStore.edit { it[Keys.LYRICS_OFFSET_MS] = offsetMs }
+    }
+
+    suspend fun setLyricsProvider(provider: LyricsProvider) {
+        context.dataStore.edit { it[Keys.LYRICS_PROVIDER] = provider.name }
     }
 
     suspend fun setOnlineFavoritesEnabled(value: Boolean) {

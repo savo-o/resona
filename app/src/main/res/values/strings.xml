@@ -175,6 +175,10 @@
     <string name="settings_autoplay">Autoplay Next Track</string>
     <string name="settings_crossfade">Crossfade</string>
     <string name="settings_crossfade_desc">Fade the volume between tracks instead of switching abruptly</string>
+    <string name="settings_lyrics_provider">Lyrics provider</string>
+    <string name="settings_lyrics_provider_lrclib">LRCLIB</string>
+    <string name="settings_lyrics_provider_kugou">Kugou</string>
+    <string name="settings_lyrics_provider_desc">LRCLIB is the default and most reliable source. Kugou is experimental and very unstable. Enable it only if you know what you\'re doing.</string>
     <string name="settings_haptics">Haptic Feedback</string>
     <string name="settings_haptics_desc">Vibrate on taps and interactions</string>
     <string name="settings_haptics_intensity">Vibration Intensity</string>

@@ -11,6 +11,7 @@ import com.savoo.scclient.data.local.TelegramImportDao
 import com.savoo.scclient.data.remote.AuthInterceptor
 import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.remote.GitHubReleaseApi
+import com.savoo.scclient.data.remote.KugouApi
 import com.savoo.scclient.data.remote.LyricsApi
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.savoo.scclient.debug.DebugLog
@@ -41,6 +42,10 @@ annotation class LyricsRetrofit
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class GitHubRetrofit
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class KugouRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -155,6 +160,21 @@ object NetworkModule {
     @Singleton
     fun provideGitHubReleaseApi(@GitHubRetrofit retrofit: Retrofit): GitHubReleaseApi =
         retrofit.create(GitHubReleaseApi::class.java)
+
+    @Provides
+    @Singleton
+    @KugouRetrofit
+    fun provideKugouRetrofit(@PlainHttpClient client: OkHttpClient, moshi: Moshi): Retrofit =
+        Retrofit.Builder()
+            .baseUrl("https://kugou.com/")
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+
+    @Provides
+    @Singleton
+    fun provideKugouApi(@KugouRetrofit retrofit: Retrofit): KugouApi =
+        retrofit.create(KugouApi::class.java)
 
     @Provides
     @Singleton

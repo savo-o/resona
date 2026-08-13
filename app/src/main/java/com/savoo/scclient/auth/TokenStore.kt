@@ -19,9 +19,16 @@ class TokenStore @Inject constructor(
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
         .build()
 
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
+    private val prefs: SharedPreferences = runCatching {
+        createPrefs(context)
+    }.recoverCatching {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        createPrefs(context)
+    }.getOrThrow()
+
+    private fun createPrefs(context: Context): SharedPreferences = EncryptedSharedPreferences.create(
         context,
-        "sc_auth_secure_prefs",
+        PREFS_NAME,
         masterKey,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
@@ -66,6 +73,7 @@ class TokenStore @Inject constructor(
     }
 
     companion object {
+        private const val PREFS_NAME = "sc_auth_secure_prefs"
         private const val KEY_ACCESS = "access_token"
         private const val KEY_REFRESH = "refresh_token"
         private const val KEY_COOKIES = "web_cookies"

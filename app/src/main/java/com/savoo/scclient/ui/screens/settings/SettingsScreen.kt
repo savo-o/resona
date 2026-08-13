@@ -86,6 +86,7 @@ import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.LanguageOption
+import com.savoo.scclient.data.repository.LyricsProvider
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.UpdateCheckResult
 import com.savoo.scclient.data.repository.UpdateRepository
@@ -160,6 +161,7 @@ class SettingsViewModel @Inject constructor(
         AppIconManager.apply(context, option)
     }
     fun setCrossfadeEnabled(value: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(value) }
+    fun setLyricsProvider(provider: LyricsProvider) = viewModelScope.launch { repository.setLyricsProvider(provider) }
 
     fun checkForUpdates() {
         viewModelScope.launch {
@@ -568,6 +570,40 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.settings_crossfade_desc),
                     checked = settings.crossfadeEnabled,
                     onCheckedChange = { viewModel.setCrossfadeEnabled(it) }
+                )
+                SettingsDivider()
+                Text(
+                    stringResource(R.string.settings_lyrics_provider),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                )
+                run {
+                    val providers = LyricsProvider.entries
+                    val providerLabelResIds = listOf(R.string.settings_lyrics_provider_lrclib, R.string.settings_lyrics_provider_kugou)
+                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        providers.forEachIndexed { index, provider ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                providers.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.lyricsProvider == provider,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setLyricsProvider(provider) } },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(stringResource(providerLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+                Text(
+                    stringResource(R.string.settings_lyrics_provider_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
                 )
                 SettingsDivider()
                 SwitchItem(
