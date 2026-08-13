@@ -1,6 +1,7 @@
 package com.savoo.scclient.player
 
 import android.content.Context
+import android.content.Intent
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -31,6 +32,9 @@ class OfflineTrackManager @Inject constructor(
     private val offlineDir: File by lazy {
         File(context.filesDir, "offline").apply { mkdirs() }
     }
+
+    private val localFolderPrefs = context.getSharedPreferences("offline_local_folders", Context.MODE_PRIVATE)
+    private val watchedFolderUrisKey = "watched_folder_uris"
 
     fun isOfflineTrack(trackId: Long): Flow<Boolean> = offlineDao.isOfflineTrack(trackId)
 
@@ -224,12 +228,40 @@ class OfflineTrackManager @Inject constructor(
 
     private val audioExtensions = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "wma")
 
-    /**
-     * Imports every audio file found directly inside a user-picked folder (SAF tree Uri, non-recursive)
-     * into the offline library, reading title/artist/duration/embedded art via [MediaMetadataRetriever]
-     * rather than a hand-rolled tag parser so more formats than mp3 work out of the box.
-     */
     suspend fun importLocalFolder(treeUri: Uri): LocalImportResult = withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        } catch (_: Exception) {}
+        addWatchedFolder(treeUri)
+        scanFolder(treeUri)
+    }
+
+    suspend fun refreshWatchedFolders(): LocalImportResult = withContext(Dispatchers.IO) {
+        var imported = 0
+        var skipped = 0
+        for (treeUri in getWatchedFolders()) {
+            val result = scanFolder(treeUri)
+            imported += result.imported
+            skipped += result.skipped
+        }
+        LocalImportResult(imported, skipped)
+    }
+
+    private fun getWatchedFolders(): Set<Uri> =
+        localFolderPrefs.getStringSet(watchedFolderUrisKey, emptySet())
+            .orEmpty()
+            .mapNotNull { runCatching { Uri.parse(it) }.getOrNull() }
+            .toSet()
+
+    private fun addWatchedFolder(treeUri: Uri) {
+        val current = localFolderPrefs.getStringSet(watchedFolderUrisKey, emptySet()).orEmpty()
+        localFolderPrefs.edit().putStringSet(watchedFolderUrisKey, current + treeUri.toString()).apply()
+    }
+
+    private suspend fun scanFolder(treeUri: Uri): LocalImportResult {
         var imported = 0
         var skipped = 0
         try {
@@ -254,13 +286,14 @@ class OfflineTrackManager @Inject constructor(
                     val looksAudio = mime.startsWith("audio/") || ext in audioExtensions
                     if (!looksAudio) continue
                     val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(idIdx))
+                    if (syntheticLocalId(docUri.toString()).let { offlineDao.getOfflineTrack(it) != null }) continue
                     if (importLocalFile(docUri, name)) imported++ else skipped++
                 }
             }
         } catch (e: Exception) {
-            DebugLog.log("OfflineTrack", "importLocalFolder failed: ${e.message}")
+            DebugLog.log("OfflineTrack", "scanFolder failed: ${e.message}")
         }
-        LocalImportResult(imported, skipped)
+        return LocalImportResult(imported, skipped)
     }
 
     private suspend fun importLocalFile(uri: Uri, displayName: String): Boolean {

@@ -300,15 +300,10 @@ class PlayerController @Inject constructor(
 
     private data class ResolvedTrack(val track: Track, val url: String, val needsCaching: Boolean)
 
-    private fun offlineFilePath(trackId: Long): String? {
-        val file = java.io.File(context.filesDir, "offline/$trackId.mp3")
-        return if (file.exists() && file.length() > 0) file.absolutePath else null
-    }
-
     // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
     // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
     private suspend fun resolveTrack(track: Track, attempts: Int = 3): ResolvedTrack? {
-        offlineFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
+        offlineTrackManager.getLocalPath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
 
         repeat(attempts) { attempt ->

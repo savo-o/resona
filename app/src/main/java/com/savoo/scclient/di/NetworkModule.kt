@@ -9,6 +9,7 @@ import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.local.TelegramImportDao
 import com.savoo.scclient.data.remote.AuthInterceptor
+import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.remote.GitHubReleaseApi
 import com.savoo.scclient.data.remote.LyricsApi
 import com.savoo.scclient.data.remote.SoundCloudApi
@@ -68,6 +69,14 @@ object NetworkModule {
     @Singleton
     fun provideOkHttp(authInterceptor: AuthInterceptor): OkHttpClient {
         val builder = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                try {
+                    chain.proceed(chain.request())
+                } catch (e: java.io.IOException) {
+                    ConnectivityEventBus.notifyUnreachable()
+                    throw e
+                }
+            }
             .addInterceptor(authInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)

@@ -3,6 +3,7 @@ package com.savoo.scclient.player
 import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -17,7 +18,12 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        val loadControl = DefaultLoadControl.Builder()
+            .setBackBuffer(60_000, true)
+            .build()
+
         val player = ExoPlayer.Builder(this)
+            .setLoadControl(loadControl)
             .setHandleAudioBecomingNoisy(true)
             .build()
 

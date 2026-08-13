@@ -87,6 +87,15 @@ class OfflineTracksViewModel @Inject constructor(
     private val _importResult = MutableStateFlow<OfflineTrackManager.LocalImportResult?>(null)
     val importResult = _importResult.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            _isImporting.value = true
+            val result = offlineTrackManager.refreshWatchedFolders()
+            _isImporting.value = false
+            if (result.imported > 0) _importResult.value = result
+        }
+    }
+
     fun playTrack(track: Track) {
         val currentTracks = tracks.value
         val idx = currentTracks.indexOfFirst { it.id == track.id }
