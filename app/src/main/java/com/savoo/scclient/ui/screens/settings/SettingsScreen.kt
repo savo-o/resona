@@ -87,12 +87,14 @@ import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.LyricsProvider
+import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.UpdateCheckResult
 import com.savoo.scclient.data.repository.UpdateRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.ui.components.SwitchItem
 import com.savoo.scclient.ui.haptics.rememberHapticTick
+import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.BuildConfig
 import androidx.compose.material.icons.filled.SystemUpdate
@@ -161,6 +163,7 @@ class SettingsViewModel @Inject constructor(
         AppIconManager.apply(context, option)
     }
     fun setCrossfadeEnabled(value: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(value) }
+    fun setSeekBarStyle(style: SeekBarStyle) = viewModelScope.launch { repository.setSeekBarStyle(style) }
     fun setLyricsProvider(provider: LyricsProvider) = viewModelScope.launch { repository.setLyricsProvider(provider) }
 
     fun checkForUpdates() {
@@ -352,6 +355,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     val haptic = rememberHapticTick()
+    val haptics = rememberHaptics()
 
     LaunchedEffect(updateCheckState) {
         when (val state = updateCheckState) {
@@ -360,6 +364,7 @@ fun SettingsScreen(
                 viewModel.consumeUpdateCheckState()
             }
             UpdateCheckUiState.Error -> {
+                haptics.error()
                 snackbarHostState.showSnackbar(context.getString(R.string.settings_update_check_failed))
                 viewModel.consumeUpdateCheckState()
             }
@@ -571,6 +576,34 @@ fun SettingsScreen(
                     checked = settings.crossfadeEnabled,
                     onCheckedChange = { viewModel.setCrossfadeEnabled(it) }
                 )
+                SettingsDivider()
+                Text(
+                    stringResource(R.string.settings_seek_bar_style),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                )
+                run {
+                    val styles = SeekBarStyle.entries
+                    val styleLabelResIds = listOf(R.string.settings_seek_bar_style_classic, R.string.settings_seek_bar_style_wavy)
+                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        styles.forEachIndexed { index, style ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                styles.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.seekBarStyle == style,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setSeekBarStyle(style) } },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(stringResource(styleLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
                 SettingsDivider()
                 Text(
                     stringResource(R.string.settings_lyrics_provider),

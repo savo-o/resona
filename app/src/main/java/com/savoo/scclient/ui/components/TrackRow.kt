@@ -196,7 +196,7 @@ fun TrackRow(
             }
             if (onToggleFavorite != null) {
                 IconButton(onClick = {
-                    haptics.click()
+                    haptics.like()
                     heartAnimating = true
                     onToggleFavorite()
                 }) {

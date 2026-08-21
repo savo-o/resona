@@ -71,6 +71,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -125,12 +126,14 @@ import coil.compose.AsyncImage
 import android.content.Intent
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.LyricsLine
+import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.player.PlaybackState
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.components.TrackArtwork
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -146,10 +149,21 @@ fun PlayerSheet(
 ) {
     val state by viewModel.controller.state.collectAsState()
     val glowColor by viewModel.controller.seedColor.collectAsState()
+    val offlineSaveResult by viewModel.offlineSaveResult.collectAsState()
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
     val track = state.currentTrack
+    val haptics = rememberHaptics()
 
     BackHandler(enabled = showFullPlayer) { showFullPlayer = false }
+
+    LaunchedEffect(offlineSaveResult) {
+        when (offlineSaveResult) {
+            true -> haptics.success()
+            false -> haptics.error()
+            null -> Unit
+        }
+        if (offlineSaveResult != null) viewModel.consumeOfflineSaveResult()
+    }
 
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -195,6 +209,7 @@ fun PlayerSheet(
             isSavingOffline = viewModel.isSavingOffline.collectAsState().value,
             isMixPlaying = viewModel.isMixPlaying.collectAsState().value,
             glowColor = glowColor,
+            seekBarStyle = viewModel.seekBarStyle.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsOffsetMs = viewModel.lyricsOffsetMs.collectAsState().value,
@@ -226,6 +241,7 @@ private fun FullPlayerSheet(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     glowColor: Color?,
+    seekBarStyle: SeekBarStyle,
     lyrics: List<LyricsLine>?,
     activeLyricsLine: Int,
     lyricsOffsetMs: Long,
@@ -262,6 +278,7 @@ private fun FullPlayerSheet(
             isSavingOffline = isSavingOffline,
             isMixPlaying = isMixPlaying,
             glowColor = glowColor,
+            seekBarStyle = seekBarStyle,
             lyrics = lyrics,
             activeLyricsLine = activeLyricsLine,
             lyricsOffsetMs = lyricsOffsetMs,
@@ -483,7 +500,7 @@ private fun MiniPlayerRow(
                     )
                 }
             }
-            IconButton(onClick = { haptics.click(); heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = null,
@@ -511,7 +528,7 @@ private fun MiniPlayerRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun FullPlayerContent(
     state: PlaybackState,
@@ -520,6 +537,7 @@ private fun FullPlayerContent(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     glowColor: Color?,
+    seekBarStyle: SeekBarStyle,
     lyrics: List<LyricsLine>?,
     activeLyricsLine: Int,
     lyricsOffsetMs: Long,
@@ -765,7 +783,7 @@ private fun FullPlayerContent(
                     Spacer(Modifier.height(8.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { haptics.click(); heartAnimating = true; onToggleFavorite() }) {
+                        IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }) {
                             Icon(
                                 if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                                 contentDescription = null,
@@ -805,34 +823,71 @@ private fun FullPlayerContent(
         }
 
         Column {
-            Slider(
-                value = if (isDragging) dragPosition else state.positionMs.toFloat(),
-                onValueChange = { value ->
-                    val second = (value / 1000L).toLong()
-                    if (!isDragging) {
-                        haptics.seekEdge()
-                        lastSeekTickSecond = second
-                        onScrubStart()
-                    } else if (second != lastSeekTickSecond) {
-                        haptics.seekTick()
-                        lastSeekTickSecond = second
-                    }
-                    dragPosition = value
-                    isDragging = true
-                    onScrub(value.roundToLong())
-                },
-                onValueChangeFinished = {
+            val seekValue = if (isDragging) dragPosition else state.positionMs.toFloat()
+            val onSeekValueChange: (Float) -> Unit = { value ->
+                val second = (value / 1000L).toLong()
+                if (!isDragging) {
                     haptics.seekEdge()
-                    onSeek(dragPosition.roundToLong())
-                    isDragging = false
-                },
-                valueRange = 0f..(state.durationMs.coerceAtLeast(1L)).toFloat(),
-                colors = SliderDefaults.colors(
-                    thumbColor = accent,
-                    activeTrackColor = accent,
-                    inactiveTrackColor = palette.onMuted.copy(alpha = 0.25f),
-                ),
+                    lastSeekTickSecond = second
+                    onScrubStart()
+                } else if (second != lastSeekTickSecond) {
+                    haptics.seekTick()
+                    lastSeekTickSecond = second
+                }
+                dragPosition = value
+                isDragging = true
+                onScrub(value.roundToLong())
+            }
+            val onSeekValueChangeFinished: () -> Unit = {
+                haptics.seekEdge()
+                onSeek(dragPosition.roundToLong())
+                isDragging = false
+            }
+            val seekValueRange = 0f..(state.durationMs.coerceAtLeast(1L)).toFloat()
+            val seekColors = SliderDefaults.colors(
+                thumbColor = accent,
+                activeTrackColor = accent,
+                inactiveTrackColor = palette.onMuted.copy(alpha = 0.25f),
             )
+
+            if (seekBarStyle == SeekBarStyle.WAVY) {
+                Slider(
+                    value = seekValue,
+                    onValueChange = onSeekValueChange,
+                    onValueChangeFinished = onSeekValueChangeFinished,
+                    valueRange = seekValueRange,
+                    colors = seekColors,
+                    track = { sliderState ->
+                        WavySeekTrack(
+                            sliderState = sliderState,
+                            activeColor = accent,
+                            inactiveColor = palette.onMuted.copy(alpha = 0.25f),
+                            isDragging = isDragging,
+                        )
+                    },
+                    thumb = {
+                        val thumbScale by animateFloatAsState(
+                            targetValue = if (isDragging) 1.3f else 1f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                            label = "wavySeekThumbScale",
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .scale(thumbScale)
+                                .background(accent, CircleShape),
+                        )
+                    },
+                )
+            } else {
+                Slider(
+                    value = seekValue,
+                    onValueChange = onSeekValueChange,
+                    onValueChangeFinished = onSeekValueChangeFinished,
+                    valueRange = seekValueRange,
+                    colors = seekColors,
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -909,6 +964,70 @@ private fun FullPlayerContent(
                     tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else palette.onMuted,
                 )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WavySeekTrack(
+    sliderState: SliderState,
+    activeColor: Color,
+    inactiveColor: Color,
+    isDragging: Boolean,
+) {
+    val fraction = ((sliderState.value - sliderState.valueRange.start) /
+        (sliderState.valueRange.endInclusive - sliderState.valueRange.start).coerceAtLeast(0.0001f))
+        .coerceIn(0f, 1f)
+
+    val amplitudeDp by animateFloatAsState(
+        targetValue = if (isDragging) 5f else 3f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "wavySeekAmplitude",
+    )
+    val infiniteTransition = rememberInfiniteTransition(label = "wavySeekPhase")
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * PI).toFloat(),
+        animationSpec = infiniteRepeatable(animation = tween(1600, easing = LinearEasing)),
+        label = "wavySeekPhaseAnim",
+    )
+
+    Canvas(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+        val midY = size.height / 2f
+        val activeWidth = size.width * fraction
+        val strokeWidthPx = 4.dp.toPx()
+        val waveLengthPx = 30.dp.toPx()
+        val amplitudePx = amplitudeDp.dp.toPx()
+
+        if (activeWidth > 0f) {
+            val path = Path()
+            var x = 0f
+            var first = true
+            while (x <= activeWidth) {
+                val y = midY + sin((x / waveLengthPx) * 2f * PI.toFloat() + phase) * amplitudePx
+                if (first) {
+                    path.moveTo(x, y)
+                    first = false
+                } else {
+                    path.lineTo(x, y)
+                }
+                x += 3f
+            }
+            drawPath(
+                path = path,
+                color = activeColor,
+                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
+        }
+        if (activeWidth < size.width) {
+            drawLine(
+                color = inactiveColor,
+                start = Offset(activeWidth, midY),
+                end = Offset(size.width, midY),
+                strokeWidth = strokeWidthPx,
+                cap = StrokeCap.Round,
+            )
         }
     }
 }

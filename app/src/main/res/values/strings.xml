@@ -209,6 +209,9 @@
     <string name="settings_autoplay">Autoplay Next Track</string>
     <string name="settings_crossfade">Crossfade</string>
     <string name="settings_crossfade_desc">Fade the volume between tracks instead of switching abruptly</string>
+    <string name="settings_seek_bar_style">Seek bar style</string>
+    <string name="settings_seek_bar_style_classic">Classic</string>
+    <string name="settings_seek_bar_style_wavy">Wavy</string>
     <string name="settings_lyrics_provider">Lyrics provider</string>
     <string name="settings_lyrics_provider_lrclib">LRCLIB</string>
     <string name="settings_lyrics_provider_kugou">Kugou</string>

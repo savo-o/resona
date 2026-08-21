@@ -9,6 +9,7 @@ import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.LyricsLine
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.LyricsRepository
+import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
@@ -63,6 +64,9 @@ class PlayerViewModel @Inject constructor(
     val lyricsOffsetMs = settingsRepository.settings.map { it.lyricsOffsetMs }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
+    val seekBarStyle = settingsRepository.settings.map { it.seekBarStyle }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SeekBarStyle.CLASSIC)
+
     val activeLyricsLine = combine(controller.state, lyrics, lyricsOffsetMs) { state, lines, offsetMs ->
         if (lines.isNullOrEmpty()) -1
         else lines.indexOfLast { it.timeMs <= state.positionMs + 200 + offsetMs }
@@ -76,6 +80,13 @@ class PlayerViewModel @Inject constructor(
 
     private val _isSavingOffline = kotlinx.coroutines.flow.MutableStateFlow(false)
     val isSavingOffline = _isSavingOffline
+
+    private val _offlineSaveResult = kotlinx.coroutines.flow.MutableStateFlow<Boolean?>(null)
+    val offlineSaveResult = _offlineSaveResult
+
+    fun consumeOfflineSaveResult() {
+        _offlineSaveResult.value = null
+    }
 
     fun toggleFavorite() {
         val track = controller.state.value.currentTrack ?: return
@@ -93,6 +104,7 @@ class PlayerViewModel @Inject constructor(
             result.onSuccess { android.util.Log.d("OfflineTrack", "Save success") }
             result.onFailure { android.util.Log.e("OfflineTrack", "Save failed: ${it.message}") }
             _isSavingOffline.value = false
+            _offlineSaveResult.value = result.isSuccess
         }
     }
 

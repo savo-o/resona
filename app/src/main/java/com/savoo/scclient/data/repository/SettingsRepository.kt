@@ -35,6 +35,8 @@ enum class HapticsIntensity { LOW, MEDIUM, HIGH }
 
 enum class LyricsProvider { LRCLIB, KUGOU }
 
+enum class SeekBarStyle { CLASSIC, WAVY }
+
 data class AppSettings(
     val colorTheme: AppColorTheme = AppColorTheme.DYNAMIC,
     val darkMode: DarkModeOption = DarkModeOption.SYSTEM,
@@ -54,6 +56,7 @@ data class AppSettings(
     val mixDiscoveryEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
     val crossfadeEnabled: Boolean = false,
+    val seekBarStyle: SeekBarStyle = SeekBarStyle.CLASSIC,
 )
 
 @Singleton
@@ -78,6 +81,7 @@ class SettingsRepository @Inject constructor(
         val MIX_DISCOVERY_ENABLED = booleanPreferencesKey("mix_discovery_enabled")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val CROSSFADE_ENABLED = booleanPreferencesKey("crossfade_enabled")
+        val SEEK_BAR_STYLE = stringPreferencesKey("seek_bar_style")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -114,6 +118,9 @@ class SettingsRepository @Inject constructor(
             // predates this flag (other settings already exist, so treat onboarding as already seen).
             onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: prefs.asMap().isNotEmpty(),
             crossfadeEnabled = prefs[Keys.CROSSFADE_ENABLED] ?: false,
+            seekBarStyle = prefs[Keys.SEEK_BAR_STYLE]?.let {
+                runCatching { SeekBarStyle.valueOf(it) }.getOrNull()
+            } ?: SeekBarStyle.CLASSIC,
         )
     }
 
@@ -185,5 +192,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setCrossfadeEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.CROSSFADE_ENABLED] = value }
+    }
+
+    suspend fun setSeekBarStyle(style: SeekBarStyle) {
+        context.dataStore.edit { it[Keys.SEEK_BAR_STYLE] = style.name }
     }
 }

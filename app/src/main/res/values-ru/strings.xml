@@ -209,6 +209,9 @@
     <string name="settings_autoplay">Автовоспроизведение следующего трека</string>
     <string name="settings_crossfade">Кроссфейд</string>
     <string name="settings_crossfade_desc">Плавно менять громкость между треками вместо резкого переключения</string>
+    <string name="settings_seek_bar_style">Стиль полосы перемотки</string>
+    <string name="settings_seek_bar_style_classic">Обычный</string>
+    <string name="settings_seek_bar_style_wavy">Волнистый</string>
     <string name="settings_lyrics_provider">Источник текстов песен</string>
     <string name="settings_lyrics_provider_lrclib">LRCLIB</string>
     <string name="settings_lyrics_provider_kugou">Kugou</string>

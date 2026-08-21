@@ -39,10 +39,27 @@ class Haptics internal constructor(
     fun seekEdge() = fire(16L, 180)
     fun longPress() = fire(28L, 220)
 
+    /** Light, quick pulse for favoriting — deliberately lighter than [click]. */
+    fun like() = fire(10L, 70)
+
+    /** Weighty double-thump for a meaningfully completed action (e.g. an offline download finishing). */
+    fun success() = fireWaveform(longArrayOf(0, 25, 55, 40), intArrayOf(0, 140, 0, 220))
+
+    /** Sharp triple-buzz "shake" for errors — distinct from every other pattern here. */
+    fun error() = fireWaveform(longArrayOf(0, 35, 45, 35, 45, 35), intArrayOf(0, 210, 0, 210, 0, 210))
+
     private fun fire(durationMs: Long, amplitude: Int) {
         if (!enabled) return
         val scaled = (amplitude * intensity.multiplier()).toInt().coerceIn(1, 255)
         vibrator.vibrate(VibrationEffect.createOneShot(durationMs, scaled))
+    }
+
+    private fun fireWaveform(timings: LongArray, amplitudes: IntArray) {
+        if (!enabled) return
+        val scaled = IntArray(amplitudes.size) { i ->
+            if (amplitudes[i] == 0) 0 else (amplitudes[i] * intensity.multiplier()).toInt().coerceIn(1, 255)
+        }
+        vibrator.vibrate(VibrationEffect.createWaveform(timings, scaled, -1))
     }
 }
 
