@@ -343,16 +343,11 @@ private fun HomeHero(
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .padding(end = 16.dp)
                     .graphicsLayer { translationX = titleOffsetX.toPx(); alpha = titleAlpha },
             ) {
-                Text(
-                    text = stringResource(R.string.home_mix_line1),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = stringResource(R.string.home_mix_line2),
-                    style = MaterialTheme.typography.displayLarge,
+                AutoSizeGreetingText(
+                    text = rememberHomeGreeting(),
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(Modifier.height(8.dp))

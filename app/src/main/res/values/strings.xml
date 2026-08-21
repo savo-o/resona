@@ -30,8 +30,38 @@
     <string name="nav_import_export">Import / Export</string>
 
     <!-- Home -->
-    <string name="home_mix_line1">Your</string>
-    <string name="home_mix_line2">Mix</string>
+    <string-array name="home_greeting_morning">
+        <item>Good morning</item>
+        <item>Morning</item>
+        <item>Rise and shine</item>
+        <item>Hello, early bird</item>
+        <item>Off to a good start</item>
+        <item>Fresh morning, fresh mix</item>
+    </string-array>
+    <string-array name="home_greeting_afternoon">
+        <item>Good afternoon</item>
+        <item>Hey there</item>
+        <item>Hope your day\'s treating you well</item>
+        <item>Midday soundtrack, coming up</item>
+        <item>Keep the momentum going</item>
+        <item>Afternoon groove</item>
+    </string-array>
+    <string-array name="home_greeting_evening">
+        <item>Good evening</item>
+        <item>Evening</item>
+        <item>Time to unwind</item>
+        <item>How was your day?</item>
+        <item>Evening tunes await</item>
+        <item>Winding down?</item>
+    </string-array>
+    <string-array name="home_greeting_night">
+        <item>Hello, night owl</item>
+        <item>Still up?</item>
+        <item>Burning the midnight oil</item>
+        <item>Late-night sounds, just for you</item>
+        <item>Can\'t sleep?</item>
+        <item>The night is yours</item>
+    </string-array>
     <string name="home_mix_subtitle_count">%d tracks in your mix</string>
     <string name="home_mix_empty_title">Start Listening</string>
     <string name="home_mix_empty_desc">Play a track or add favorites to build your mix</string>
@@ -262,6 +292,14 @@
     <string name="debug_menu_trace_desc">Recent app events (login, favorites sync, network)</string>
     <string name="debug_menu_trace_empty">No trace entries yet</string>
     <string name="debug_menu_clear">Clear</string>
+    <string name="debug_menu_greetings">Home Greeting</string>
+    <string name="debug_menu_greetings_desc">Force a time period or a specific phrase to preview the home screen greeting</string>
+    <string name="debug_menu_greetings_current">Current: %s</string>
+    <string name="debug_menu_greeting_period_morning">Morning</string>
+    <string name="debug_menu_greeting_period_afternoon">Afternoon</string>
+    <string name="debug_menu_greeting_period_evening">Evening</string>
+    <string name="debug_menu_greeting_period_night">Night</string>
+    <string name="debug_menu_greetings_clear">Use real time</string>
 
     <!-- Import / Export -->
     <string name="import_export_title">Import / Export</string>

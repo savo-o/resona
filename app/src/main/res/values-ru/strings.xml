@@ -30,8 +30,38 @@
     <string name="nav_import_export">Импорт / Экспорт</string>
 
     <!-- Home -->
-    <string name="home_mix_line1">Your</string>
-    <string name="home_mix_line2">Mix</string>
+    <string-array name="home_greeting_morning">
+        <item>Доброе утро</item>
+        <item>С добрым утром</item>
+        <item>Просыпаемся?</item>
+        <item>Привет, ранняя пташка</item>
+        <item>Хорошего начала дня</item>
+        <item>Новое утро, новый микс</item>
+    </string-array>
+    <string-array name="home_greeting_afternoon">
+        <item>Добрый день</item>
+        <item>Привет</item>
+        <item>Как проходит день?</item>
+        <item>Самое время для музыки</item>
+        <item>Держим темп</item>
+        <item>Дневной заряд бодрости</item>
+    </string-array>
+    <string-array name="home_greeting_evening">
+        <item>Добрый вечер</item>
+        <item>Вечер в разгаре</item>
+        <item>Пора расслабиться</item>
+        <item>Как прошёл день?</item>
+        <item>Вечерние треки уже ждут</item>
+        <item>Отдыхаем?</item>
+    </string-array>
+    <string-array name="home_greeting_night">
+        <item>Привет, полуночник</item>
+        <item>Не спится?</item>
+        <item>Ночная смена?</item>
+        <item>Музыка для тихой ночи</item>
+        <item>Всё ещё на ногах?</item>
+        <item>Ночь только твоя</item>
+    </string-array>
     <string name="home_mix_subtitle_count">%d треков в вашем миксе</string>
     <string name="home_mix_empty_title">Начните слушать</string>
     <string name="home_mix_empty_desc">Включите трек или добавьте избранное, чтобы собрать микс</string>
@@ -262,6 +292,14 @@
     <string name="debug_menu_trace_desc">Последние события приложения (вход, синхронизация избранного, сеть)</string>
     <string name="debug_menu_trace_empty">Записей пока нет</string>
     <string name="debug_menu_clear">Очистить</string>
+    <string name="debug_menu_greetings">Приветствие на главной</string>
+    <string name="debug_menu_greetings_desc">Принудительно выбрать период или конкретную фразу, чтобы проверить приветствие на главном экране</string>
+    <string name="debug_menu_greetings_current">Текущее: %s</string>
+    <string name="debug_menu_greeting_period_morning">Утро</string>
+    <string name="debug_menu_greeting_period_afternoon">День</string>
+    <string name="debug_menu_greeting_period_evening">Вечер</string>
+    <string name="debug_menu_greeting_period_night">Ночь</string>
+    <string name="debug_menu_greetings_clear">Использовать реальное время</string>
 
     <!-- Import / Export -->
     <string name="import_export_title">Импорт / Экспорт</string>
