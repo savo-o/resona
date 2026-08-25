@@ -107,6 +107,8 @@ class FavoritesViewModel @Inject constructor(
         list.map { it.trackId }.toSet()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    val downloadingTrackIds = offlineTrackManager.downloadingTrackIds
+
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
 
@@ -193,6 +195,7 @@ fun FavoritesScreen(
     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState()
     val offlineTrackIds by viewModel.offlineTrackIds.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var searchQuery by remember { mutableStateOf("") }
@@ -239,6 +242,7 @@ fun FavoritesScreen(
             TrackSelectionBar(
                 selectedCount = selection.count,
                 onClear = { selection.clear() },
+                downloadingCount = filteredTracks.count { it.id in downloadingIds },
                 onSelectAll = { selection.selectAll(filteredTracks.map { it.id }) },
                 onFavoriteAll = {
                     viewModel.removeSelectedFromFavorites(selection.selectedIds)
@@ -301,6 +305,7 @@ fun FavoritesScreen(
                             },
                             favoriteSource = favoriteSourceOf(track.id),
                             isDownloaded = track.id in offlineTrackIds,
+                            isDownloading = track.id in downloadingIds,
                             onToggleDownload = { viewModel.toggleDownload(track) },
                             selectionActive = selection.isActive,
                             isSelected = selection.contains(track.id),

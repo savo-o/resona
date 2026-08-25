@@ -412,6 +412,7 @@
     <string name="selection_favorite_all">Toggle favorite</string>
     <string name="selection_download_all">Toggle download</string>
     <string name="selection_select_all">Select all</string>
+    <string name="selection_downloading">Downloading %1$d…</string>
 
     <!-- Theme names -->
     <string name="theme_sc_orange">SoundCloud Orange</string>

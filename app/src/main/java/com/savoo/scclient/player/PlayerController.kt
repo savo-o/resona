@@ -141,6 +141,17 @@ class PlayerController @Inject constructor(
     private fun isPending(mediaItem: MediaItem?): Boolean =
         mediaItem?.localConfiguration?.uri?.scheme == PENDING_SCHEME
 
+    // A queue can legitimately hold the same track twice (playlists do this), so a plain indexOf/find
+    // by value would resolve every duplicate to the first copy and swap the URL onto the wrong window.
+    // When the id being looked up is what's playing right now, the player's own index is authoritative.
+    private fun queueIndexOf(mediaId: Long): Int {
+        controller?.let { c ->
+            val current = c.currentMediaItemIndex
+            if (current in queue.indices && queue[current].id == mediaId) return current
+        }
+        return queue.indexOfFirst { it.id == mediaId }
+    }
+
     init {
         restoreState()
         scope.launch {
@@ -187,7 +198,7 @@ class PlayerController @Inject constructor(
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             DebugLog.log(TAG, "onPlaybackStateChanged: $playbackState currentId=${controller?.currentMediaItem?.mediaId} pos=${controller?.currentPosition} dur=${controller?.duration}")
-            _state.value = _state.value.copy(isBuffering = playbackState == Player.STATE_BUFFERING)
+            _state.update { it.copy(isBuffering = playbackState == Player.STATE_BUFFERING) }
             if (playbackState == Player.STATE_READY) updatePosition()
         }
 
@@ -228,7 +239,7 @@ class PlayerController @Inject constructor(
                         skipDueToFailure(track)
                         return@launch
                     }
-                    val i = queue.indexOf(track)
+                    val i = queueIndexOf(mediaId)
                     if (i < 0) return@launch
                     playerCommandMutex.withLock {
                         controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url))
@@ -256,10 +267,10 @@ class PlayerController @Inject constructor(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val mediaId = mediaItem?.mediaId?.toLongOrNull() ?: return
-            val track = queue.find { it.id == mediaId }
+            val track = queue.firstOrNull { it.id == mediaId }
             DebugLog.log(TAG, "onMediaItemTransition: id=$mediaId title=${track?.title} reason=$reason pending=${isPending(mediaItem)} queueIndex(before)=$queueIndex")
             if (track != null) {
-                val idx = queue.indexOf(track)
+                val idx = queueIndexOf(mediaId)
                 if (idx >= 0) {
                     queueIndex = idx
                     updateQueueState()
@@ -297,7 +308,7 @@ class PlayerController @Inject constructor(
                             }
                             DebugLog.log(TAG, "reactive resolve OK: id=$mediaId title=${track.title}")
 
-                            val i = queue.indexOf(track)
+                            val i = queueIndexOf(mediaId)
                             if (i < 0) return@launch
 
                             playerCommandMutex.withLock {
@@ -408,12 +419,12 @@ class PlayerController @Inject constructor(
             if (idx !in 0 until c.mediaItemCount) continue
             val item = runCatching { c.getMediaItemAt(idx) }.getOrNull() ?: continue
             if (isPending(item)) {
-                item.mediaId.toLongOrNull()?.let { resolveAndReplace(it) }
+                item.mediaId.toLongOrNull()?.let { resolveAndReplace(it, idx) }
             }
         }
     }
 
-    private fun resolveAndReplace(mediaId: Long) {
+    private fun resolveAndReplace(mediaId: Long, preloadIndex: Int) {
         if (!resolvingMediaIds.add(mediaId)) {
             DebugLog.log(TAG, "resolveAndReplace: id=$mediaId already in flight, skipping duplicate")
             return
@@ -421,7 +432,9 @@ class PlayerController @Inject constructor(
         DebugLog.log(TAG, "preload resolve start: id=$mediaId")
         scope.launch {
             try {
-                val track = queue.find { it.id == mediaId } ?: return@launch
+                val track = queue.getOrNull(preloadIndex)?.takeIf { it.id == mediaId }
+                    ?: queue.firstOrNull { it.id == mediaId }
+                    ?: return@launch
                 val resolved = resolveTrack(track, reportProgress = false)
                 if (resolved == null) {
                     DebugLog.log(TAG, "preload resolve FAILED: id=$mediaId title=${track.title}")
@@ -429,10 +442,16 @@ class PlayerController @Inject constructor(
                 }
                 DebugLog.log(TAG, "preload resolve OK: id=$mediaId title=${track.title}")
 
-                val idx = queue.indexOf(track)
+                // The queue may have been reordered (shuffle) or rebuilt while this was resolving, so the
+                // index we prefetched for can now hold a different track - only replace if it still matches.
+                val idx = preloadIndex.takeIf { queue.getOrNull(it)?.id == mediaId } ?: queueIndexOf(mediaId)
                 if (idx < 0) return@launch
 
                 playerCommandMutex.withLock {
+                    val stillThere = controller?.let { c ->
+                        idx < c.mediaItemCount && runCatching { c.getMediaItemAt(idx).mediaId.toLongOrNull() }.getOrNull() == mediaId
+                    } ?: false
+                    if (!stillThere) return@withLock
                     controller?.replaceMediaItem(idx, buildMediaItem(resolved.track, resolved.url))
 
                     // If this neighbour became the current item while we were resolving it, recover it the same way the
@@ -725,6 +744,7 @@ class PlayerController @Inject constructor(
             if (requestId != playRequestId) return@launch
             if (resolved == null) {
                 _state.update { it.copy(loadingTrackId = null) }
+                skipDueToFailure(track)
                 return@launch
             }
             val (fullTrack, url, needsCaching) = resolved
@@ -733,17 +753,25 @@ class PlayerController @Inject constructor(
             recentTracks.add(fullTrack)
             if (recentTracks.size > 20) recentTracks.removeAt(0)
 
-            val allItems = queue.mapIndexed { i, t ->
-                if (i == requestIndex) buildMediaItem(fullTrack, url) else buildPendingMediaItem(t)
-            }
-
             playerCommandMutex.withLock {
                 if (requestId != playRequestId) return@withLock
+
+                // toggleShuffle() reorders `queue` without issuing a new play request, so requestIndex
+                // can be stale by the time a slow resolve finishes - trusting it would drop this track's
+                // real URL onto whatever now sits at that position and play the wrong song.
+                val index = queue.indexOfFirst { it.id == fullTrack.id }
+                    .takeIf { it >= 0 } ?: requestIndex.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
+                queueIndex = index
+
+                val allItems = queue.mapIndexed { i, t ->
+                    if (i == index) buildMediaItem(fullTrack, url) else buildPendingMediaItem(t)
+                }
+
                 beginListenSegment(fullTrack)
-                _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
+                _state.update { it.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null) }
                 extractSeedColor(fullTrack.artworkUrl)
                 controller?.apply {
-                    setMediaItems(allItems, requestIndex, 0L)
+                    setMediaItems(allItems, index, 0L)
                     prepare()
                     play()
                 }
@@ -860,7 +888,7 @@ class PlayerController @Inject constructor(
                 val resolved = resolveTrack(track) ?: return@launch
                 val (fullTrack, url, needsCaching) = resolved
                 beginListenSegment(fullTrack)
-                _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
+                _state.update { it.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null) }
                 extractSeedColor(fullTrack.artworkUrl)
                 controller?.apply {
                     setMediaItem(buildMediaItem(fullTrack, url))

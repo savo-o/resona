@@ -14,6 +14,9 @@ import com.savoo.scclient.di.PlainHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -36,6 +39,9 @@ class OfflineTrackManager @Inject constructor(
     private val localFolderPrefs = context.getSharedPreferences("offline_local_folders", Context.MODE_PRIVATE)
     private val watchedFolderUrisKey = "watched_folder_uris"
 
+    private val _downloadingTrackIds = MutableStateFlow<Set<Long>>(emptySet())
+    val downloadingTrackIds = _downloadingTrackIds.asStateFlow()
+
     fun isOfflineTrack(trackId: Long): Flow<Boolean> = offlineDao.isOfflineTrack(trackId)
 
     suspend fun isOfflineTrackSync(trackId: Long): Boolean = offlineDao.isOfflineTrackSync(trackId)
@@ -49,6 +55,7 @@ class OfflineTrackManager @Inject constructor(
     suspend fun getTrackCount(): Int = offlineDao.getTrackCount()
 
     suspend fun saveForOffline(track: Track): Result<Unit> = withContext(Dispatchers.IO) {
+        _downloadingTrackIds.update { it + track.id }
         try {
             val audioFile = File(offlineDir, "${track.id}.mp3")
             if (audioFile.exists() && audioFile.length() > 0) {
@@ -128,6 +135,8 @@ class OfflineTrackManager @Inject constructor(
         } catch (e: Exception) {
             DebugLog.log("OfflineTrack", "Failed to save: ${e.message}")
             Result.failure(e)
+        } finally {
+            _downloadingTrackIds.update { it - track.id }
         }
     }
 

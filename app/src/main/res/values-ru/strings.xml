@@ -412,6 +412,7 @@
     <string name="selection_favorite_all">В избранное</string>
     <string name="selection_download_all">Скачать</string>
     <string name="selection_select_all">Выделить всё</string>
+    <string name="selection_downloading">Загрузка: %1$d…</string>
 
     <!-- Theme names -->
     <string name="theme_sc_orange">Оранжевый SoundCloud</string>

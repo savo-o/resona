@@ -6,9 +6,13 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,14 +29,15 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.ToggleButtonShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.savoo.scclient.R
@@ -53,6 +59,7 @@ fun TrackSelectionBar(
     selectedCount: Int,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
+    downloadingCount: Int = 0,
     onSelectAll: (() -> Unit)? = null,
     onFavoriteAll: (() -> Unit)? = null,
     onDownloadAll: (() -> Unit)? = null,
@@ -65,25 +72,33 @@ fun TrackSelectionBar(
             slideInVertically(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
                 initialOffsetY = { it },
+            ) +
+            scaleIn(
+                initialScale = 0.85f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium),
             ),
         exit = fadeOut(spring(stiffness = Spring.StiffnessHigh)) +
             slideOutVertically(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
                 targetOffsetY = { it },
+            ) +
+            scaleOut(
+                targetScale = 0.9f,
+                animationSpec = spring(stiffness = Spring.StiffnessMedium),
             ),
-        modifier = modifier,
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainerHighest,
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            tonalElevation = 8.dp,
-            shadowElevation = 10.dp,
+            shape = RoundedCornerShape(32.dp),
+            tonalElevation = 6.dp,
+            shadowElevation = 12.dp,
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(start = 8.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                modifier = Modifier.padding(start = 6.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { haptics.click(); onClear() }) {
@@ -99,10 +114,12 @@ fun TrackSelectionBar(
                     finishedListener = { pulse = false },
                 )
                 Text(
-                    text = stringResource(R.string.selection_count, selectedCount),
+                    text = if (downloadingCount > 0) stringResource(R.string.selection_downloading, downloadingCount)
+                        else stringResource(R.string.selection_count, selectedCount),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier
                         .weight(1f)
+                        .padding(end = 8.dp)
                         .graphicsLayer { scaleX = countScale; scaleY = countScale },
                 )
 
@@ -131,6 +148,7 @@ fun TrackSelectionBar(
                             icon = Icons.Filled.CloudDownload,
                             label = stringResource(R.string.selection_download_all),
                             shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                            busy = downloadingCount > 0,
                             onClick = { haptics.click(); onDownloadAll() },
                         )
                     }
@@ -143,17 +161,24 @@ fun TrackSelectionBar(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SelectionAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
-    shapes: androidx.compose.material3.ToggleButtonShapes,
+    shapes: ToggleButtonShapes,
     onClick: () -> Unit,
+    busy: Boolean = false,
 ) {
     ToggleButton(
-        checked = false,
-        onCheckedChange = { onClick() },
+        checked = busy,
+        onCheckedChange = { if (!busy) onClick() },
         shapes = shapes,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        Icon(icon, contentDescription = label, modifier = Modifier.size(ToggleButtonDefaults.IconSize))
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ToggleButtonDefaults.IconSize)) {
+            if (busy) {
+                LoadingIndicator(color = MaterialTheme.colorScheme.onPrimary)
+            } else {
+                Icon(icon, contentDescription = label, modifier = Modifier.size(ToggleButtonDefaults.IconSize))
+            }
+        }
     }
 }

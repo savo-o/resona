@@ -106,6 +106,8 @@ class ArtistViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ArtistUiState())
     val uiState = _uiState.asStateFlow()
 
+    val downloadingTrackIds = offlineTrackManager.downloadingTrackIds
+
     fun getBadges(userId: Long): StateFlow<List<String>> = badgeRepository.getBadges(userId)
     val developerMode = settingsRepository.settings.map { it.developerMode }
 
@@ -216,6 +218,7 @@ fun ArtistScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     var selectedBadge by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(TrackSort()) }
     val selection = rememberTrackSelection()
@@ -261,6 +264,7 @@ fun ArtistScreen(
             TrackSelectionBar(
                 selectedCount = selection.count,
                 onClear = { selection.clear() },
+                downloadingCount = sortedTracks.count { it.id in downloadingIds },
                 onSelectAll = { selection.selectAll(sortedTracks.map { it.id }) },
                 onFavoriteAll = {
                     viewModel.toggleFavoriteForSelected(selection.selectedIds)
@@ -328,7 +332,8 @@ fun ArtistScreen(
                             else viewModel.playTrack(track, sortedTracks)
                         },
                         isDownloaded = isOffline,
-                        onToggleDownload = { viewModel.toggleDownload(track) },
+                        isDownloading = track.id in downloadingIds,
+                            onToggleDownload = { viewModel.toggleDownload(track) },
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },

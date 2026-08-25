@@ -96,6 +96,8 @@ class PlaylistViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(PlaylistUiState())
     val uiState = _uiState.asStateFlow()
 
+    val downloadingTrackIds = offlineTrackManager.downloadingTrackIds
+
     fun loadPlaylist(playlistId: Long) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
@@ -223,6 +225,7 @@ fun PlaylistScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     var sort by remember { mutableStateOf(TrackSort()) }
     val selection = rememberTrackSelection()
 
@@ -267,6 +270,7 @@ fun PlaylistScreen(
             TrackSelectionBar(
                 selectedCount = selection.count,
                 onClear = { selection.clear() },
+                downloadingCount = sortedTracks.count { it.id in downloadingIds },
                 onSelectAll = { selection.selectAll(sortedTracks.map { it.id }) },
                 onFavoriteAll = {
                     viewModel.toggleFavoriteForSelected(selection.selectedIds)
@@ -328,7 +332,8 @@ fun PlaylistScreen(
                             else viewModel.playTrack(track, sortedTracks)
                         },
                         isDownloaded = isOffline,
-                        onToggleDownload = { viewModel.toggleDownload(track) },
+                        isDownloading = track.id in downloadingIds,
+                            onToggleDownload = { viewModel.toggleDownload(track) },
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },

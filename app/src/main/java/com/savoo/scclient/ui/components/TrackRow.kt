@@ -130,6 +130,7 @@ fun TrackRow(
     onTogglePlayPause: (() -> Unit)? = null,
     favoriteSource: FavoriteSource? = null,
     isDownloaded: Boolean = false,
+    isDownloading: Boolean = false,
     onToggleDownload: (() -> Unit)? = null,
     selectionActive: Boolean = false,
     isSelected: Boolean = false,
@@ -164,14 +165,17 @@ fun TrackRow(
         }
     }
 
-    var downloadPending by remember { mutableStateOf(false) }
-    LaunchedEffect(isDownloaded) { downloadPending = false }
-    LaunchedEffect(downloadPending) {
-        if (downloadPending) {
-            kotlinx.coroutines.delay(20_000)
-            downloadPending = false
+    var optimisticDownload by remember { mutableStateOf(false) }
+    LaunchedEffect(isDownloading, isDownloaded) {
+        if (isDownloading || isDownloaded) optimisticDownload = false
+    }
+    LaunchedEffect(optimisticDownload) {
+        if (optimisticDownload) {
+            kotlinx.coroutines.delay(4000)
+            optimisticDownload = false
         }
     }
+    val showDownloadProgress = isDownloading || optimisticDownload
 
     fun handleRowTap() {
         if (selectionActive) onLongPress?.invoke() else { haptic(); onClick() }
@@ -240,14 +244,14 @@ fun TrackRow(
                 if (onToggleDownload != null) {
                     IconButton(
                         onClick = {
-                            if (!downloadPending) {
+                            if (!showDownloadProgress) {
                                 haptics.click()
-                                downloadPending = true
+                                if (!isDownloaded) optimisticDownload = true
                                 onToggleDownload()
                             }
                         },
                     ) {
-                        if (downloadPending) {
+                        if (showDownloadProgress) {
                             LoadingIndicator(
                                 modifier = Modifier.size(20.dp),
                                 color = MaterialTheme.colorScheme.primary,
