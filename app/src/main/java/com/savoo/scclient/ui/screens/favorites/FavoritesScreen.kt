@@ -51,6 +51,11 @@ import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.components.EmptyState
 import com.savoo.scclient.ui.components.FavoriteSource
 import com.savoo.scclient.ui.components.TrackRow
+import com.savoo.scclient.ui.components.TrackSelectionBar
+import com.savoo.scclient.ui.components.TrackSort
+import com.savoo.scclient.ui.components.TrackSortButton
+import com.savoo.scclient.ui.components.applySortOption
+import com.savoo.scclient.ui.components.rememberTrackSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -98,6 +103,10 @@ class FavoritesViewModel @Inject constructor(
     val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val offlineTrackIds = offlineTrackManager.getAllOfflineTracks().map { list ->
+        list.map { it.trackId }.toSet()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
 
@@ -123,10 +132,9 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
-    fun playTrack(track: Track) {
-        val currentTracks = tracks.value
-        val idx = currentTracks.indexOfFirst { it.id == track.id }
-        playerController.playQueue(currentTracks, idx.coerceAtLeast(0), tag = "favorites")
+    fun playTrack(track: Track, queue: List<Track> = tracks.value) {
+        val idx = queue.indexOfFirst { it.id == track.id }
+        playerController.playQueue(queue, idx.coerceAtLeast(0), tag = "favorites")
     }
 
     /** Every row shown here is already favorited (locally, online, or both) - tapping the heart
@@ -144,6 +152,33 @@ class FavoritesViewModel @Inject constructor(
     fun clearMessage() {
         _message.value = null
     }
+
+    fun toggleDownload(track: Track) {
+        viewModelScope.launch {
+            if (offlineTrackManager.isOfflineTrackSync(track.id)) {
+                offlineTrackManager.removeFromOffline(track.id)
+            } else {
+                offlineTrackManager.saveForOffline(track)
+            }
+        }
+    }
+
+    fun removeSelectedFromFavorites(ids: Set<Long>) {
+        ids.forEach { toggleFavorite(it) }
+    }
+
+    fun toggleDownloadForSelected(ids: Set<Long>) {
+        viewModelScope.launch {
+            val currentlyOffline = offlineTrackIds.value
+            val allOffline = ids.isNotEmpty() && ids.all { it in currentlyOffline }
+            val selectedTracks = tracks.value.filter { it.id in ids }
+            if (allOffline) {
+                ids.forEach { offlineTrackManager.removeFromOffline(it) }
+            } else {
+                selectedTracks.filter { it.id !in currentlyOffline }.forEach { offlineTrackManager.saveForOffline(it) }
+            }
+        }
+    }
 }
 
 @UnstableApi
@@ -156,10 +191,13 @@ fun FavoritesScreen(
     val tracks by viewModel.tracks.collectAsState()
     val trackSources by viewModel.trackSources.collectAsState()
     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState()
+    val offlineTrackIds by viewModel.offlineTrackIds.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var searchQuery by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf(TrackSort()) }
+    val selection = rememberTrackSelection()
 
     LaunchedEffect(Unit) { viewModel.refreshOnline() }
 
@@ -168,11 +206,11 @@ fun FavoritesScreen(
         return trackSources[trackId] ?: FavoriteSource.LOCAL
     }
 
-    val filteredTracks = if (searchQuery.isBlank()) tracks
+    val filteredTracks = (if (searchQuery.isBlank()) tracks
         else tracks.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
             it.user.username.contains(searchQuery, ignoreCase = true)
-        }
+        }).applySortOption(sort)
 
     message?.let { msg ->
         LaunchedEffect(msg) {
@@ -189,7 +227,27 @@ fun FavoritesScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
+                },
+                actions = {
+                    if (tracks.isNotEmpty()) {
+                        TrackSortButton(sort = sort, onSortChange = { sort = it })
+                    }
                 }
+            )
+        },
+        bottomBar = {
+            TrackSelectionBar(
+                selectedCount = selection.count,
+                onClear = { selection.clear() },
+                onSelectAll = { selection.selectAll(filteredTracks.map { it.id }) },
+                onFavoriteAll = {
+                    viewModel.removeSelectedFromFavorites(selection.selectedIds)
+                    selection.clear()
+                },
+                onDownloadAll = {
+                    viewModel.toggleDownloadForSelected(selection.selectedIds)
+                    selection.clear()
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -232,16 +290,21 @@ fun FavoritesScreen(
                         val isCurrentTrack = playerState.currentTrack?.id == track.id
                         TrackRow(
                             track = track,
-                            onClick = { viewModel.playTrack(track) },
+                            onClick = { viewModel.playTrack(track, filteredTracks) },
                             isLoading = playerState.loadingTrackId == track.id,
                             isFavorite = true,
                             isPlaying = playerState.isPlaying && isCurrentTrack,
                             onToggleFavorite = { viewModel.toggleFavorite(track.id) },
                             onTogglePlayPause = {
                                 if (isCurrentTrack) viewModel.playerController.togglePlayPause()
-                                else viewModel.playTrack(track)
+                                else viewModel.playTrack(track, filteredTracks)
                             },
                             favoriteSource = favoriteSourceOf(track.id),
+                            isDownloaded = track.id in offlineTrackIds,
+                            onToggleDownload = { viewModel.toggleDownload(track) },
+                            selectionActive = selection.isActive,
+                            isSelected = selection.contains(track.id),
+                            onLongPress = { selection.toggle(track.id) },
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }

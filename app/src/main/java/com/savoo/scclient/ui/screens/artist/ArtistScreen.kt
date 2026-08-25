@@ -71,6 +71,11 @@ import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.components.TrackRow
+import com.savoo.scclient.ui.components.TrackSelectionBar
+import com.savoo.scclient.ui.components.TrackSort
+import com.savoo.scclient.ui.components.TrackSortButton
+import com.savoo.scclient.ui.components.applySortOption
+import com.savoo.scclient.ui.components.rememberTrackSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -119,15 +124,13 @@ class ArtistViewModel @Inject constructor(
         }
     }
 
-    fun playAll() {
-        val tracks = _uiState.value.tracks
+    fun playAll(tracks: List<Track> = _uiState.value.tracks) {
         if (tracks.isNotEmpty()) {
             playerController.playQueue(tracks, 0, tag = artistQueueTag())
         }
     }
 
-    fun playTrack(track: Track) {
-        val tracks = _uiState.value.tracks
+    fun playTrack(track: Track, tracks: List<Track> = _uiState.value.tracks) {
         val idx = tracks.indexOfFirst { it.id == track.id }
         playerController.playQueue(tracks, idx.coerceAtLeast(0), tag = artistQueueTag())
     }
@@ -172,6 +175,35 @@ class ArtistViewModel @Inject constructor(
     fun removeFromOffline(trackId: Long) {
         viewModelScope.launch { offlineTrackManager.removeFromOffline(trackId) }
     }
+
+    fun toggleDownload(track: Track) {
+        viewModelScope.launch {
+            if (offlineTrackManager.isOfflineTrackSync(track.id)) {
+                offlineTrackManager.removeFromOffline(track.id)
+            } else {
+                offlineTrackManager.saveForOffline(track)
+            }
+        }
+    }
+
+    fun toggleFavoriteForSelected(ids: Set<Long>) {
+        viewModelScope.launch {
+            _uiState.value.tracks.filter { it.id in ids }.forEach { favoritesRepository.toggleTrackFavorite(it) }
+        }
+    }
+
+    fun toggleDownloadForSelected(ids: Set<Long>) {
+        viewModelScope.launch {
+            val selectedTracks = _uiState.value.tracks.filter { it.id in ids }
+            val currentlyOffline = selectedTracks.filter { offlineTrackManager.isOfflineTrackSync(it.id) }.map { it.id }.toSet()
+            val allOffline = ids.isNotEmpty() && currentlyOffline.size == ids.size
+            if (allOffline) {
+                ids.forEach { offlineTrackManager.removeFromOffline(it) }
+            } else {
+                selectedTracks.filter { it.id !in currentlyOffline }.forEach { offlineTrackManager.saveForOffline(it) }
+            }
+        }
+    }
 }
 
 @UnstableApi
@@ -185,12 +217,15 @@ fun ArtistScreen(
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     var selectedBadge by remember { mutableStateOf<String?>(null) }
+    var sort by remember { mutableStateOf(TrackSort()) }
+    val selection = rememberTrackSelection()
 
     androidx.compose.runtime.LaunchedEffect(userId) {
         viewModel.loadArtist(userId)
     }
 
     val context = LocalContext.current
+    val sortedTracks = state.tracks.applySortOption(sort)
 
     Scaffold(
         topBar = {
@@ -202,6 +237,9 @@ fun ArtistScreen(
                     }
                 },
                 actions = {
+                    if (state.tracks.isNotEmpty()) {
+                        TrackSortButton(sort = sort, onSortChange = { sort = it })
+                    }
                     state.user?.permalinkUrl?.let { url ->
                         IconButton(onClick = {
                             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -218,7 +256,22 @@ fun ArtistScreen(
                     containerColor = MaterialTheme.colorScheme.surface,
                 )
             )
-        }
+        },
+        bottomBar = {
+            TrackSelectionBar(
+                selectedCount = selection.count,
+                onClear = { selection.clear() },
+                onSelectAll = { selection.selectAll(sortedTracks.map { it.id }) },
+                onFavoriteAll = {
+                    viewModel.toggleFavoriteForSelected(selection.selectedIds)
+                    selection.clear()
+                },
+                onDownloadAll = {
+                    viewModel.toggleDownloadForSelected(selection.selectedIds)
+                    selection.clear()
+                },
+            )
+        },
     ) { padding ->
         when {
             state.isLoading -> Box(
@@ -247,7 +300,7 @@ fun ArtistScreen(
                         badges = artistBadges,
                         showId = isDeveloper,
                         isFavorite = isArtistFav,
-                        onPlayAll = viewModel::playAll,
+                        onPlayAll = { viewModel.playAll(sortedTracks) },
                         onToggleFavorite = { viewModel.toggleArtistFavorite(state.user!!) },
                         onBadgeClick = { selectedBadge = it },
                     )
@@ -259,20 +312,26 @@ fun ArtistScreen(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                     )
                 }
-                items(state.tracks, key = { it.id }) { track ->
+                items(sortedTracks, key = { it.id }) { track ->
                     val isFav by viewModel.isFavoriteFlow(track.id).collectAsState(initial = false)
+                    val isOffline by viewModel.isOfflineFlow(track.id).collectAsState(initial = false)
                     val isCurrentTrack = playerState.currentTrack?.id == track.id
                     TrackRow(
                         track = track,
-                        onClick = { viewModel.playTrack(track) },
+                        onClick = { viewModel.playTrack(track, sortedTracks) },
                         isFavorite = isFav,
                         isLoading = playerState.loadingTrackId == track.id,
                         isPlaying = playerState.isPlaying && isCurrentTrack,
                         onToggleFavorite = { viewModel.toggleFavorite(track) },
                         onTogglePlayPause = {
                             if (isCurrentTrack) viewModel.playerController.togglePlayPause()
-                            else viewModel.playTrack(track)
+                            else viewModel.playTrack(track, sortedTracks)
                         },
+                        isDownloaded = isOffline,
+                        onToggleDownload = { viewModel.toggleDownload(track) },
+                        selectionActive = selection.isActive,
+                        isSelected = selection.contains(track.id),
+                        onLongPress = { selection.toggle(track.id) },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
             }

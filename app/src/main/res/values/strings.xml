@@ -120,6 +120,9 @@
     <string name="offline_unwatch_folder">Stop watching folder</string>
     <string name="network_unavailable">No connection</string>
     <string name="network_restored">Connection restored</string>
+    <string name="track_skipped_message">Couldn\'t load \"%1$s\", skipped</string>
+    <string name="track_skipped_retry">Retry</string>
+    <string name="network_retrying">Weak connection, retrying…</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Favorites</string>
@@ -387,6 +390,28 @@
     <string name="done">Done</string>
     <string name="close">Close</string>
     <string name="cancel">Cancel</string>
+
+    <!-- Sorting -->
+    <string name="sort_button">Sort</string>
+    <string name="sort_sheet_title">Sort by</string>
+    <string name="sort_default">Default</string>
+    <string name="sort_title">Title</string>
+    <string name="sort_artist">Artist</string>
+    <string name="sort_duration">Duration</string>
+    <string name="sort_direction">Direction</string>
+    <string name="sort_dir_original">Original</string>
+    <string name="sort_dir_reversed">Reversed</string>
+    <string name="sort_dir_a_z">A–Z</string>
+    <string name="sort_dir_z_a">Z–A</string>
+    <string name="sort_dir_shortest">Shortest</string>
+    <string name="sort_dir_longest">Longest</string>
+
+    <!-- Multi-select -->
+    <string name="selection_clear">Clear selection</string>
+    <string name="selection_count">%1$d selected</string>
+    <string name="selection_favorite_all">Toggle favorite</string>
+    <string name="selection_download_all">Toggle download</string>
+    <string name="selection_select_all">Select all</string>
 
     <!-- Theme names -->
     <string name="theme_sc_orange">SoundCloud Orange</string>

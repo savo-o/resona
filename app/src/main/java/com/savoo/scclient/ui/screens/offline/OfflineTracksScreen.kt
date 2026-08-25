@@ -52,13 +52,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.R
+import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.components.EmptyState
 import com.savoo.scclient.ui.components.TrackRow
+import com.savoo.scclient.ui.components.TrackSelectionBar
+import com.savoo.scclient.ui.components.TrackSort
+import com.savoo.scclient.ui.components.TrackSortButton
+import com.savoo.scclient.ui.components.applySortOption
+import com.savoo.scclient.ui.components.rememberTrackSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -72,6 +79,8 @@ import javax.inject.Inject
 @HiltViewModel
 class OfflineTracksViewModel @Inject constructor(
     private val offlineTrackManager: OfflineTrackManager,
+    private val favoritesDao: FavoritesDao,
+    private val favoritesRepository: FavoritesRepository,
     val playerController: PlayerController,
 ) : ViewModel() {
 
@@ -87,6 +96,10 @@ class OfflineTracksViewModel @Inject constructor(
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val favoriteTrackIds = favoritesDao.getAllTracks().map { list ->
+        list.map { it.trackId }.toSet()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting = _isImporting.asStateFlow()
@@ -120,15 +133,35 @@ class OfflineTracksViewModel @Inject constructor(
         }
     }
 
-    fun playTrack(track: Track) {
-        val currentTracks = tracks.value
-        val idx = currentTracks.indexOfFirst { it.id == track.id }
-        playerController.playQueue(currentTracks, idx.coerceAtLeast(0), tag = "offline")
+    fun playTrack(track: Track, queue: List<Track> = tracks.value) {
+        val idx = queue.indexOfFirst { it.id == track.id }
+        playerController.playQueue(queue, idx.coerceAtLeast(0), tag = "offline")
     }
 
     fun removeFromOffline(trackId: Long) {
         viewModelScope.launch {
             offlineTrackManager.removeFromOffline(trackId)
+        }
+    }
+
+    fun toggleFavorite(track: Track) {
+        viewModelScope.launch { favoritesRepository.toggleTrackFavorite(track) }
+    }
+
+    fun removeSelectedFromOffline(ids: Set<Long>) {
+        viewModelScope.launch { ids.forEach { offlineTrackManager.removeFromOffline(it) } }
+    }
+
+    fun toggleFavoriteForSelected(ids: Set<Long>) {
+        viewModelScope.launch {
+            val currentlyFavorite = favoriteTrackIds.value
+            val allFavorite = ids.isNotEmpty() && ids.all { it in currentlyFavorite }
+            val selectedTracks = tracks.value.filter { it.id in ids }
+            if (allFavorite) {
+                selectedTracks.forEach { favoritesRepository.toggleTrackFavorite(it) }
+            } else {
+                selectedTracks.filter { it.id !in currentlyFavorite }.forEach { favoritesRepository.toggleTrackFavorite(it) }
+            }
         }
     }
 
@@ -154,12 +187,15 @@ fun OfflineTracksScreen(
     onBack: () -> Unit = {},
 ) {
     val tracks by viewModel.tracks.collectAsState()
+    val favoriteTrackIds by viewModel.favoriteTrackIds.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
     val importResult by viewModel.importResult.collectAsState()
     val watchedFolders by viewModel.watchedFolders.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var showWatchedFolders by remember { mutableStateOf(false) }
+    var sort by remember { mutableStateOf(TrackSort()) }
+    val selection = rememberTrackSelection()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -180,11 +216,11 @@ fun OfflineTracksScreen(
         viewModel.consumeImportResult()
     }
 
-    val filteredTracks = if (searchQuery.isBlank()) tracks
+    val filteredTracks = (if (searchQuery.isBlank()) tracks
         else tracks.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
             it.user.username.contains(searchQuery, ignoreCase = true)
-        }
+        }).applySortOption(sort)
 
     Scaffold(
         topBar = {
@@ -199,6 +235,9 @@ fun OfflineTracksScreen(
                     if (isImporting) {
                         LoadingIndicator(modifier = Modifier.size(24.dp))
                     } else {
+                        if (tracks.isNotEmpty()) {
+                            TrackSortButton(sort = sort, onSortChange = { sort = it })
+                        }
                         if (watchedFolders.isNotEmpty()) {
                             IconButton(onClick = { showWatchedFolders = true }) {
                                 Icon(Icons.Filled.Folder, contentDescription = stringResource(R.string.offline_watched_folders_title))
@@ -209,6 +248,21 @@ fun OfflineTracksScreen(
                         }
                     }
                 }
+            )
+        },
+        bottomBar = {
+            TrackSelectionBar(
+                selectedCount = selection.count,
+                onClear = { selection.clear() },
+                onSelectAll = { selection.selectAll(filteredTracks.map { it.id }) },
+                onFavoriteAll = {
+                    viewModel.toggleFavoriteForSelected(selection.selectedIds)
+                    selection.clear()
+                },
+                onDownloadAll = {
+                    viewModel.removeSelectedFromOffline(selection.selectedIds)
+                    selection.clear()
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -251,13 +305,20 @@ fun OfflineTracksScreen(
                         val isCurrentTrack = playerState.currentTrack?.id == track.id
                         TrackRow(
                             track = track,
-                            onClick = { viewModel.playTrack(track) },
+                            onClick = { viewModel.playTrack(track, filteredTracks) },
                             isLoading = playerState.loadingTrackId == track.id,
                             isPlaying = playerState.isPlaying && isCurrentTrack,
                             onTogglePlayPause = {
                                 if (isCurrentTrack) viewModel.playerController.togglePlayPause()
-                                else viewModel.playTrack(track)
+                                else viewModel.playTrack(track, filteredTracks)
                             },
+                            isFavorite = track.id in favoriteTrackIds,
+                            onToggleFavorite = { viewModel.toggleFavorite(track) },
+                            isDownloaded = true,
+                            onToggleDownload = { viewModel.removeFromOffline(track.id) },
+                            selectionActive = selection.isActive,
+                            isSelected = selection.contains(track.id),
+                            onLongPress = { selection.toggle(track.id) },
                             modifier = Modifier.padding(bottom = 8.dp),
                         )
                     }

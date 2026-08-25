@@ -120,6 +120,9 @@
     <string name="offline_unwatch_folder">Отвязать папку</string>
     <string name="network_unavailable">Отсутствует подключение</string>
     <string name="network_restored">Подключение восстановлено</string>
+    <string name="track_skipped_message">Не удалось загрузить «%1$s», трек пропущен</string>
+    <string name="track_skipped_retry">Повторить</string>
+    <string name="network_retrying">Слабый интернет, повторная попытка…</string>
 
     <!-- Favorites -->
     <string name="favorites_title">Избранное</string>
@@ -387,6 +390,28 @@
     <string name="done">Готово</string>
     <string name="close">Закрыть</string>
     <string name="cancel">Отмена</string>
+
+    <!-- Sorting -->
+    <string name="sort_button">Сортировка</string>
+    <string name="sort_sheet_title">Сортировать</string>
+    <string name="sort_default">По умолчанию</string>
+    <string name="sort_title">По названию</string>
+    <string name="sort_artist">По исполнителю</string>
+    <string name="sort_duration">По длительности</string>
+    <string name="sort_direction">Порядок</string>
+    <string name="sort_dir_original">Исходный</string>
+    <string name="sort_dir_reversed">Обратный</string>
+    <string name="sort_dir_a_z">А–Я</string>
+    <string name="sort_dir_z_a">Я–А</string>
+    <string name="sort_dir_shortest">Короткие</string>
+    <string name="sort_dir_longest">Длинные</string>
+
+    <!-- Multi-select -->
+    <string name="selection_clear">Снять выделение</string>
+    <string name="selection_count">Выбрано: %1$d</string>
+    <string name="selection_favorite_all">В избранное</string>
+    <string name="selection_download_all">Скачать</string>
+    <string name="selection_select_all">Выделить всё</string>
 
     <!-- Theme names -->
     <string name="theme_sc_orange">Оранжевый SoundCloud</string>

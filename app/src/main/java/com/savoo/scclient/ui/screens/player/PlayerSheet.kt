@@ -1,8 +1,13 @@
 package com.savoo.scclient.ui.screens.player
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -126,11 +131,14 @@ import coil.compose.AsyncImage
 import android.content.Intent
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.LyricsLine
+import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.player.PlaybackState
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.components.TrackArtwork
+import com.savoo.scclient.ui.components.TrackSkippedBanner
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -153,6 +161,7 @@ fun PlayerSheet(
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
     val track = state.currentTrack
     val haptics = rememberHaptics()
+    var skippedTrack by remember { mutableStateOf<Track?>(null) }
 
     BackHandler(enabled = showFullPlayer) { showFullPlayer = false }
 
@@ -165,7 +174,45 @@ fun PlayerSheet(
         if (offlineSaveResult != null) viewModel.consumeOfflineSaveResult()
     }
 
-    Surface(
+    LaunchedEffect(Unit) {
+        viewModel.controller.skippedTrackEvents.collect { skipped ->
+            skippedTrack = skipped
+            delay(5000)
+            if (skippedTrack?.id == skipped.id) skippedTrack = null
+        }
+    }
+
+    Column {
+        var lastSkippedTrack by remember { mutableStateOf<Track?>(null) }
+        skippedTrack?.let { lastSkippedTrack = it }
+        AnimatedVisibility(
+            visible = skippedTrack != null,
+            enter = fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+                slideInVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                    initialOffsetY = { -it / 2 },
+                ),
+            exit = fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
+                slideOutVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                    targetOffsetY = { -it / 2 },
+                ),
+        ) {
+            lastSkippedTrack?.let { skipped ->
+                TrackSkippedBanner(
+                    trackTitle = skipped.title,
+                    onRetry = {
+                        skippedTrack = null
+                        viewModel.controller.play(skipped)
+                    },
+                    onDismiss = { skippedTrack = null },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+        Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(28.dp),
         modifier = Modifier
@@ -199,6 +246,7 @@ fun PlayerSheet(
             }
             dockBar()
         }
+    }
     }
 
     if (showFullPlayer && track != null) {
@@ -448,9 +496,9 @@ private fun MiniPlayerRow(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    track.user.username,
+                    if (state.isRetryingNetwork) stringResource(R.string.network_retrying) else track.user.username,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (state.isRetryingNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }

@@ -30,7 +30,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -54,6 +56,7 @@ data class PlaybackState(
     val hasNext: Boolean = false,
     val hasPrev: Boolean = false,
     val loadingTrackId: Long? = null,
+    val isRetryingNetwork: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     // Which playQueue() call is currently active, e.g. "home_mix" - lets a caller tell "is MY queue
@@ -81,9 +84,12 @@ class PlayerController @Inject constructor(
     val state = _state.asStateFlow()
     private val _seedColor = MutableStateFlow<Color?>(null)
     val seedColor = _seedColor.asStateFlow()
+    private val _skippedTrackEvents = MutableSharedFlow<Track>(extraBufferCapacity = 1)
+    val skippedTrackEvents = _skippedTrackEvents.asSharedFlow()
     private val queue = mutableListOf<Track>()
     private var queueIndex = -1
     private var currentQueueTag: String? = null
+    private var playRequestId = 0L
     // Snapshot of queue's order right before shuffling, so toggling shuffle off can restore it. Empty when shuffle is off.
     // Shuffling is handled entirely at this level (queue itself is reordered) rather than via ExoPlayer's native
     // shuffleModeEnabled - replaceMediaItem() turned out to internally remove+reinsert the period, which mutates
@@ -199,13 +205,13 @@ class PlayerController @Inject constructor(
             if (mediaId in resolvingMediaIds) return // an in-flight resolution will prepare()/play() or skip once it finishes
             val attempts = (errorRetryCount[mediaId] ?: 0) + 1
             errorRetryCount[mediaId] = attempts
+            val track = queue.find { it.id == mediaId }
             if (attempts > 2) {
                 DebugLog.log(TAG, "Giving up on track $mediaId after $attempts failed attempts, skipping")
                 errorRetryCount.remove(mediaId)
-                controller?.seekToNext()
+                if (track != null) skipDueToFailure(track) else controller?.seekToNext()
                 return
             }
-            val track = queue.find { it.id == mediaId }
             if (track == null) {
                 scope.launch {
                     delay(400)
@@ -219,7 +225,7 @@ class PlayerController @Inject constructor(
                     delay(400)
                     val resolved = resolveTrack(track.copy(media = null))
                     if (resolved == null) {
-                        controller?.seekToNext()
+                        skipDueToFailure(track)
                         return@launch
                     }
                     val i = queue.indexOf(track)
@@ -286,7 +292,7 @@ class PlayerController @Inject constructor(
                             val resolved = resolveTrack(track)
                             if (resolved == null) {
                                 DebugLog.log(TAG, "reactive resolve FAILED after retries, skipping: id=$mediaId title=${track.title}")
-                                controller?.seekToNext()
+                                skipDueToFailure(track)
                                 return@launch
                             }
                             DebugLog.log(TAG, "reactive resolve OK: id=$mediaId title=${track.title}")
@@ -333,26 +339,37 @@ class PlayerController @Inject constructor(
 
     // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
     // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
-    private suspend fun resolveTrack(track: Track, attempts: Int = 3): ResolvedTrack? {
+    private suspend fun resolveTrack(track: Track, attempts: Int = 3, reportProgress: Boolean = true): ResolvedTrack? {
         offlineTrackManager.getLocalPath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
 
-        repeat(attempts) { attempt ->
-            val fullTrack = if (attempt == 0 && track.media != null) track
-                else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(track.id) }.getOrNull() } ?: track
-            if (fullTrack.media == null) {
-                DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
+        try {
+            repeat(attempts) { attempt ->
+                if (attempt > 0 && reportProgress) _state.update { it.copy(isRetryingNetwork = true) }
+                val fullTrack = if (attempt == 0 && track.media != null) track
+                    else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(track.id) }.getOrNull() } ?: track
+                if (fullTrack.media == null) {
+                    DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
+                }
+                val url = withContext(Dispatchers.IO) {
+                    runCatching { trackRepository.resolvePlayableUrl(fullTrack) }
+                        .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableUrl threw ${it}") }
+                        .getOrNull()
+                }
+                if (url != null) return ResolvedTrack(fullTrack, url, needsCaching = true)
+                if (attempt < attempts - 1) delay(500L * (attempt + 1))
             }
-            val url = withContext(Dispatchers.IO) {
-                runCatching { trackRepository.resolvePlayableUrl(fullTrack) }
-                    .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableUrl threw ${it}") }
-                    .getOrNull()
-            }
-            if (url != null) return ResolvedTrack(fullTrack, url, needsCaching = true)
-            if (attempt < attempts - 1) delay(500L * (attempt + 1))
+            DebugLog.log(TAG, "resolveTrack GAVE UP after $attempts attempts: id=${track.id} title=${track.title}")
+            return null
+        } finally {
+            if (reportProgress) _state.update { it.copy(isRetryingNetwork = false) }
         }
-        DebugLog.log(TAG, "resolveTrack GAVE UP after $attempts attempts: id=${track.id} title=${track.title}")
-        return null
+    }
+
+    private fun skipDueToFailure(track: Track) {
+        DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title}")
+        _skippedTrackEvents.tryEmit(track)
+        controller?.seekToNext()
     }
 
     private fun buildMediaItem(track: Track, url: String): MediaItem =
@@ -405,7 +422,7 @@ class PlayerController @Inject constructor(
         scope.launch {
             try {
                 val track = queue.find { it.id == mediaId } ?: return@launch
-                val resolved = resolveTrack(track)
+                val resolved = resolveTrack(track, reportProgress = false)
                 if (resolved == null) {
                     DebugLog.log(TAG, "preload resolve FAILED: id=$mediaId title=${track.title}")
                     return@launch
@@ -541,14 +558,13 @@ class PlayerController @Inject constructor(
         currentQueueTag = null
         _state.update { it.copy(loadingTrackId = track.id) }
         val idx = queue.indexOfFirst { it.id == track.id }
-        if (idx >= 0) {
-            queueIndex = idx
-        } else {
+        val idxForThisTrack = if (idx >= 0) idx else {
             queue.add(track)
-            queueIndex = queue.lastIndex
+            queue.lastIndex
         }
+        queueIndex = idxForThisTrack
         updateQueueState()
-        doPlay(track)
+        doPlay(track, idxForThisTrack, ++playRequestId)
     }
 
     fun playQueue(tracks: List<Track>, startIndex: Int = 0, repeatAll: Boolean = false, tag: String? = null) {
@@ -585,7 +601,7 @@ class PlayerController @Inject constructor(
 
         _state.update { it.copy(loadingTrackId = queue[queueIndex].id) }
         updateQueueState()
-        doPlay(queue[queueIndex])
+        doPlay(queue[queueIndex], queueIndex, ++playRequestId)
     }
 
     fun skipToNext() {
@@ -635,7 +651,7 @@ class PlayerController @Inject constructor(
 
         _state.update { it.copy(loadingTrackId = queue[queueIndex].id) }
         updateQueueState()
-        doPlay(queue[queueIndex])
+        doPlay(queue[queueIndex], queueIndex, ++playRequestId)
     }
 
     fun skipToPrevious() {
@@ -703,36 +719,37 @@ class PlayerController @Inject constructor(
         }
     }
 
-    private fun doPlay(track: Track) {
+    private fun doPlay(track: Track, requestIndex: Int, requestId: Long) {
         scope.launch {
             val resolved = resolveTrack(track)
+            if (requestId != playRequestId) return@launch
             if (resolved == null) {
                 _state.update { it.copy(loadingTrackId = null) }
                 return@launch
             }
             val (fullTrack, url, needsCaching) = resolved
-            DebugLog.log(TAG, "doPlay(${fullTrack.title}): resolved, cached=${!needsCaching}")
 
             recentTracks.removeAll { it.id == fullTrack.id }
             recentTracks.add(fullTrack)
             if (recentTracks.size > 20) recentTracks.removeAt(0)
 
-            // Only the current track needs to be resolved before play() starts; neighbours are prefetched
-            // afterwards via preloadAdjacent() so playback doesn't wait on network calls nobody's listening to yet.
             val allItems = queue.mapIndexed { i, t ->
-                if (i == queueIndex) buildMediaItem(fullTrack, url) else buildPendingMediaItem(t)
+                if (i == requestIndex) buildMediaItem(fullTrack, url) else buildPendingMediaItem(t)
             }
 
-            beginListenSegment(fullTrack)
-            _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
-            extractSeedColor(fullTrack.artworkUrl)
-            controller?.apply {
-                setMediaItems(allItems, queueIndex, 0L)
-                prepare()
-                play()
+            playerCommandMutex.withLock {
+                if (requestId != playRequestId) return@withLock
+                beginListenSegment(fullTrack)
+                _state.value = _state.value.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null)
+                extractSeedColor(fullTrack.artworkUrl)
+                controller?.apply {
+                    setMediaItems(allItems, requestIndex, 0L)
+                    prepare()
+                    play()
+                }
+                updateQueueState()
+                preloadAdjacent()
             }
-            updateQueueState()
-            preloadAdjacent()
 
             if (needsCaching) {
                 trackCache.cacheAudioFile(fullTrack, url)
