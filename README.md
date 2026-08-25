@@ -6,7 +6,7 @@
 
 <p align="center">
   An open source SoundCloud client for Android.<br>
-  No account required.
+  No ads. No account required.
   <a href="https://keepandroidopen.org" target="_blank" rel="noopener noreferrer">
     Resona supports #KeepAndroidOpen
 </a>
@@ -33,14 +33,21 @@
 
 </details>
 
+## Install
+
+Grab the latest APK from [GitHub Releases](https://github.com/savo-o/resona/releases/latest). Resona isn't on Google Play, so you'll need to allow installs from your file manager or browser.
+
 ## Features
 
-- No account required
-- Material Expressive interface
-- Dynamic colors
-- Local favorites
-- Offline cache
-- Open source
+- **Open source, no ads, no telemetry.** Nothing to strip out, the whole app is right here
+- No account required, log in only if you want to sync your own likes
+- Offline downloads, plus a folder watcher that picks up local files automatically
+- Import tracks straight from Telegram chats
+- Home mix that keeps discovering new stuff from artists you already like
+- Lyrics, crossfade, shuffle and repeat that actually behave
+- Favorites and playlists, with multi-select and swipe actions to manage them fast
+- Listening stats
+- Dynamic color that adapts to the track's artwork
 
 ## Build
 
@@ -53,6 +60,10 @@ Debug:
 ## Philosophy
 
 Resona will always be free and open source. No subscriptions, no paywalls, no telemetry, no analytics - ever.
+
+## Community
+
+Questions, bugs, ideas: [t.me/resona_tg](https://t.me/resona_tg)
 
 ## License
 
