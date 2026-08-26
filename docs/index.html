@@ -85,7 +85,6 @@
             font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
 
-        /* NAV */
         nav {
             position: fixed;
             top: 0;
@@ -190,7 +189,6 @@
 
         .theme-toggle .material-symbols-rounded { font-size: 22px; }
 
-        /* HERO */
         .hero {
             min-height: 100vh;
             display: flex;
@@ -503,7 +501,6 @@
             100% { width: 20%; }
         }
 
-        /* SECTIONS */
         section {
             padding: 100px 24px;
             max-width: 1200px;
@@ -545,7 +542,6 @@
             margin-bottom: 56px;
         }
 
-        /* FEATURES GRID */
         .features-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -624,7 +620,6 @@
             color: var(--md-sys-color-on-secondary-container);
         }
 
-        /* SPECS */
         .specs-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -664,7 +659,6 @@
             color: var(--md-sys-color-on-surface);
         }
 
-        /* SCREENSHOTS */
         .screenshots-scroll {
             display: flex;
             gap: 16px;
@@ -709,7 +703,6 @@
             text-align: center;
         }
 
-        /* CTA */
         .cta-section {
             text-align: center;
             padding: 120px 24px;
@@ -750,7 +743,6 @@
             line-height: 1.7;
         }
 
-        /* FOOTER */
         footer {
             text-align: center;
             padding: 40px 24px;
@@ -768,7 +760,6 @@
 
         footer a:hover { text-decoration: underline; }
 
-        /* RESPONSIVE */
         @media (max-width: 768px) {
             nav { padding: 0 12px; height: 48px; }
             .nav-brand img { width: 28px; height: 28px; }
@@ -817,7 +808,6 @@
             .specs-grid { grid-template-columns: 1fr 1fr; }
         }
 
-        /* ANIMATIONS */
         @keyframes float {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-12px); }
@@ -852,8 +842,6 @@
         .fade-up.d2 { animation-delay: 0.2s; }
         .fade-up.d3 { animation-delay: 0.3s; }
         .fade-up.d4 { animation-delay: 0.4s; }
-
-        /* LOADER (Material 3 Expressive-style morphing shape indicator) */
         #loader {
             position: fixed;
             inset: 0;
@@ -918,6 +906,7 @@
         <div class="nav-links">
             <a href="#features">Features</a>
             <a href="#specs">Specs</a>
+            <a href="api.html">API Docs</a>
             <a href="https://github.com/savo-o/resona" target="_blank" class="btn-filled nav-github" style="padding: 10px 20px; font-size: 13px;">
                 <span class="material-symbols-rounded" style="font-size: 18px;">code</span>
                 GitHub
@@ -1088,8 +1077,6 @@
         </div>
     </section>
 
-    <!-- screenshots removed -->
-
     <section class="cta-section">
         <h2>Ready to listen?</h2>
         <p>Download Resona today and experience SoundCloud the way it should be.</p>
@@ -1137,8 +1124,6 @@
             }
         }
 
-        // The <head> script already resolved data-theme before first paint (avoids a flash of
-        // the wrong theme) - just sync the toggle icon to whatever it landed on.
         if (document.documentElement.getAttribute('data-theme') === 'dark') {
             document.getElementById('themeIcon').textContent = 'light_mode';
         }
@@ -1157,8 +1142,6 @@
             }
         });
 
-        // Expressive loading indicator: show the morphing shape for at least ~700ms so it reads
-        // as an intentional beat, then reveal the hero fade-up sequence once assets are ready.
         (function () {
             const loader = document.getElementById('loader');
             const shownAt = performance.now();

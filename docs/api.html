@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>resona api</title>
+    <meta name="description" content="Unofficial SoundCloud API reference used by Resona.">
+    <script>
+        (function () {
+            var storedTheme = localStorage.getItem('theme');
+            var dark = storedTheme ? storedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+
+            var storedLang = localStorage.getItem('lang');
+            var lang = storedLang ? storedLang : (navigator.language && navigator.language.toLowerCase().indexOf('ru') === 0 ? 'ru' : 'en');
+            document.documentElement.setAttribute('lang', lang);
+            document.documentElement.setAttribute('data-lang', lang);
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300;400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Roboto+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --md-sys-color-primary: #5B5DF0;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-primary-container: #E0DEFF;
+            --md-sys-color-on-primary-container: #1705A3;
+            --md-sys-color-secondary: #5C5D72;
+            --md-sys-color-on-secondary: #FFFFFF;
+            --md-sys-color-secondary-container: #E1E0F9;
+            --md-sys-color-on-secondary-container: #191A2C;
+            --md-sys-color-tertiary: #7A5368;
+            --md-sys-color-tertiary-container: #FFD7EC;
+            --md-sys-color-error: #B3261E;
+            --md-sys-color-on-error: #FFFFFF;
+            --md-sys-color-error-container: #F9DEDC;
+            --md-sys-color-on-error-container: #410E0B;
+            --md-sys-color-surface: #FFFBFF;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-surface-variant: #E6E0EC;
+            --md-sys-color-on-surface-variant: #49454E;
+            --md-sys-color-outline: #7A757F;
+            --md-sys-color-surface-container-lowest: #FFFFFF;
+            --md-sys-color-surface-container-low: #F7F2FA;
+            --md-sys-color-surface-container: #F1ECF4;
+            --md-sys-color-surface-container-high: #ECE6EF;
+            --md-sys-color-surface-container-highest: #E6E0E9;
+            --md-sys-shape-corner-extra-large: 32px;
+            --md-sys-shape-corner-large: 16px;
+            --md-sys-shape-corner-medium: 12px;
+            --md-sys-shape-corner-small: 8px;
+            --md-sys-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --md-sys-motion-emphasized: cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        [data-theme="dark"] {
+            --md-sys-color-primary: #C3C1FF;
+            --md-sys-color-on-primary: #2700C3;
+            --md-sys-color-primary-container: #3F3DC4;
+            --md-sys-color-on-primary-container: #E0DEFF;
+            --md-sys-color-secondary: #C5C4DD;
+            --md-sys-color-on-secondary: #2E2F42;
+            --md-sys-color-secondary-container: #444559;
+            --md-sys-color-on-secondary-container: #E1E0F9;
+            --md-sys-color-tertiary: #E9B8D0;
+            --md-sys-color-tertiary-container: #613B50;
+            --md-sys-color-error: #F2B8B5;
+            --md-sys-color-on-error: #601410;
+            --md-sys-color-error-container: #8C1D18;
+            --md-sys-color-on-error-container: #F9DEDC;
+            --md-sys-color-surface: #141218;
+            --md-sys-color-on-surface: #E6E0E9;
+            --md-sys-color-surface-variant: #49454E;
+            --md-sys-color-on-surface-variant: #CAC4D0;
+            --md-sys-color-outline: #948F99;
+            --md-sys-color-surface-container-lowest: #0F0D13;
+            --md-sys-color-surface-container-low: #1D1B20;
+            --md-sys-color-surface-container: #211F26;
+            --md-sys-color-surface-container-high: #2B2930;
+            --md-sys-color-surface-container-highest: #36343B;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        html[data-lang="en"] .t-ru { display: none !important; }
+        html[data-lang="ru"] .t-en { display: none !important; }
+
+        body {
+            font-family: 'Google Sans Flex', system-ui, -apple-system, sans-serif;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        code, pre, .mono { font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+        .serif { font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif; }
+
+        .material-symbols-rounded {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        a { color: inherit; }
+
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 200;
+            border-bottom: 1px solid var(--md-sys-color-surface-container-highest);
+            padding: 0 20px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent);
+        }
+
+        .nav-left { display: flex; align-items: center; gap: 14px; }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--md-sys-color-on-surface);
+            flex-shrink: 0;
+        }
+
+        .nav-brand img {
+            width: 32px;
+            height: 32px;
+            border-radius: 30% 70% 65% 35% / 40% 35% 65% 60%;
+            transition: border-radius 0.6s var(--md-sys-motion-spring);
+        }
+
+        .nav-brand:hover img { border-radius: 50%; }
+
+        .nav-brand span { font-weight: 600; font-size: 19px; letter-spacing: -0.4px; }
+
+        .nav-tag {
+            font-family: 'Roboto Mono', ui-monospace, monospace;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            background: var(--md-sys-color-primary-container);
+            color: var(--md-sys-color-on-primary-container);
+            padding: 4px 9px;
+            border-radius: 100px;
+        }
+
+        .menu-toggle {
+            display: none;
+            width: 40px; height: 40px;
+            border-radius: 20px;
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-links { display: flex; gap: 6px; align-items: center; }
+
+        .nav-links a.nav-item {
+            text-decoration: none;
+            color: var(--md-sys-color-on-surface-variant);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-links a.nav-item:hover {
+            background: var(--md-sys-color-surface-container-high);
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .lang-switch {
+            display: flex;
+            background: var(--md-sys-color-surface-container-high);
+            border-radius: 100px;
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .lang-switch button {
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface-variant);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            padding: 6px 11px;
+            border-radius: 100px;
+            cursor: pointer;
+            transition: all 0.25s var(--md-sys-motion-emphasized);
+        }
+
+        .lang-switch button.active {
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+        }
+
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface-variant);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-radius 0.35s var(--md-sys-motion-spring);
+        }
+
+        .icon-btn:hover { background: var(--md-sys-color-surface-container-high); border-radius: 14px; }
+        .icon-btn:active { transform: scale(0.88); }
+        .icon-btn .material-symbols-rounded { font-size: 22px; }
+
+        .docs-shell {
+            display: flex;
+            max-width: 1320px;
+            margin: 0 auto;
+            padding-top: 64px;
+        }
+
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 149;
+        }
+
+        .sidebar {
+            width: 264px;
+            flex-shrink: 0;
+            position: sticky;
+            top: 64px;
+            align-self: flex-start;
+            height: calc(100vh - 64px);
+            overflow-y: auto;
+            padding: 28px 12px 40px 20px;
+        }
+
+        .sidebar::-webkit-scrollbar { width: 5px; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--md-sys-color-outline); border-radius: 3px; }
+
+        .sidebar-group { margin-bottom: 20px; }
+
+        .sidebar-group-title {
+            font-family: 'Roboto Mono', ui-monospace, monospace;
+            font-size: 10.5px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--md-sys-color-on-surface-variant);
+            padding: 0 8px 0 15px;
+            margin-bottom: 4px;
+        }
+
+        .sidebar a {
+            display: block;
+            text-decoration: none;
+            font-size: 13.5px;
+            line-height: 1.5;
+            color: var(--md-sys-color-on-surface-variant);
+            padding: 5px 14px;
+            border-left: 2px solid transparent;
+            transition: color 0.15s, border-color 0.15s;
+        }
+
+        .sidebar a:hover { color: var(--md-sys-color-on-surface); }
+
+        .sidebar a.active {
+            color: var(--md-sys-color-primary);
+            border-left-color: var(--md-sys-color-primary);
+            font-weight: 600;
+        }
+
+        .docs-content {
+            flex: 1;
+            min-width: 0;
+            padding: 40px 24px 120px 40px;
+        }
+
+        .docs-hero { margin-bottom: 56px; }
+
+        .docs-hero h1 {
+            font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+            font-size: clamp(34px, 5vw, 50px);
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            margin-bottom: 14px;
+        }
+
+        .docs-hero p {
+            font-size: 16px;
+            color: var(--md-sys-color-on-surface-variant);
+            max-width: 640px;
+            line-height: 1.7;
+            margin-bottom: 18px;
+        }
+
+        section.doc-section {
+            margin-bottom: 64px;
+            scroll-margin-top: 84px;
+        }
+
+        section.doc-section h2 {
+            font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+            font-size: 27px;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        section.doc-section h3 {
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+            margin: 22px 0 8px;
+        }
+
+        section.doc-section p {
+            font-size: 15px;
+            color: var(--md-sys-color-on-surface-variant);
+            line-height: 1.75;
+            margin-bottom: 14px;
+            max-width: 720px;
+        }
+
+        section.doc-section ul, section.doc-section ol {
+            margin: 0 0 14px 20px;
+            color: var(--md-sys-color-on-surface-variant);
+            font-size: 15px;
+            line-height: 1.75;
+            max-width: 700px;
+        }
+
+        section.doc-section li { margin-bottom: 4px; }
+
+        code.inline {
+            background: var(--md-sys-color-surface-container-high);
+            color: var(--md-sys-color-on-surface);
+            padding: 2px 7px;
+            border-radius: 6px;
+            font-size: 0.88em;
+        }
+
+        .callout {
+            display: flex;
+            gap: 12px;
+            background: var(--md-sys-color-surface-container-low);
+            border: 1px solid var(--md-sys-color-surface-container-highest);
+            border-radius: var(--md-sys-shape-corner-large);
+            padding: 16px 20px;
+            margin: 18px 0;
+            max-width: 720px;
+        }
+
+        .callout.warn { background: var(--md-sys-color-error-container); border-color: transparent; }
+        .callout.warn p, .callout.warn strong { color: var(--md-sys-color-on-error-container); }
+        .callout .material-symbols-rounded { font-size: 20px; flex-shrink: 0; margin-top: 1px; color: var(--md-sys-color-primary); }
+        .callout.warn .material-symbols-rounded { color: var(--md-sys-color-on-error-container); }
+        .callout p { margin-bottom: 0; font-size: 14px; }
+
+        .param-table {
+            width: 100%;
+            max-width: 760px;
+            border-collapse: collapse;
+            margin: 10px 0 20px;
+            font-size: 13.5px;
+            border-radius: var(--md-sys-shape-corner-medium);
+            overflow: hidden;
+            border: 1px solid var(--md-sys-color-surface-container-highest);
+        }
+
+        .param-table th {
+            text-align: left;
+            background: var(--md-sys-color-surface-container-low);
+            color: var(--md-sys-color-on-surface-variant);
+            font-family: 'Roboto Mono', ui-monospace, monospace;
+            font-weight: 500;
+            padding: 9px 14px;
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .param-table td {
+            padding: 10px 14px;
+            border-top: 1px solid var(--md-sys-color-surface-container-highest);
+            vertical-align: top;
+            color: var(--md-sys-color-on-surface-variant);
+        }
+
+        .param-table td:first-child { color: var(--md-sys-color-on-surface); white-space: nowrap; }
+        .param-table td code { font-size: 12.5px; }
+
+        .endpoint {
+            border: 1px solid var(--md-sys-color-surface-container-highest);
+            border-radius: var(--md-sys-shape-corner-large);
+            padding: 22px 24px 24px;
+            margin-bottom: 22px;
+            background: var(--md-sys-color-surface-container-lowest);
+        }
+
+        .endpoint-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .method-badge {
+            display: inline-flex;
+            padding: 4px 11px;
+            border-radius: 8px;
+            font-family: 'Roboto Mono', ui-monospace, monospace;
+            font-size: 11.5px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            flex-shrink: 0;
+        }
+
+        .method-get { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+        .method-put { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+        .method-delete { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+        .method-post { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-tertiary); }
+
+        .endpoint-path {
+            font-size: 14.5px;
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        .auth-flag {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--md-sys-color-tertiary);
+            background: var(--md-sys-color-tertiary-container);
+            padding: 4px 10px;
+            border-radius: 100px;
+            flex-shrink: 0;
+        }
+
+        .auth-flag .material-symbols-rounded { font-size: 14px; }
+
+        .code-block {
+            background: var(--md-sys-color-surface-container-high);
+            border-radius: var(--md-sys-shape-corner-medium);
+            overflow: hidden;
+            margin: 12px 0;
+            max-width: 100%;
+        }
+
+        [data-theme="dark"] .code-block { background: #0d0d10; }
+
+        .code-block-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 14px;
+            font-family: 'Roboto Mono', ui-monospace, monospace;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--md-sys-color-on-surface-variant);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(128,128,128,0.15);
+        }
+
+        .copy-btn {
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface-variant);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: 0;
+            padding: 4px 8px;
+            border-radius: 8px;
+        }
+
+        .copy-btn:hover { background: rgba(128,128,128,0.15); color: var(--md-sys-color-on-surface); }
+        .copy-btn .material-symbols-rounded { font-size: 15px; }
+
+        .code-block pre {
+            padding: 14px 16px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .code-block code { color: #d4d4d8; }
+        [data-theme="dark"] .code-block code { color: #d4d4d8; }
+        :root:not([data-theme="dark"]) .code-block code { color: #2b2b31; }
+
+        .tok-key { color: #7aa2f7; }
+        .tok-str { color: #9ece6a; }
+        .tok-num { color: #e0af68; }
+        .tok-com { color: #7a757f; font-style: italic; }
+        .tok-flag { color: #bb9af7; }
+
+        .model-block { margin-bottom: 28px; }
+        .model-block h4 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .model-block .model-note { font-size: 13px; color: var(--md-sys-color-on-surface-variant); margin-bottom: 8px; }
+
+        footer.docs-footer {
+            border-top: 1px solid var(--md-sys-color-surface-container-highest);
+            padding-top: 28px;
+            margin-top: 60px;
+            font-size: 13px;
+            color: var(--md-sys-color-on-surface-variant);
+        }
+
+        footer.docs-footer a { color: var(--md-sys-color-primary); text-decoration: none; }
+        footer.docs-footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 980px) {
+            .menu-toggle { display: flex; }
+            .nav-brand span { display: none; }
+            .lang-switch { order: 2; }
+            .sidebar {
+                position: fixed;
+                top: 0; bottom: 0; left: 0;
+                width: 280px;
+                height: 100vh;
+                background: var(--md-sys-color-surface);
+                z-index: 150;
+                padding-top: 80px;
+                transform: translateX(-100%);
+                transition: transform 0.35s var(--md-sys-motion-emphasized);
+                border-right: 1px solid var(--md-sys-color-surface-container-highest);
+            }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-backdrop.open { display: block; }
+            .docs-content { padding: 32px 16px 100px; }
+            .docs-shell { padding-top: 56px; }
+            nav { height: 56px; padding: 0 12px; }
+            .nav-links a.nav-item:not(.nav-github) { display: none; }
+        }
+
+        @media (max-width: 560px) {
+            .docs-hero h1 { font-size: 30px; }
+            .endpoint { padding: 16px; }
+            .endpoint-path { font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-left">
+        <button class="menu-toggle icon-btn" onclick="toggleSidebar()" aria-label="Menu">
+            <span class="material-symbols-rounded">menu</span>
+        </button>
+        <a href="index.html" class="nav-brand">
+            <img src="logo.png" alt="Resona">
+            <span>Resona</span>
+        </a>
+        <span class="nav-tag">API</span>
+    </div>
+    <div class="nav-links">
+        <a href="index.html" class="nav-item">
+            <span class="t-en">Home</span><span class="t-ru">Главная</span>
+        </a>
+        <a href="https://github.com/savo-o/resona" target="_blank" class="nav-item">
+            <span class="t-en">GitHub</span><span class="t-ru">GitHub</span>
+        </a>
+        <div class="lang-switch">
+            <button id="langEnBtn" onclick="setLang('en')">EN</button>
+            <button id="langRuBtn" onclick="setLang('ru')">RU</button>
+        </div>
+        <button class="icon-btn" onclick="toggleTheme()" ondblclick="event.preventDefault(); resetTheme()" aria-label="Toggle theme">
+            <span class="material-symbols-rounded" id="themeIcon">dark_mode</span>
+        </button>
+    </div>
+</nav>
+
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+
+<div class="docs-shell">
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-group">
+            <div class="sidebar-group-title"><span class="t-en">Introduction</span><span class="t-ru">Введение</span></div>
+            <a href="#overview"><span class="t-en">Overview</span><span class="t-ru">Обзор</span></a>
+            <a href="#disclaimer"><span class="t-en">Disclaimer</span><span class="t-ru">Отказ от ответственности</span></a>
+            <a href="#base-url"><span class="t-en">Base URL</span><span class="t-ru">Базовый URL</span></a>
+        </div>
+        <div class="sidebar-group">
+            <div class="sidebar-group-title"><span class="t-en">Authentication</span><span class="t-ru">Аутентификация</span></div>
+            <a href="#client-id"><span class="t-en">client_id</span><span class="t-ru">client_id</span></a>
+            <a href="#oauth"><span class="t-en">OAuth token</span><span class="t-ru">OAuth токен</span></a>
+            <a href="#headers"><span class="t-en">Request headers</span><span class="t-ru">Заголовки запроса</span></a>
+        </div>
+        <div class="sidebar-group">
+            <div class="sidebar-group-title"><span class="t-en">Conventions</span><span class="t-ru">Соглашения</span></div>
+            <a href="#pagination"><span class="t-en">Pagination</span><span class="t-ru">Пагинация</span></a>
+            <a href="#errors"><span class="t-en">Errors &amp; rate limits</span><span class="t-ru">Ошибки и лимиты</span></a>
+        </div>
+        <div class="sidebar-group">
+            <div class="sidebar-group-title"><span class="t-en">Endpoints</span><span class="t-ru">Эндпоинты</span></div>
+            <a href="#search"><span class="t-en">Search</span><span class="t-ru">Поиск</span></a>
+            <a href="#tracks"><span class="t-en">Tracks</span><span class="t-ru">Треки</span></a>
+            <a href="#stream"><span class="t-en">Stream resolution</span><span class="t-ru">Разрешение потока</span></a>
+            <a href="#users"><span class="t-en">Users</span><span class="t-ru">Пользователи</span></a>
+            <a href="#playlists"><span class="t-en">Playlists</span><span class="t-ru">Плейлисты</span></a>
+            <a href="#likes"><span class="t-en">Likes</span><span class="t-ru">Лайки</span></a>
+            <a href="#me"><span class="t-en">Current user</span><span class="t-ru">Текущий пользователь</span></a>
+            <a href="#resolve"><span class="t-en">Resolve</span><span class="t-ru">Resolve</span></a>
+        </div>
+        <div class="sidebar-group">
+            <div class="sidebar-group-title"><span class="t-en">Reference</span><span class="t-ru">Справочник</span></div>
+            <a href="#models"><span class="t-en">Data models</span><span class="t-ru">Модели данных</span></a>
+        </div>
+    </aside>
+
+    <main class="docs-content">
+        <div class="docs-hero">
+            <h1><span class="t-en">Resona API reference</span><span class="t-ru">Справочник Resona API</span></h1>
+            <p class="t-en">This document describes the unofficial SoundCloud API that Resona talks to. It is the same private <code class="inline">api-v2.soundcloud.com</code> interface used internally by soundcloud.com and the official mobile apps, reconstructed from observed network traffic. There is no affiliation with SoundCloud Ltd.</p>
+            <p class="t-ru">Здесь описан неофициальный API SoundCloud, с которым работает Resona. Это тот же приватный интерфейс <code class="inline">api-v2.soundcloud.com</code>, которым пользуются сам сайт soundcloud.com и официальные мобильные приложения, восстановленный по перехваченному трафику. Никакой связи с SoundCloud Ltd. нет.</p>
+        </div>
+
+        <section class="doc-section" id="overview">
+            <h2><span class="material-symbols-rounded">info</span><span class="t-en">Overview</span><span class="t-ru">Обзор</span></h2>
+            <p class="t-en">SoundCloud closed public registration for its official REST API (<code class="inline">api.soundcloud.com</code>, OAuth2, api keys) back in 2015. Since then, the only way to build a third-party client is to speak the same private API that the soundcloud.com web app and the official mobile apps use internally: <code class="inline">api-v2.soundcloud.com</code>. Resona, like every other unofficial SoundCloud client, is built on top of that interface.</p>
+            <p class="t-en">This reference documents the endpoints Resona actually calls: search, track and playlist lookups, user profiles, stream URL resolution, and the authenticated likes flow. It is meant for people reading or contributing to Resona's source, or building their own client against the same API.</p>
+            <p class="t-ru">SoundCloud закрыл публичную регистрацию для своего официального REST API (<code class="inline">api.soundcloud.com</code>, OAuth2, api-ключи) ещё в 2015 году. С тех пор единственный способ сделать сторонний клиент, это использовать тот же приватный API, которым пользуются сам веб-клиент soundcloud.com и официальные мобильные приложения: <code class="inline">api-v2.soundcloud.com</code>. Resona, как и любой другой неофициальный клиент SoundCloud, построен поверх этого интерфейса.</p>
+            <p class="t-ru">В этом справочнике описаны эндпоинты, которые реально использует Resona: поиск, получение треков и плейлистов, профили пользователей, разрешение ссылки на поток и авторизованная работа с лайками. Он рассчитан на тех, кто читает исходный код Resona или пишет свой клиент под тот же API.</p>
+        </section>
+
+        <section class="doc-section" id="disclaimer">
+            <h2><span class="material-symbols-rounded">gavel</span><span class="t-en">Disclaimer</span><span class="t-ru">Отказ от ответственности</span></h2>
+            <div class="callout warn">
+                <span class="material-symbols-rounded">report</span>
+                <div>
+                    <p class="t-en"><strong>Not an official SoundCloud API.</strong> Endpoints, fields, headers and quirks below were observed by inspecting requests made by soundcloud.com. SoundCloud does not publish or support this interface, can change it at any time without notice, and may rate limit, block or ban clients that misuse it. Use responsibly, cache aggressively, and do not rely on this for anything mission critical.</p>
+                    <p class="t-ru"><strong>Это не официальный API SoundCloud.</strong> Эндпоинты, поля, заголовки и особенности ниже получены путём анализа запросов, которые делает soundcloud.com. SoundCloud не публикует и не поддерживает этот интерфейс, может изменить его в любой момент без предупреждения, а также ограничивать, блокировать или банить клиентов, которые им злоупотребляют. Используйте аккуратно, кэшируйте запросы и не полагайтесь на это для чего-то критичного.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="base-url">
+            <h2><span class="material-symbols-rounded">dns</span><span class="t-en">Base URL</span><span class="t-ru">Базовый URL</span></h2>
+            <p class="t-en">All endpoints on this page are relative to:</p>
+            <p class="t-ru">Все эндпоинты на этой странице указаны относительно:</p>
+            <div class="code-block">
+                <div class="code-block-head"><span>URL</span></div>
+                <pre><code>https://api-v2.soundcloud.com/</code></pre>
+            </div>
+            <p class="t-en">Playback streams are served from a separate CDN host (<code class="inline">cf-media.sndcdn.com</code>) with a signed, short-lived URL, obtained through the <a href="#stream">stream resolution</a> flow rather than requested directly.</p>
+            <p class="t-ru">Аудиопотоки отдаются с отдельного CDN-хоста (<code class="inline">cf-media.sndcdn.com</code>) по подписанной короткоживущей ссылке, которую нужно получить через <a href="#stream">разрешение потока</a>, а не запрашивать напрямую.</p>
+        </section>
+
+        <section class="doc-section" id="client-id">
+            <h2><span class="material-symbols-rounded">key</span><span class="t-en">client_id</span><span class="t-ru">client_id</span></h2>
+            <p class="t-en">Every request, authenticated or not, requires a <code class="inline">client_id</code> query parameter. It identifies the calling web app to SoundCloud's infrastructure, it is not a per-developer API key and it is not secret: it is embedded in plain text inside the JavaScript bundles that soundcloud.com serves to every visitor.</p>
+            <p class="t-ru">Каждый запрос, авторизованный или нет, требует query-параметр <code class="inline">client_id</code>. Он идентифицирует вызывающее веб-приложение перед инфраструктурой SoundCloud, это не персональный API-ключ разработчика и не секрет: он лежит открытым текстом внутри JS-бандлов, которые soundcloud.com отдаёт каждому посетителю.</p>
+            <p class="t-en">Resona obtains one automatically on first launch:</p>
+            <p class="t-ru">Resona получает его автоматически при первом запуске:</p>
+            <ol>
+                <li class="t-en">Download the HTML of <code class="inline">https://soundcloud.com</code>.</li>
+                <li class="t-ru">Загрузить HTML страницы <code class="inline">https://soundcloud.com</code>.</li>
+                <li class="t-en">Extract <code class="inline">&lt;script src="…"&gt;</code> URLs pointing at <code class="inline">a-v2.sndcdn.com/assets/*.js</code>.</li>
+                <li class="t-ru">Извлечь из неё URL-адреса скриптов <code class="inline">&lt;script src="…"&gt;</code>, ведущие на <code class="inline">a-v2.sndcdn.com/assets/*.js</code>.</li>
+                <li class="t-en">Download those bundles (checked in reverse order) and regex-match a 32 character client id.</li>
+                <li class="t-ru">Скачать эти бандлы (в обратном порядке) и вытащить регуляркой 32-символьный client_id.</li>
+                <li class="t-en">Cache the value locally and reuse it until a request comes back <code class="inline">401</code>/<code class="inline">403</code>, at which point it is refreshed and the request retried once.</li>
+                <li class="t-ru">Закэшировать значение и переиспользовать его, пока запрос не вернёт <code class="inline">401</code>/<code class="inline">403</code>, тогда id обновляется и запрос повторяется один раз.</li>
+            </ol>
+            <div class="code-block">
+                <div class="code-block-head"><span>Regex</span></div>
+                <pre><code><span class="tok-str">client_id[=:]"?([a-zA-Z0-9]{32})"?</span></code></pre>
+            </div>
+            <p class="t-en">In every example below, replace <code class="inline">YOUR_CLIENT_ID</code> with a value obtained this way.</p>
+            <p class="t-ru">Во всех примерах ниже подставляйте вместо <code class="inline">YOUR_CLIENT_ID</code> значение, полученное таким способом.</p>
+        </section>
+
+        <section class="doc-section" id="oauth">
+            <h2><span class="material-symbols-rounded">lock</span><span class="t-en">OAuth token</span><span class="t-ru">OAuth токен</span></h2>
+            <p class="t-en">A subset of endpoints act on behalf of a logged-in user (the current profile, private likes, liking or unliking a track). These require an <code class="inline">Authorization: OAuth &lt;token&gt;</code> header in addition to <code class="inline">client_id</code>.</p>
+            <p class="t-ru">Часть эндпоинтов действует от имени вошедшего пользователя (текущий профиль, приватные лайки, лайк/анлайк трека). Для них нужен заголовок <code class="inline">Authorization: OAuth &lt;token&gt;</code> в дополнение к <code class="inline">client_id</code>.</p>
+            <p class="t-en">Resona supports two ways of obtaining a token:</p>
+            <p class="t-ru">Resona поддерживает два способа получить токен:</p>
+            <ul>
+                <li class="t-en"><strong>Standard authorization code flow</strong>, authorize URL <code class="inline">https://secure.soundcloud.com/authorize</code>, token URL <code class="inline">https://secure.soundcloud.com/oauth/token</code>, custom redirect scheme <code class="inline">scclient://oauth/callback</code>.</li>
+                <li class="t-ru"><strong>Стандартный authorization code flow</strong>: URL авторизации <code class="inline">https://secure.soundcloud.com/authorize</code>, URL токена <code class="inline">https://secure.soundcloud.com/oauth/token</code>, кастомная redirect-схема <code class="inline">scclient://oauth/callback</code>.</li>
+                <li class="t-en"><strong>WebView capture</strong>: load the real soundcloud.com login in an embedded WebView and read the token out of the page's own <code class="inline">Authorization</code> header (or its <code class="inline">window.__sc_hydration</code> state) once the user signs in. This is needed because write requests such as liking a track are blocked by SoundCloud's bot protection (DataDome) when they come from a bare HTTP client, but pass when they originate from a real browser context.</li>
+                <li class="t-ru"><strong>Перехват через WebView</strong>: открыть настоящую страницу входа soundcloud.com во встроенном WebView и после логина прочитать токен из заголовка <code class="inline">Authorization</code> её собственных запросов (либо из состояния <code class="inline">window.__sc_hydration</code>). Это нужно потому, что запросы на запись, например лайк трека, блокируются защитой от ботов SoundCloud (DataDome), если они идут от голого HTTP-клиента, но проходят, если исходят из настоящего браузерного контекста.</li>
+            </ul>
+            <div class="code-block">
+                <div class="code-block-head"><span>POST secure.soundcloud.com/oauth/token</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                <pre><code><span class="tok-key">grant_type</span>=authorization_code&amp;<span class="tok-key">client_id</span>=YOUR_CLIENT_ID&amp;<span class="tok-key">redirect_uri</span>=scclient://oauth/callback&amp;<span class="tok-key">code</span>=AUTH_CODE</code></pre>
+            </div>
+            <div class="code-block">
+                <div class="code-block-head"><span>Response</span></div>
+                <pre><code>{
+  <span class="tok-key">"access_token"</span>: <span class="tok-str">"2-XXXXXXXXX-XXXXXXXXXX-xxxxxxxxxxxxxx"</span>,
+  <span class="tok-key">"refresh_token"</span>: <span class="tok-str">"3-XXXXXXXXX-XXXXXXXXXX-xxxxxxxxxxxxxx"</span>,
+  <span class="tok-key">"expires_in"</span>: <span class="tok-num">3600</span>,
+  <span class="tok-key">"scope"</span>: <span class="tok-str">"non-expiring"</span>
+}</code></pre>
+            </div>
+        </section>
+
+        <section class="doc-section" id="headers">
+            <h2><span class="material-symbols-rounded">list_alt</span><span class="t-en">Request headers</span><span class="t-ru">Заголовки запроса</span></h2>
+            <p class="t-en">To avoid being flagged as a bot, every request should look like it came from the soundcloud.com web app:</p>
+            <p class="t-ru">Чтобы запрос не приняли за бота, он должен выглядеть так, будто пришёл из веб-приложения soundcloud.com:</p>
+            <table class="param-table">
+                <tr><th><span class="t-en">Header</span><span class="t-ru">Заголовок</span></th><th><span class="t-en">Value</span><span class="t-ru">Значение</span></th><th><span class="t-en">Required</span><span class="t-ru">Обязателен</span></th></tr>
+                <tr><td>User-Agent</td><td><span class="t-en">a recent desktop Chrome UA string</span><span class="t-ru">строка UA свежего десктопного Chrome</span></td><td><span class="t-en">recommended</span><span class="t-ru">рекомендуется</span></td></tr>
+                <tr><td>Accept</td><td><code>application/json, text/javascript, */*; q=0.1</code></td><td><span class="t-en">recommended</span><span class="t-ru">рекомендуется</span></td></tr>
+                <tr><td>Origin</td><td><code>https://soundcloud.com</code></td><td><span class="t-en">recommended</span><span class="t-ru">рекомендуется</span></td></tr>
+                <tr><td>Referer</td><td><code>https://soundcloud.com/</code></td><td><span class="t-en">recommended</span><span class="t-ru">рекомендуется</span></td></tr>
+                <tr><td>X-SoundCloud-Client</td><td><span class="t-en">same value as client_id</span><span class="t-ru">то же значение, что и client_id</span></td><td><span class="t-en">optional</span><span class="t-ru">опционально</span></td></tr>
+                <tr><td>X-Client-UUID</td><td><span class="t-en">random UUID, new per request</span><span class="t-ru">случайный UUID на каждый запрос</span></td><td><span class="t-en">optional</span><span class="t-ru">опционально</span></td></tr>
+                <tr><td>Authorization</td><td><code>OAuth &lt;token&gt;</code></td><td><span class="t-en">user-specific endpoints only</span><span class="t-ru">только для пользовательских эндпоинтов</span></td></tr>
+                <tr><td>Cookie</td><td><span class="t-en">captured web session cookies</span><span class="t-ru">перехваченные cookies веб-сессии</span></td><td><span class="t-en">write endpoints only</span><span class="t-ru">только для эндпоинтов записи</span></td></tr>
+            </table>
+        </section>
+
+        <section class="doc-section" id="pagination">
+            <h2><span class="material-symbols-rounded">view_list</span><span class="t-en">Pagination</span><span class="t-ru">Пагинация</span></h2>
+            <p class="t-en">List endpoints return a consistent envelope:</p>
+            <p class="t-ru">Эндпоинты со списками возвращают единый формат ответа:</p>
+            <div class="code-block">
+                <div class="code-block-head"><span>SearchResponse&lt;T&gt;</span></div>
+                <pre><code>{
+  <span class="tok-key">"collection"</span>: [ <span class="tok-com">...</span> ],
+  <span class="tok-key">"next_href"</span>: <span class="tok-str">"https://api-v2.soundcloud.com/search/tracks?q=...&amp;offset=25&amp;limit=25"</span>
+}</code></pre>
+            </div>
+            <p class="t-en">The first page is requested with <code class="inline">limit</code> and <code class="inline">offset</code> query params. Every following page should be fetched by calling <code class="inline">next_href</code> verbatim rather than incrementing <code class="inline">offset</code> yourself, since some endpoints (like likes, with <code class="inline">linked_partitioning=true</code>) use opaque cursors instead of numeric offsets. <code class="inline">next_href</code> is <code class="inline">null</code> once there are no more pages.</p>
+            <p class="t-ru">Первая страница запрашивается с параметрами <code class="inline">limit</code> и <code class="inline">offset</code>. Каждую следующую страницу нужно получать, вызывая <code class="inline">next_href</code> как есть, а не увеличивая <code class="inline">offset</code> самостоятельно, поскольку некоторые эндпоинты (например лайки с <code class="inline">linked_partitioning=true</code>) используют непрозрачные курсоры вместо числовых offset. Когда страниц больше нет, <code class="inline">next_href</code> равен <code class="inline">null</code>.</p>
+        </section>
+
+        <section class="doc-section" id="errors">
+            <h2><span class="material-symbols-rounded">error</span><span class="t-en">Errors &amp; rate limits</span><span class="t-ru">Ошибки и лимиты</span></h2>
+            <table class="param-table">
+                <tr><th><span class="t-en">Status</span><span class="t-ru">Статус</span></th><th><span class="t-en">Meaning</span><span class="t-ru">Значение</span></th></tr>
+                <tr><td>401 / 403</td><td><span class="t-en">client_id is invalid, expired or rotated. Refresh it (see <a href="#client-id">client_id</a>) and retry once.</span><span class="t-ru">client_id недействителен, истёк или сменился. Обновите его (см. <a href="#client-id">client_id</a>) и повторите запрос один раз.</span></td></tr>
+                <tr><td>404</td><td><span class="t-en">Entity does not exist, is private, or was deleted.</span><span class="t-ru">Сущность не существует, приватна или удалена.</span></td></tr>
+                <tr><td>429</td><td><span class="t-en">Rate limited. Back off with increasing delay before retrying; do not retry immediately in a loop.</span><span class="t-ru">Превышен лимит запросов. Перед повтором нужна увеличивающаяся задержка, не повторяйте запрос сразу в цикле.</span></td></tr>
+            </table>
+            <div class="callout">
+                <span class="material-symbols-rounded">shield</span>
+                <div>
+                    <p class="t-en">Write endpoints (liking/unliking a track) sit behind DataDome bot protection and reject plain HTTP client requests outright, even with correct headers and a valid token. Resona routes those specific calls through a real WebView instance instead, using its JS <code class="inline">fetch()</code> so the request carries genuine browser fingerprinting.</p>
+                    <p class="t-ru">Эндпоинты записи (лайк/анлайк трека) прикрыты защитой от ботов DataDome и отклоняют запросы обычного HTTP-клиента даже с правильными заголовками и валидным токеном. Resona прогоняет именно эти вызовы через настоящий WebView, используя его JS <code class="inline">fetch()</code>, чтобы запрос нёс подлинный браузерный отпечаток.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="search">
+            <h2><span class="material-symbols-rounded">search</span><span class="t-en">Search</span><span class="t-ru">Поиск</span></h2>
+
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/search/tracks</code>
+                </div>
+                <p class="t-en">Full-text search across public tracks.</p>
+                <p class="t-ru">Полнотекстовый поиск по публичным трекам.</p>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Param</span><span class="t-ru">Параметр</span></th><th><span class="t-en">Type</span><span class="t-ru">Тип</span></th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>q</td><td>string</td><td><span class="t-en">search query</span><span class="t-ru">поисковый запрос</span></td></tr>
+                    <tr><td>limit</td><td>int</td><td><span class="t-en">page size, default 25</span><span class="t-ru">размер страницы, по умолчанию 25</span></td></tr>
+                    <tr><td>offset</td><td>int</td><td><span class="t-en">first page offset, default 0</span><span class="t-ru">смещение первой страницы, по умолчанию 0</span></td></tr>
+                </table>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/search/tracks?q=synthwave&amp;limit=25&amp;offset=0&amp;client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+                <div class="code-block">
+                    <div class="code-block-head"><span>Response</span></div>
+                    <pre><code>{
+  <span class="tok-key">"collection"</span>: [
+    {
+      <span class="tok-key">"id"</span>: <span class="tok-num">293100293</span>,
+      <span class="tok-key">"title"</span>: <span class="tok-str">"Midnight Drive"</span>,
+      <span class="tok-key">"duration"</span>: <span class="tok-num">214000</span>,
+      <span class="tok-key">"genre"</span>: <span class="tok-str">"Synthwave"</span>,
+      <span class="tok-key">"playback_count"</span>: <span class="tok-num">128340</span>,
+      <span class="tok-key">"likes_count"</span>: <span class="tok-num">942</span>,
+      <span class="tok-key">"artwork_url"</span>: <span class="tok-str">"https://i1.sndcdn.com/artworks-xxxx-t500x500.jpg"</span>,
+      <span class="tok-key">"permalink_url"</span>: <span class="tok-str">"https://soundcloud.com/artist/midnight-drive"</span>,
+      <span class="tok-key">"user"</span>: { <span class="tok-key">"id"</span>: <span class="tok-num">8153021</span>, <span class="tok-key">"username"</span>: <span class="tok-str">"artist"</span> },
+      <span class="tok-key">"media"</span>: { <span class="tok-key">"transcodings"</span>: [ <span class="tok-com">...</span> ] }
+    }
+  ],
+  <span class="tok-key">"next_href"</span>: <span class="tok-str">"https://api-v2.soundcloud.com/search/tracks?q=synthwave&amp;offset=25&amp;limit=25"</span>
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/search/users</code>
+                </div>
+                <p class="t-en">Search users and artists by name.</p>
+                <p class="t-ru">Поиск пользователей и артистов по имени.</p>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Param</span><span class="t-ru">Параметр</span></th><th><span class="t-en">Type</span><span class="t-ru">Тип</span></th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>q</td><td>string</td><td><span class="t-en">search query</span><span class="t-ru">поисковый запрос</span></td></tr>
+                    <tr><td>limit</td><td>int</td><td><span class="t-en">page size, default 10</span><span class="t-ru">размер страницы, по умолчанию 10</span></td></tr>
+                </table>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/search/users?q=artist&amp;limit=10&amp;client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/search/playlists</code>
+                </div>
+                <p class="t-en">Search public playlists and albums.</p>
+                <p class="t-ru">Поиск публичных плейлистов и альбомов.</p>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Param</span><span class="t-ru">Параметр</span></th><th><span class="t-en">Type</span><span class="t-ru">Тип</span></th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>q</td><td>string</td><td><span class="t-en">search query</span><span class="t-ru">поисковый запрос</span></td></tr>
+                    <tr><td>limit</td><td>int</td><td><span class="t-en">page size, default 10</span><span class="t-ru">размер страницы, по умолчанию 10</span></td></tr>
+                    <tr><td>offset</td><td>int</td><td><span class="t-en">first page offset, default 0</span><span class="t-ru">смещение первой страницы, по умолчанию 0</span></td></tr>
+                </table>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/search/playlists?q=lofi&amp;limit=10&amp;offset=0&amp;client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="tracks">
+            <h2><span class="material-symbols-rounded">music_note</span><span class="t-en">Tracks</span><span class="t-ru">Треки</span></h2>
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/tracks/{id}</code>
+                </div>
+                <p class="t-en">Fetch a single track by its numeric id, including its <code class="inline">media.transcodings</code> list needed for playback.</p>
+                <p class="t-ru">Получить один трек по числовому id, включая список <code class="inline">media.transcodings</code>, нужный для воспроизведения.</p>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Param</span><span class="t-ru">Параметр</span></th><th><span class="t-en">Type</span><span class="t-ru">Тип</span></th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>id</td><td>long</td><td><span class="t-en">path parameter, track id</span><span class="t-ru">параметр пути, id трека</span></td></tr>
+                </table>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/tracks/293100293?client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="stream">
+            <h2><span class="material-symbols-rounded">graphic_eq</span><span class="t-en">Stream resolution</span><span class="t-ru">Разрешение потока</span></h2>
+            <p class="t-en">Playable audio URLs are never returned directly. Resolving one takes two requests:</p>
+            <p class="t-ru">Ссылки на воспроизводимый поток никогда не отдаются напрямую. Их получение требует двух запросов:</p>
+            <ol>
+                <li class="t-en">Fetch the track (<code class="inline">GET /tracks/{id}</code>). Its <code class="inline">media.transcodings</code> array lists candidate streams, each with a <code class="inline">format.protocol</code> of either <code class="inline">progressive</code> (plain MP3 file) or <code class="inline">hls</code> (segmented <code class="inline">.m3u8</code> playlist), and its own internal, unsigned <code class="inline">url</code>.</li>
+                <li class="t-ru">Получить трек (<code class="inline">GET /tracks/{id}</code>). В его массиве <code class="inline">media.transcodings</code> перечислены варианты потоков, у каждого есть <code class="inline">format.protocol</code>: либо <code class="inline">progressive</code> (обычный MP3-файл), либо <code class="inline">hls</code> (сегментированный плейлист <code class="inline">.m3u8</code>), и собственный внутренний неподписанный <code class="inline">url</code>.</li>
+                <li class="t-en">Prefer the <code class="inline">progressive</code> transcoding when available, otherwise fall back to the first one listed. Call that transcoding's <code class="inline">url</code> directly (with <code class="inline">client_id</code> appended) to get the actual, signed, time-limited CDN URL.</li>
+                <li class="t-ru">По возможности берите транскодинг <code class="inline">progressive</code>, иначе первый из списка. Обратитесь напрямую по <code class="inline">url</code> этого транскодинга (с добавленным <code class="inline">client_id</code>), чтобы получить настоящий подписанный, ограниченный по времени CDN-адрес.</li>
+            </ol>
+            <div class="code-block">
+                <div class="code-block-head"><span>Track.media.transcodings</span></div>
+                <pre><code>[
+  {
+    <span class="tok-key">"url"</span>: <span class="tok-str">"https://api-v2.soundcloud.com/media/soundcloud:tracks:293100293/abc.../stream/progressive"</span>,
+    <span class="tok-key">"quality"</span>: <span class="tok-str">"sq"</span>,
+    <span class="tok-key">"format"</span>: { <span class="tok-key">"protocol"</span>: <span class="tok-str">"progressive"</span>, <span class="tok-key">"mime_type"</span>: <span class="tok-str">"audio/mpeg"</span> }
+  },
+  {
+    <span class="tok-key">"url"</span>: <span class="tok-str">"https://api-v2.soundcloud.com/media/soundcloud:tracks:293100293/abc.../stream/hls"</span>,
+    <span class="tok-key">"quality"</span>: <span class="tok-str">"sq"</span>,
+    <span class="tok-key">"format"</span>: { <span class="tok-key">"protocol"</span>: <span class="tok-str">"hls"</span>, <span class="tok-key">"mime_type"</span>: <span class="tok-str">"audio/mp4"</span> }
+  }
+]</code></pre>
+            </div>
+            <div class="code-block">
+                <div class="code-block-head"><span>cURL <span class="t-en">(step 2)</span><span class="t-ru">(шаг 2)</span></span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/media/soundcloud:tracks:293100293/abc.../stream/progressive?client_id=YOUR_CLIENT_ID"</span></code></pre>
+            </div>
+            <div class="code-block">
+                <div class="code-block-head"><span>Response</span></div>
+                <pre><code>{
+  <span class="tok-key">"url"</span>: <span class="tok-str">"https://cf-media.sndcdn.com/xxxxxxxxxxxx.128.mp3?Policy=...&amp;Signature=...&amp;Key-Pair-Id=..."</span>
+}</code></pre>
+            </div>
+            <div class="callout">
+                <span class="material-symbols-rounded">timer</span>
+                <div>
+                    <p class="t-en">The final CDN URL is time-limited. Resolve it right before playback rather than caching it long-term; cache the track metadata instead and re-resolve when needed.</p>
+                    <p class="t-ru">Финальная CDN-ссылка ограничена по времени. Получайте её непосредственно перед воспроизведением, а не кэшируйте надолго; вместо этого кэшируйте метаданные трека и получайте ссылку заново по необходимости.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="users">
+            <h2><span class="material-symbols-rounded">person</span><span class="t-en">Users</span><span class="t-ru">Пользователи</span></h2>
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/users/{id}</code>
+                </div>
+                <p class="t-en">Fetch a public user profile by numeric id.</p>
+                <p class="t-ru">Получить публичный профиль пользователя по числовому id.</p>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/users/8153021?client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+                <div class="code-block">
+                    <div class="code-block-head"><span>Response</span></div>
+                    <pre><code>{
+  <span class="tok-key">"id"</span>: <span class="tok-num">8153021</span>,
+  <span class="tok-key">"username"</span>: <span class="tok-str">"artist"</span>,
+  <span class="tok-key">"full_name"</span>: <span class="tok-str">"Artist Name"</span>,
+  <span class="tok-key">"avatar_url"</span>: <span class="tok-str">"https://i1.sndcdn.com/avatars-xxxx-t500x500.jpg"</span>,
+  <span class="tok-key">"followers_count"</span>: <span class="tok-num">45210</span>,
+  <span class="tok-key">"permalink_url"</span>: <span class="tok-str">"https://soundcloud.com/artist"</span>
+}</code></pre>
+                </div>
+            </div>
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/users/{id}/tracks</code>
+                </div>
+                <p class="t-en">List tracks uploaded by a user, paginated.</p>
+                <p class="t-ru">Список треков, загруженных пользователем, с пагинацией.</p>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Param</span><span class="t-ru">Параметр</span></th><th><span class="t-en">Type</span><span class="t-ru">Тип</span></th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>limit</td><td>int</td><td><span class="t-en">page size, default 50</span><span class="t-ru">размер страницы, по умолчанию 50</span></td></tr>
+                    <tr><td>offset</td><td>int</td><td><span class="t-en">first page offset, default 0</span><span class="t-ru">смещение первой страницы, по умолчанию 0</span></td></tr>
+                </table>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/users/8153021/tracks?limit=50&amp;offset=0&amp;client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="playlists">
+            <h2><span class="material-symbols-rounded">queue_music</span><span class="t-en">Playlists</span><span class="t-ru">Плейлисты</span></h2>
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/playlists/{id}</code>
+                </div>
+                <p class="t-en">Fetch a playlist or album, including its full track list.</p>
+                <p class="t-ru">Получить плейлист или альбом вместе с полным списком треков.</p>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/playlists/5521003?client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+                <div class="code-block">
+                    <div class="code-block-head"><span>Response</span></div>
+                    <pre><code>{
+  <span class="tok-key">"id"</span>: <span class="tok-num">5521003</span>,
+  <span class="tok-key">"title"</span>: <span class="tok-str">"Late Night Drive"</span>,
+  <span class="tok-key">"description"</span>: <span class="tok-str">"A playlist for long drives."</span>,
+  <span class="tok-key">"track_count"</span>: <span class="tok-num">24</span>,
+  <span class="tok-key">"artwork_url"</span>: <span class="tok-str">"https://i1.sndcdn.com/artworks-xxxx-t500x500.jpg"</span>,
+  <span class="tok-key">"permalink_url"</span>: <span class="tok-str">"https://soundcloud.com/artist/sets/late-night-drive"</span>,
+  <span class="tok-key">"user"</span>: { <span class="tok-key">"id"</span>: <span class="tok-num">8153021</span>, <span class="tok-key">"username"</span>: <span class="tok-str">"artist"</span> },
+  <span class="tok-key">"tracks"</span>: [ { <span class="tok-key">"id"</span>: <span class="tok-num">293100293</span>, <span class="tok-key">"title"</span>: <span class="tok-str">"Midnight Drive"</span> } ]
+}</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="likes">
+            <h2><span class="material-symbols-rounded">favorite</span><span class="t-en">Likes</span><span class="t-ru">Лайки</span></h2>
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/users/{id}/likes</code>
+                    <span class="auth-flag"><span class="material-symbols-rounded">lock</span><span class="t-en">OAuth for private likes</span><span class="t-ru">OAuth для приватных лайков</span></span>
+                </div>
+                <p class="t-en">List a user's liked tracks and playlists. Works without a token for a user's public likes; requires <code class="inline">Authorization: OAuth</code> matching the id to also see private ones.</p>
+                <p class="t-ru">Список понравившихся треков и плейлистов пользователя. Работает без токена для публичных лайков; для приватных нужен <code class="inline">Authorization: OAuth</code>, соответствующий этому id.</p>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Param</span><span class="t-ru">Параметр</span></th><th><span class="t-en">Type</span><span class="t-ru">Тип</span></th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>limit</td><td>int</td><td><span class="t-en">page size, default 200</span><span class="t-ru">размер страницы, по умолчанию 200</span></td></tr>
+                    <tr><td>linked_partitioning</td><td>bool</td><td><span class="t-en">use cursor-style pagination via next_href, default true</span><span class="t-ru">курсорная пагинация через next_href, по умолчанию true</span></td></tr>
+                </table>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/users/8153021/likes?limit=200&amp;linked_partitioning=true&amp;client_id=YOUR_CLIENT_ID"</span> \
+  -H <span class="tok-str">"Authorization: OAuth YOUR_OAUTH_TOKEN"</span></code></pre>
+                </div>
+                <div class="code-block">
+                    <div class="code-block-head"><span>Response</span></div>
+                    <pre><code>{
+  <span class="tok-key">"collection"</span>: [
+    { <span class="tok-key">"kind"</span>: <span class="tok-str">"like"</span>, <span class="tok-key">"track"</span>: { <span class="tok-key">"id"</span>: <span class="tok-num">293100293</span>, <span class="tok-key">"title"</span>: <span class="tok-str">"Midnight Drive"</span> } }
+  ],
+  <span class="tok-key">"next_href"</span>: <span class="tok-str">"https://api-v2.soundcloud.com/users/8153021/likes?cursor=..."</span>
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-put">PUT</span>
+                    <code class="endpoint-path">/users/{userId}/track_likes/{trackId}</code>
+                    <span class="auth-flag"><span class="material-symbols-rounded">lock</span><span class="t-en">OAuth required</span><span class="t-ru">Требуется OAuth</span></span>
+                </div>
+                <p class="t-en">Like a track on behalf of the authenticated user.</p>
+                <p class="t-ru">Поставить трек в лайки от имени авторизованного пользователя.</p>
+                <div class="callout warn">
+                    <span class="material-symbols-rounded">shield</span>
+                    <div>
+                        <p class="t-en">Blocked by DataDome when called from a plain HTTP client, even with a valid token and correct headers. Resona issues this call from inside a live WebView's JS <code class="inline">fetch()</code> with <code class="inline">credentials: 'include'</code> so session cookies ride along, then reads the response back through a JS bridge.</p>
+                        <p class="t-ru">Блокируется DataDome при вызове из обычного HTTP-клиента, даже с валидным токеном и правильными заголовками. Resona выполняет этот запрос изнутри живого WebView через JS <code class="inline">fetch()</code> с <code class="inline">credentials: 'include'</code>, чтобы cookies сессии передавались вместе с запросом, а затем читает ответ через JS-мост.</p>
+                    </div>
+                </div>
+                <div class="code-block">
+                    <div class="code-block-head"><span>JS fetch() <span class="t-en">(inside WebView)</span><span class="t-ru">(внутри WebView)</span></span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code><span class="tok-flag">fetch</span>(<span class="tok-str">`https://api-v2.soundcloud.com/users/${userId}/track_likes/${trackId}?client_id=${clientId}`</span>, {
+  <span class="tok-key">method</span>: <span class="tok-str">'PUT'</span>,
+  <span class="tok-key">headers</span>: { <span class="tok-str">'Authorization'</span>: <span class="tok-str">`OAuth ${token}`</span> },
+  <span class="tok-key">credentials</span>: <span class="tok-str">'include'</span>
+})</code></pre>
+                </div>
+            </div>
+
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-delete">DELETE</span>
+                    <code class="endpoint-path">/users/{userId}/track_likes/{trackId}</code>
+                    <span class="auth-flag"><span class="material-symbols-rounded">lock</span><span class="t-en">OAuth required</span><span class="t-ru">Требуется OAuth</span></span>
+                </div>
+                <p class="t-en">Unlike a track. Same WebView-bridge requirement as above.</p>
+                <p class="t-ru">Убрать трек из лайков. Требует того же обхода через WebView, что и выше.</p>
+            </div>
+        </section>
+
+        <section class="doc-section" id="me">
+            <h2><span class="material-symbols-rounded">account_circle</span><span class="t-en">Current user</span><span class="t-ru">Текущий пользователь</span></h2>
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/me</code>
+                    <span class="auth-flag"><span class="material-symbols-rounded">lock</span><span class="t-en">OAuth required</span><span class="t-ru">Требуется OAuth</span></span>
+                </div>
+                <p class="t-en">Fetch the profile of the currently authenticated user. Used to resolve the numeric user id needed by the likes endpoints.</p>
+                <p class="t-ru">Получить профиль текущего авторизованного пользователя. Используется, чтобы узнать числовой id, нужный для эндпоинтов лайков.</p>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/me?client_id=YOUR_CLIENT_ID"</span> \
+  -H <span class="tok-str">"Authorization: OAuth YOUR_OAUTH_TOKEN"</span></code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="resolve">
+            <h2><span class="material-symbols-rounded">link</span><span class="t-en">Resolve</span><span class="t-ru">Resolve</span></h2>
+            <div class="endpoint">
+                <div class="endpoint-head">
+                    <span class="method-badge method-get">GET</span>
+                    <code class="endpoint-path">/resolve</code>
+                </div>
+                <p class="t-en">Turns any soundcloud.com link (track, playlist or profile, including shortened <code class="inline">on.soundcloud.com</code> links after following the redirect) into the matching entity. Used for deep links and for importing a profile by pasted URL.</p>
+                <p class="t-ru">Превращает любую ссылку soundcloud.com (трек, плейлист или профиль, включая укороченные <code class="inline">on.soundcloud.com</code> после перехода по редиректу) в соответствующую сущность. Используется для диплинков и импорта профиля по вставленной ссылке.</p>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Param</span><span class="t-ru">Параметр</span></th><th><span class="t-en">Type</span><span class="t-ru">Тип</span></th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>url</td><td>string</td><td><span class="t-en">URL-encoded soundcloud.com link</span><span class="t-ru">URL-encoded ссылка на soundcloud.com</span></td></tr>
+                </table>
+                <div class="code-block">
+                    <div class="code-block-head"><span>cURL</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
+                    <pre><code>curl <span class="tok-str">"https://api-v2.soundcloud.com/resolve?url=https%3A%2F%2Fsoundcloud.com%2Fartist%2Fmidnight-drive&amp;client_id=YOUR_CLIENT_ID"</span></code></pre>
+                </div>
+                <div class="code-block">
+                    <div class="code-block-head"><span>Response</span></div>
+                    <pre><code>{
+  <span class="tok-key">"kind"</span>: <span class="tok-str">"track"</span>,
+  <span class="tok-key">"id"</span>: <span class="tok-num">293100293</span>,
+  <span class="tok-key">"title"</span>: <span class="tok-str">"Midnight Drive"</span>,
+  <span class="tok-key">"permalink_url"</span>: <span class="tok-str">"https://soundcloud.com/artist/midnight-drive"</span>
+}</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <section class="doc-section" id="models">
+            <h2><span class="material-symbols-rounded">data_object</span><span class="t-en">Data models</span><span class="t-ru">Модели данных</span></h2>
+            <p class="t-en">Fields Resona actually reads off each entity. The live API returns many more fields than listed here.</p>
+            <p class="t-ru">Поля, которые Resona реально читает у каждой сущности. Настоящий API возвращает гораздо больше полей, чем перечислено здесь.</p>
+
+            <div class="model-block">
+                <h4><span class="material-symbols-rounded">music_note</span>Track</h4>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Field</span><span class="t-ru">Поле</span></th><th>Type</th><th><span class="t-en">Description</span><span class="t-ru">Описание</span></th></tr>
+                    <tr><td>id</td><td>long</td><td></td></tr>
+                    <tr><td>title</td><td>string</td><td></td></tr>
+                    <tr><td>duration</td><td>long</td><td><span class="t-en">milliseconds</span><span class="t-ru">в миллисекундах</span></td></tr>
+                    <tr><td>artwork_url</td><td>string?</td><td></td></tr>
+                    <tr><td>genre</td><td>string?</td><td></td></tr>
+                    <tr><td>playback_count</td><td>long?</td><td></td></tr>
+                    <tr><td>likes_count</td><td>long?</td><td></td></tr>
+                    <tr><td>permalink_url</td><td>string?</td><td></td></tr>
+                    <tr><td>user</td><td>User</td><td></td></tr>
+                    <tr><td>media.transcodings</td><td>Transcoding[]</td><td><span class="t-en">see <a href="#stream">Stream resolution</a></span><span class="t-ru">см. <a href="#stream">Разрешение потока</a></span></td></tr>
+                </table>
+            </div>
+
+            <div class="model-block">
+                <h4><span class="material-symbols-rounded">person</span>User</h4>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Field</span><span class="t-ru">Поле</span></th><th>Type</th></tr>
+                    <tr><td>id</td><td>long</td></tr>
+                    <tr><td>username</td><td>string</td></tr>
+                    <tr><td>full_name</td><td>string?</td></tr>
+                    <tr><td>avatar_url</td><td>string?</td></tr>
+                    <tr><td>followers_count</td><td>long?</td></tr>
+                    <tr><td>permalink_url</td><td>string?</td></tr>
+                </table>
+            </div>
+
+            <div class="model-block">
+                <h4><span class="material-symbols-rounded">queue_music</span>Playlist</h4>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Field</span><span class="t-ru">Поле</span></th><th>Type</th></tr>
+                    <tr><td>id</td><td>long</td></tr>
+                    <tr><td>title</td><td>string</td></tr>
+                    <tr><td>description</td><td>string?</td></tr>
+                    <tr><td>artwork_url</td><td>string?</td></tr>
+                    <tr><td>track_count</td><td>int</td></tr>
+                    <tr><td>permalink_url</td><td>string?</td></tr>
+                    <tr><td>user</td><td>User</td></tr>
+                    <tr><td>tracks</td><td>Track[]?</td></tr>
+                </table>
+            </div>
+
+            <div class="model-block">
+                <h4><span class="material-symbols-rounded">graphic_eq</span>Transcoding</h4>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Field</span><span class="t-ru">Поле</span></th><th>Type</th></tr>
+                    <tr><td>url</td><td>string</td></tr>
+                    <tr><td>quality</td><td>string?</td></tr>
+                    <tr><td>format.protocol</td><td><code>"progressive" | "hls"</code></td></tr>
+                    <tr><td>format.mime_type</td><td>string</td></tr>
+                </table>
+            </div>
+
+            <div class="model-block">
+                <h4><span class="material-symbols-rounded">layers</span>SearchResponse&lt;T&gt;</h4>
+                <table class="param-table">
+                    <tr><th><span class="t-en">Field</span><span class="t-ru">Поле</span></th><th>Type</th></tr>
+                    <tr><td>collection</td><td>T[]</td></tr>
+                    <tr><td>next_href</td><td>string?</td></tr>
+                </table>
+            </div>
+        </section>
+
+        <footer class="docs-footer">
+            <p class="t-en">This reference is community-maintained inside the <a href="https://github.com/savo-o/resona" target="_blank">Resona</a> repository, based on reverse-engineered behavior of <code class="inline">api-v2.soundcloud.com</code>. Not affiliated with, endorsed by, or supported by SoundCloud Ltd.</p>
+            <p class="t-ru">Этот справочник поддерживается сообществом в репозитории <a href="https://github.com/savo-o/resona" target="_blank">Resona</a> на основе изученного поведения <code class="inline">api-v2.soundcloud.com</code>. Не связан с SoundCloud Ltd. и не поддерживается ею.</p>
+        </footer>
+    </main>
+</div>
+
+<script>
+    function toggleTheme() {
+        const root = document.documentElement;
+        const icon = document.getElementById('themeIcon');
+        if (root.getAttribute('data-theme') === 'dark') {
+            root.removeAttribute('data-theme');
+            icon.textContent = 'dark_mode';
+            localStorage.setItem('theme', 'light');
+        } else {
+            root.setAttribute('data-theme', 'dark');
+            icon.textContent = 'light_mode';
+            localStorage.setItem('theme', 'dark');
+        }
+    }
+
+    function resetTheme() {
+        localStorage.removeItem('theme');
+        const root = document.documentElement;
+        const icon = document.getElementById('themeIcon');
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            root.setAttribute('data-theme', 'dark');
+            icon.textContent = 'light_mode';
+        } else {
+            root.removeAttribute('data-theme');
+            icon.textContent = 'dark_mode';
+        }
+    }
+
+    if (document.documentElement.getAttribute('data-theme') === 'dark') {
+        document.getElementById('themeIcon').textContent = 'light_mode';
+    }
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            const root = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (e.matches) {
+                root.setAttribute('data-theme', 'dark');
+                icon.textContent = 'light_mode';
+            } else {
+                root.removeAttribute('data-theme');
+                icon.textContent = 'dark_mode';
+            }
+        }
+    });
+
+    function setLang(lang) {
+        document.documentElement.setAttribute('lang', lang);
+        document.documentElement.setAttribute('data-lang', lang);
+        localStorage.setItem('lang', lang);
+        syncLangButtons();
+    }
+
+    function syncLangButtons() {
+        const lang = document.documentElement.getAttribute('data-lang');
+        document.getElementById('langEnBtn').classList.toggle('active', lang === 'en');
+        document.getElementById('langRuBtn').classList.toggle('active', lang === 'ru');
+    }
+    syncLangButtons();
+
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('sidebarBackdrop').classList.toggle('open');
+    }
+
+    document.querySelectorAll('.sidebar a').forEach(a => {
+        a.addEventListener('click', () => {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebarBackdrop').classList.remove('open');
+        });
+    });
+
+    function copyCode(btn) {
+        const block = btn.closest('.code-block');
+        const codeEl = block.querySelector('pre code');
+        const text = codeEl.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            const icon = btn.querySelector('.material-symbols-rounded');
+            const original = icon.textContent;
+            icon.textContent = 'check';
+            setTimeout(() => { icon.textContent = original; }, 1400);
+        });
+    }
+
+    const sections = document.querySelectorAll('section.doc-section[id]');
+    const sidebarLinks = document.querySelectorAll('.sidebar a');
+    let activeLink = null;
+
+    function updateActiveSection() {
+        const offset = 96;
+        let current = sections[0];
+        for (const sec of sections) {
+            if (sec.getBoundingClientRect().top - offset <= 0) current = sec;
+            else break;
+        }
+        const link = document.querySelector('.sidebar a[href="#' + current.id + '"]');
+        if (link === activeLink) return;
+        if (activeLink) activeLink.classList.remove('active');
+        if (link) link.classList.add('active');
+        activeLink = link;
+    }
+
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => { updateActiveSection(); ticking = false; });
+    }, { passive: true });
+    updateActiveSection();
+</script>
+</body>
+</html>
