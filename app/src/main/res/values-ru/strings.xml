@@ -201,7 +201,18 @@
 
     <!-- Settings -->
     <string name="settings_title">Настройки</string>
+    <string name="settings_customization">Кастомизация</string>
     <string name="settings_color_theme">Цветовая тема</string>
+    <string name="settings_custom_color">Свой цвет</string>
+    <string name="settings_custom_color_hue">Оттенок</string>
+    <string name="settings_custom_color_saturation">Насыщенность</string>
+    <string name="settings_custom_color_brightness">Яркость</string>
+    <string name="settings_home_sections">Разделы главной</string>
+    <string name="settings_home_sections_desc">Выберите, какие разделы показывать на главной и в каком порядке.</string>
+    <string name="settings_player_background">Фон плеера</string>
+    <string name="settings_player_background_orb">Орб</string>
+    <string name="settings_player_background_blurred">Размытие</string>
+    <string name="settings_player_background_minimal">Минимализм</string>
     <string name="settings_app_icon">Значок приложения</string>
     <string name="settings_app_icon_normal">Обычный</string>
     <string name="settings_app_icon_dynamic">Динамический</string>

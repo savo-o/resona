@@ -136,7 +136,11 @@ class MainActivity : ComponentActivity() {
             ResonaTheme(
                 colorTheme = effectiveTheme,
                 darkTheme = isDark,
-                overrideSeedColor = if (settings.dynamicFromTrack) trackSeedColor else null,
+                overrideSeedColor = when {
+                    settings.dynamicFromTrack -> trackSeedColor
+                    settings.colorTheme == AppColorTheme.CUSTOM -> settings.customSeedColor
+                    else -> null
+                },
             ) {
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.savoo.scclient.ui.haptics.LocalHapticsEnabled provides settings.hapticsEnabled,

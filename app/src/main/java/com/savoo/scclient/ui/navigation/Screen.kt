@@ -19,6 +19,7 @@ sealed class Screen(val route: String, val label: String) {
     data object OfflineTracks : Screen("offline_tracks", "Offline Tracks")
     data object DislikedArtists : Screen("disliked_artists", "Disliked Artists")
     data object DebugMenu : Screen("debug_menu", "Debug Menu")
+    data object Customization : Screen("customization", "Customization")
 }
 
 val bottomNavScreens = listOf(Screen.Home, Screen.Search)

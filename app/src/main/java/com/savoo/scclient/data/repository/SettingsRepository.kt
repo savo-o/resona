@@ -2,13 +2,17 @@ package com.savoo.scclient.data.repository
 
 import android.content.Context
 import android.os.Build
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.savoo.scclient.data.model.UpdateChannel
 import com.savoo.scclient.ui.theme.AppColorTheme
+import com.savoo.scclient.ui.theme.OrangeSeed
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.map
 import java.util.Locale
@@ -37,6 +41,30 @@ enum class LyricsProvider { LRCLIB, KUGOU }
 
 enum class SeekBarStyle { CLASSIC, WAVY }
 
+enum class PlayerBackgroundStyle { ORB, BLURRED_ARTWORK, MINIMAL }
+
+enum class HomeSection { JUMP_BACK_IN, FAVORITES, OFFLINE, ARTISTS, PLAYLISTS }
+
+data class HomeSectionConfig(val section: HomeSection, val visible: Boolean = true)
+
+val DefaultHomeSections = HomeSection.entries.map { HomeSectionConfig(it) }
+
+private fun serializeHomeSections(sections: List<HomeSectionConfig>): String =
+    sections.joinToString(",") { (if (!it.visible) "-" else "") + it.section.name }
+
+private fun parseHomeSections(raw: String?): List<HomeSectionConfig> {
+    if (raw.isNullOrBlank()) return DefaultHomeSections
+    val parsed = raw.split(",").mapNotNull { token ->
+        val visible = !token.startsWith("-")
+        val name = token.removePrefix("-")
+        runCatching { HomeSection.valueOf(name) }.getOrNull()?.let { HomeSectionConfig(it, visible) }
+    }
+    // Cover app updates that add a new section after this list was already saved on disk.
+    val missing = HomeSection.entries.filter { section -> parsed.none { it.section == section } }
+        .map { HomeSectionConfig(it) }
+    return parsed + missing
+}
+
 data class AppSettings(
     val colorTheme: AppColorTheme = AppColorTheme.DYNAMIC,
     val darkMode: DarkModeOption = DarkModeOption.SYSTEM,
@@ -56,7 +84,10 @@ data class AppSettings(
     val mixDiscoveryEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
     val crossfadeEnabled: Boolean = false,
-    val seekBarStyle: SeekBarStyle = SeekBarStyle.CLASSIC,
+    val seekBarStyle: SeekBarStyle = SeekBarStyle.WAVY,
+    val customSeedColor: Color = OrangeSeed.Primary,
+    val homeSections: List<HomeSectionConfig> = DefaultHomeSections,
+    val playerBackgroundStyle: PlayerBackgroundStyle = PlayerBackgroundStyle.ORB,
 )
 
 @Singleton
@@ -82,6 +113,9 @@ class SettingsRepository @Inject constructor(
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val CROSSFADE_ENABLED = booleanPreferencesKey("crossfade_enabled")
         val SEEK_BAR_STYLE = stringPreferencesKey("seek_bar_style")
+        val CUSTOM_SEED_COLOR = intPreferencesKey("custom_seed_color")
+        val HOME_SECTIONS = stringPreferencesKey("home_sections")
+        val PLAYER_BACKGROUND_STYLE = stringPreferencesKey("player_background_style")
     }
 
     val settings = context.dataStore.data.map { prefs ->
@@ -120,7 +154,16 @@ class SettingsRepository @Inject constructor(
             crossfadeEnabled = prefs[Keys.CROSSFADE_ENABLED] ?: false,
             seekBarStyle = prefs[Keys.SEEK_BAR_STYLE]?.let {
                 runCatching { SeekBarStyle.valueOf(it) }.getOrNull()
-            } ?: SeekBarStyle.CLASSIC,
+            } ?: SeekBarStyle.WAVY,
+            customSeedColor = prefs[Keys.CUSTOM_SEED_COLOR]?.let { Color(it) } ?: OrangeSeed.Primary,
+            homeSections = parseHomeSections(prefs[Keys.HOME_SECTIONS]),
+            // BLURRED_ARTWORK is hidden from the picker (kept working in code, just not offered as a
+            // choice) - coerce anyone still holding it from before back to the default.
+            playerBackgroundStyle = (prefs[Keys.PLAYER_BACKGROUND_STYLE]?.let {
+                runCatching { PlayerBackgroundStyle.valueOf(it) }.getOrNull()
+            } ?: PlayerBackgroundStyle.ORB).let {
+                if (it == PlayerBackgroundStyle.BLURRED_ARTWORK) PlayerBackgroundStyle.ORB else it
+            },
         )
     }
 
@@ -196,5 +239,17 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setSeekBarStyle(style: SeekBarStyle) {
         context.dataStore.edit { it[Keys.SEEK_BAR_STYLE] = style.name }
+    }
+
+    suspend fun setCustomSeedColor(color: Color) {
+        context.dataStore.edit { it[Keys.CUSTOM_SEED_COLOR] = color.toArgb() }
+    }
+
+    suspend fun setHomeSections(sections: List<HomeSectionConfig>) {
+        context.dataStore.edit { it[Keys.HOME_SECTIONS] = serializeHomeSections(sections) }
+    }
+
+    suspend fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) {
+        context.dataStore.edit { it[Keys.PLAYER_BACKGROUND_STYLE] = style.name }
     }
 }

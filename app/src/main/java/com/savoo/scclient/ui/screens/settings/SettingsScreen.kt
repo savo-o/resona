@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +33,7 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
@@ -45,7 +44,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -55,7 +53,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -68,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -85,8 +83,10 @@ import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.HapticsIntensity
+import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.LyricsProvider
+import com.savoo.scclient.data.repository.PlayerBackgroundStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.UpdateCheckResult
@@ -165,6 +165,9 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeEnabled(value: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(value) }
     fun setSeekBarStyle(style: SeekBarStyle) = viewModelScope.launch { repository.setSeekBarStyle(style) }
     fun setLyricsProvider(provider: LyricsProvider) = viewModelScope.launch { repository.setLyricsProvider(provider) }
+    fun setCustomSeedColor(color: Color) = viewModelScope.launch { repository.setCustomSeedColor(color) }
+    fun setHomeSections(sections: List<HomeSectionConfig>) = viewModelScope.launch { repository.setHomeSections(sections) }
+    fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
 
     fun checkForUpdates() {
         viewModelScope.launch {
@@ -264,7 +267,7 @@ class SettingsViewModel @Inject constructor(
 }
 
 @Composable
-private fun SettingsDivider() {
+internal fun SettingsDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 16.dp),
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
@@ -272,7 +275,7 @@ private fun SettingsDivider() {
 }
 
 @Composable
-private fun SettingsSectionCard(
+internal fun SettingsSectionCard(
     title: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -295,52 +298,14 @@ private fun SettingsSectionCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun ColorThemeSwatch(
-    theme: AppColorTheme,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val shape = if (selected) MaterialShapes.Cookie9Sided.toShape() else CircleShape
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(64.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(shape)
-                .background(theme.seedPrimary)
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected) {
-                Icon(
-                    Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            theme.displayName,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
     onOpenDebugMenu: () -> Unit = {},
     onOpenDislikedArtists: () -> Unit = {},
+    onOpenCustomization: () -> Unit = {},
 ) {
     val settings by viewModel.settings.collectAsState()
     val autoplay by viewModel.autoplayNext.collectAsState()
@@ -401,72 +366,6 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Spacer(Modifier.height(0.dp))
-
-            SettingsSectionCard(title = stringResource(R.string.settings_color_theme)) {
-                FlowRow(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AppColorTheme.entries.filter { it != AppColorTheme.DYNAMIC_TRACK }.forEach { theme ->
-                        ColorThemeSwatch(
-                            theme = theme,
-                            selected = settings.colorTheme == theme,
-                            onClick = { viewModel.setColorTheme(theme) },
-                        )
-                    }
-                }
-            }
-
-            SettingsSectionCard(title = stringResource(R.string.settings_app_icon)) {
-                val iconOptions = AppIconOption.entries
-                val iconLabelResIds = listOf(R.string.settings_app_icon_normal, R.string.settings_app_icon_dynamic)
-                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    iconOptions.forEachIndexed { index, option ->
-                        val shapes = when (index) {
-                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                            iconOptions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                        }
-                        ToggleButton(
-                            checked = settings.appIcon == option,
-                            onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setAppIcon(option) } },
-                            modifier = Modifier.weight(1f),
-                            shapes = shapes,
-                        ) {
-                            Text(stringResource(iconLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                }
-                Text(
-                    stringResource(R.string.settings_app_icon_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                )
-            }
-
-            SettingsSectionCard(title = stringResource(R.string.settings_dark_theme)) {
-                val modes = DarkModeOption.entries
-                val labelResIds = listOf(R.string.settings_dark_system, R.string.settings_dark_light, R.string.settings_dark_dark)
-                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    modes.forEachIndexed { index, mode ->
-                        val shapes = when (index) {
-                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                            modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                        }
-                        ToggleButton(
-                            checked = settings.darkMode == mode,
-                            onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setDarkMode(mode) } },
-                            modifier = Modifier.weight(1f),
-                            shapes = shapes,
-                        ) {
-                            Text(stringResource(labelResIds[index]), style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                }
-            }
 
             SettingsSectionCard(title = stringResource(R.string.settings_language)) {
                 val languages = LanguageOption.entries
@@ -558,13 +457,6 @@ fun SettingsScreen(
 
             SettingsSectionCard {
                 SwitchItem(
-                    title = stringResource(R.string.settings_dynamic_color),
-                    subtitle = stringResource(R.string.settings_dynamic_color_desc),
-                    checked = settings.dynamicFromTrack,
-                    onCheckedChange = { viewModel.setDynamicFromTrack(it) }
-                )
-                SettingsDivider()
-                SwitchItem(
                     title = stringResource(R.string.settings_autoplay),
                     checked = autoplay,
                     onCheckedChange = { viewModel.setAutoplayNext(it) }
@@ -576,34 +468,6 @@ fun SettingsScreen(
                     checked = settings.crossfadeEnabled,
                     onCheckedChange = { viewModel.setCrossfadeEnabled(it) }
                 )
-                SettingsDivider()
-                Text(
-                    stringResource(R.string.settings_seek_bar_style),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
-                )
-                run {
-                    val styles = SeekBarStyle.entries
-                    val styleLabelResIds = listOf(R.string.settings_seek_bar_style_classic, R.string.settings_seek_bar_style_wavy)
-                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        styles.forEachIndexed { index, style ->
-                            val shapes = when (index) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                styles.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                            }
-                            ToggleButton(
-                                checked = settings.seekBarStyle == style,
-                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setSeekBarStyle(style) } },
-                                modifier = Modifier.weight(1f),
-                                shapes = shapes,
-                            ) {
-                                Text(stringResource(styleLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    }
-                }
                 SettingsDivider()
                 Text(
                     stringResource(R.string.settings_lyrics_provider),
@@ -818,6 +682,34 @@ fun SettingsScreen(
                             )
                         }
                     }
+                }
+            }
+
+            SettingsSectionCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { haptic(); onOpenCustomization() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Palette,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        stringResource(R.string.settings_customization),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 

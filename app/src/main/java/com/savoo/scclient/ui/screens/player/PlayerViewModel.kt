@@ -67,6 +67,9 @@ class PlayerViewModel @Inject constructor(
     val seekBarStyle = settingsRepository.settings.map { it.seekBarStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SeekBarStyle.CLASSIC)
 
+    val playerBackgroundStyle = settingsRepository.settings.map { it.playerBackgroundStyle }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB)
+
     val activeLyricsLine = combine(controller.state, lyrics, lyricsOffsetMs) { state, lines, offsetMs ->
         if (lines.isNullOrEmpty()) -1
         else lines.indexOfLast { it.timeMs <= state.positionMs + 200 + offsetMs }

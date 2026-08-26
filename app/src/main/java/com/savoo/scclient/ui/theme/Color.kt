@@ -33,4 +33,5 @@ enum class AppColorTheme(val displayName: String, val seedPrimary: Color, val se
     OCEAN("Ocean", OceanSeed.Primary, OceanSeed.Secondary, OceanSeed.Tertiary),
     DYNAMIC("System (Material You)", OrangeSeed.Primary, OrangeSeed.Secondary, OrangeSeed.Tertiary),
     DYNAMIC_TRACK("From Track Cover", OrangeSeed.Primary, OrangeSeed.Secondary, OrangeSeed.Tertiary),
+    CUSTOM("Custom", OrangeSeed.Primary, OrangeSeed.Secondary, OrangeSeed.Tertiary),
 }

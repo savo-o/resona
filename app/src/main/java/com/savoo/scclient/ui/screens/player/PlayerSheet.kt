@@ -96,6 +96,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -258,6 +259,7 @@ fun PlayerSheet(
             isMixPlaying = viewModel.isMixPlaying.collectAsState().value,
             glowColor = glowColor,
             seekBarStyle = viewModel.seekBarStyle.collectAsState().value,
+            backgroundStyle = viewModel.playerBackgroundStyle.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsOffsetMs = viewModel.lyricsOffsetMs.collectAsState().value,
@@ -290,6 +292,7 @@ private fun FullPlayerSheet(
     isMixPlaying: Boolean,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
+    backgroundStyle: com.savoo.scclient.data.repository.PlayerBackgroundStyle,
     lyrics: List<LyricsLine>?,
     activeLyricsLine: Int,
     lyricsOffsetMs: Long,
@@ -327,6 +330,7 @@ private fun FullPlayerSheet(
             isMixPlaying = isMixPlaying,
             glowColor = glowColor,
             seekBarStyle = seekBarStyle,
+            backgroundStyle = backgroundStyle,
             lyrics = lyrics,
             activeLyricsLine = activeLyricsLine,
             lyricsOffsetMs = lyricsOffsetMs,
@@ -586,6 +590,7 @@ private fun FullPlayerContent(
     isMixPlaying: Boolean,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
+    backgroundStyle: com.savoo.scclient.data.repository.PlayerBackgroundStyle,
     lyrics: List<LyricsLine>?,
     activeLyricsLine: Int,
     lyricsOffsetMs: Long,
@@ -740,6 +745,7 @@ private fun FullPlayerContent(
                                 ((if (isDragging) dragPosition else state.positionMs.toFloat()) / state.durationMs.toFloat()).coerceIn(0f, 1f)
                             } else 0f,
                             slideOffsetX = slideOffset,
+                            style = backgroundStyle,
                             modifier = Modifier
                                 .size(artSize)
                                 .align(Alignment.BottomCenter),
@@ -1109,6 +1115,7 @@ private fun ArtworkOrb(
     isPlaying: Boolean,
     progress: Float,
     slideOffsetX: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
+    style: com.savoo.scclient.data.repository.PlayerBackgroundStyle = com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB,
     modifier: Modifier = Modifier,
 ) {
     val fallback = MaterialTheme.colorScheme.primary
@@ -1182,32 +1189,55 @@ private fun ArtworkOrb(
         val ringStroke = 4.dp
         val ringSize = artSize + ringGap * 2 + ringStroke
         Box(modifier = Modifier.size(artSize), contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier
-                    .requiredSize(orbSize)
-                    .graphicsLayer {
-                        scaleX = breathe * presence; scaleY = breathe * presence
-                        alpha = presenceAlpha
-                        val rad = Math.toRadians(angleA.toDouble())
-                        translationX = (cos(rad) * 70f).toFloat()
-                        translationY = (sin(rad) * 70f).toFloat()
-                    }
-                    .background(softGradient(orbA.copy(alpha = 1f)), CircleShape)
-                    .blur(46.dp, BlurredEdgeTreatment.Unbounded)
-            )
-            Box(
-                modifier = Modifier
-                    .requiredSize(orbSize * 0.85f)
-                    .graphicsLayer {
-                        scaleX = breathe * presence; scaleY = breathe * presence
-                        alpha = presenceAlpha
-                        val rad = Math.toRadians(angleB.toDouble())
-                        translationX = (cos(rad) * 65f).toFloat()
-                        translationY = (sin(rad) * 65f).toFloat()
-                    }
-                    .background(softGradient(orbB.copy(alpha = 1f)), CircleShape)
-                    .blur(46.dp, BlurredEdgeTreatment.Unbounded)
-            )
+            if (style == com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB) {
+                Box(
+                    modifier = Modifier
+                        .requiredSize(orbSize)
+                        .graphicsLayer {
+                            scaleX = breathe * presence; scaleY = breathe * presence
+                            alpha = presenceAlpha
+                            val rad = Math.toRadians(angleA.toDouble())
+                            translationX = (cos(rad) * 70f).toFloat()
+                            translationY = (sin(rad) * 70f).toFloat()
+                        }
+                        .background(softGradient(orbA.copy(alpha = 1f)), CircleShape)
+                        .blur(46.dp, BlurredEdgeTreatment.Unbounded)
+                )
+                Box(
+                    modifier = Modifier
+                        .requiredSize(orbSize * 0.85f)
+                        .graphicsLayer {
+                            scaleX = breathe * presence; scaleY = breathe * presence
+                            alpha = presenceAlpha
+                            val rad = Math.toRadians(angleB.toDouble())
+                            translationX = (cos(rad) * 65f).toFloat()
+                            translationY = (sin(rad) * 65f).toFloat()
+                        }
+                        .background(softGradient(orbB.copy(alpha = 1f)), CircleShape)
+                        .blur(46.dp, BlurredEdgeTreatment.Unbounded)
+                )
+            } else if (style == com.savoo.scclient.data.repository.PlayerBackgroundStyle.BLURRED_ARTWORK) {
+                // Deliberately bounded (not requiredSize + Unbounded like the orb glow above): an
+                // overflowing blurred layer here would transiently clip on every recomposition that
+                // reflows this BoxWithConstraints (track change, lyrics toggle, seeking). Staying
+                // within the box's own bounds sidesteps that entirely, at the cost of the blur not
+                // bleeding past the artwork's edges.
+                Crossfade(
+                    targetState = artworkUrl,
+                    animationSpec = tween(500, easing = FastOutSlowInEasing),
+                    label = "blurredBackdrop",
+                ) { url ->
+                    TrackArtwork(
+                        artworkUrl = url,
+                        contentDescription = null,
+                        shape = blobShape,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = presenceAlpha * 0.55f }
+                            .blur(36.dp),
+                    )
+                }
+            }
             TrackArtwork(
                 artworkUrl = artworkUrl,
                 contentDescription = null,

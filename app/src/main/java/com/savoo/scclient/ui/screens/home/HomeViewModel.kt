@@ -111,6 +111,9 @@ class HomeViewModel @Inject constructor(
     val mixDiscoveryEnabled = settingsRepository.settings.map { it.mixDiscoveryEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val homeSections = settingsRepository.settings.map { it.homeSections }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.DefaultHomeSections)
+
     private val _preferredArtistIds = MutableStateFlow<Set<Long>>(emptySet())
     val preferredArtistIds = _preferredArtistIds.asStateFlow()
 

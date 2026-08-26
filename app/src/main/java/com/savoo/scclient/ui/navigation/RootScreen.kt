@@ -50,6 +50,7 @@ import com.savoo.scclient.ui.screens.offline.OfflineTracksScreen
 import com.savoo.scclient.ui.screens.player.PlayerSheet
 import com.savoo.scclient.ui.screens.playlist.PlaylistScreen
 import com.savoo.scclient.ui.screens.search.SearchScreen
+import com.savoo.scclient.ui.screens.settings.CustomizationScreen
 import com.savoo.scclient.ui.screens.settings.SettingsScreen
 import com.savoo.scclient.ui.screens.settings.UpdateCheckHost
 import com.savoo.scclient.ui.screens.stats.StatisticsScreen
@@ -246,7 +247,11 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                             onBack = { navController.popBackStack() },
                             onOpenDebugMenu = { navController.navigate(Screen.DebugMenu.route) },
                             onOpenDislikedArtists = { navController.navigate(Screen.DislikedArtists.route) },
+                            onOpenCustomization = { navController.navigate(Screen.Customization.route) },
                         )
+                    }
+                    composable(Screen.Customization.route) {
+                        CustomizationScreen(onBack = { navController.popBackStack() })
                     }
                     composable(Screen.DebugMenu.route) {
                         DebugMenuScreen(onBack = { navController.popBackStack() })

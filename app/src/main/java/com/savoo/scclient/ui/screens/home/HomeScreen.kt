@@ -112,6 +112,7 @@ fun HomeScreen(
     val mixTracks by viewModel.mixTracks.collectAsState()
     val mixDataLoading by viewModel.isMixLoading.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val homeSections by viewModel.homeSections.collectAsState()
     val haptics = rememberHaptics()
 
     var recentTracks by remember { mutableStateOf(viewModel.playerController.getRecentTracks()) }
@@ -171,69 +172,73 @@ fun HomeScreen(
             Spacer(Modifier.height(32.dp))
 
             AnimatedSections(visible = sectionsVisible) {
-                if (recentTracks.isNotEmpty()) {
-                    TrackSection(
-                        title = stringResource(R.string.home_section_jump_back_in),
-                        tracks = recentTracks.take(10),
-                        playerState = playerState,
-                        onTrackClick = { track ->
-                            if (playerState.currentTrack?.id == track.id) {
-                                viewModel.playerController.togglePlayPause()
-                            } else {
-                                viewModel.playFrom(recentTracks, track.id, tag = "recent")
-                            }
-                        },
-                    )
-                }
+                homeSections.filter { it.visible }.forEach { config ->
+                    when (config.section) {
+                        com.savoo.scclient.data.repository.HomeSection.JUMP_BACK_IN -> if (recentTracks.isNotEmpty()) {
+                            TrackSection(
+                                title = stringResource(R.string.home_section_jump_back_in),
+                                tracks = recentTracks.take(10),
+                                playerState = playerState,
+                                onTrackClick = { track ->
+                                    if (playerState.currentTrack?.id == track.id) {
+                                        viewModel.playerController.togglePlayPause()
+                                    } else {
+                                        viewModel.playFrom(recentTracks, track.id, tag = "recent")
+                                    }
+                                },
+                            )
+                        }
 
-                if (favoriteTracks.isNotEmpty()) {
-                    TrackSection(
-                        title = stringResource(R.string.home_section_favorites),
-                        tracks = favoriteTracks.take(10),
-                        playerState = playerState,
-                        onSeeAll = onFavorites,
-                        onTrackClick = { track ->
-                            if (playerState.currentTrack?.id == track.id) {
-                                viewModel.playerController.togglePlayPause()
-                            } else {
-                                viewModel.playFrom(favoriteTracks, track.id, tag = "favorites")
-                            }
-                        },
-                    )
-                }
+                        com.savoo.scclient.data.repository.HomeSection.FAVORITES -> if (favoriteTracks.isNotEmpty()) {
+                            TrackSection(
+                                title = stringResource(R.string.home_section_favorites),
+                                tracks = favoriteTracks.take(10),
+                                playerState = playerState,
+                                onSeeAll = onFavorites,
+                                onTrackClick = { track ->
+                                    if (playerState.currentTrack?.id == track.id) {
+                                        viewModel.playerController.togglePlayPause()
+                                    } else {
+                                        viewModel.playFrom(favoriteTracks, track.id, tag = "favorites")
+                                    }
+                                },
+                            )
+                        }
 
-                if (offlineTracks.isNotEmpty()) {
-                    TrackSection(
-                        title = stringResource(R.string.home_section_offline),
-                        tracks = offlineTracks.take(10),
-                        playerState = playerState,
-                        onSeeAll = onOfflineTracks,
-                        onTrackClick = { track ->
-                            if (playerState.currentTrack?.id == track.id) {
-                                viewModel.playerController.togglePlayPause()
-                            } else {
-                                viewModel.playFrom(offlineTracks, track.id, tag = "offline")
-                            }
-                        },
-                    )
-                }
+                        com.savoo.scclient.data.repository.HomeSection.OFFLINE -> if (offlineTracks.isNotEmpty()) {
+                            TrackSection(
+                                title = stringResource(R.string.home_section_offline),
+                                tracks = offlineTracks.take(10),
+                                playerState = playerState,
+                                onSeeAll = onOfflineTracks,
+                                onTrackClick = { track ->
+                                    if (playerState.currentTrack?.id == track.id) {
+                                        viewModel.playerController.togglePlayPause()
+                                    } else {
+                                        viewModel.playFrom(offlineTracks, track.id, tag = "offline")
+                                    }
+                                },
+                            )
+                        }
 
-                if (favoriteArtists.isNotEmpty()) {
-                    ArtistSection(
-                        title = stringResource(R.string.home_section_artists),
-                        artists = favoriteArtists.take(10),
-                        onArtistClick = onArtistClick,
-                        onSeeAll = onFavoriteArtists,
-                    )
-                }
+                        com.savoo.scclient.data.repository.HomeSection.ARTISTS -> if (favoriteArtists.isNotEmpty()) {
+                            ArtistSection(
+                                title = stringResource(R.string.home_section_artists),
+                                artists = favoriteArtists.take(10),
+                                onArtistClick = onArtistClick,
+                                onSeeAll = onFavoriteArtists,
+                            )
+                        }
 
-                if (favoritePlaylists.isNotEmpty()) {
-                    PlaylistSection(
-                        title = stringResource(R.string.home_section_playlists),
-                        playlists = favoritePlaylists.take(10),
-                        onPlaylistClick = onPlaylistClick,
-                        onSeeAll = onFavoritePlaylists,
-                    )
+                        com.savoo.scclient.data.repository.HomeSection.PLAYLISTS -> if (favoritePlaylists.isNotEmpty()) {
+                            PlaylistSection(
+                                title = stringResource(R.string.home_section_playlists),
+                                playlists = favoritePlaylists.take(10),
+                                onPlaylistClick = onPlaylistClick,
+                                onSeeAll = onFavoritePlaylists,
+                            )
+                        }
+                    }
                 }
             }
 

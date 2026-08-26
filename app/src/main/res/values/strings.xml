@@ -201,7 +201,18 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
+    <string name="settings_customization">Customization</string>
     <string name="settings_color_theme">Color Theme</string>
+    <string name="settings_custom_color">Custom color</string>
+    <string name="settings_custom_color_hue">Hue</string>
+    <string name="settings_custom_color_saturation">Saturation</string>
+    <string name="settings_custom_color_brightness">Brightness</string>
+    <string name="settings_home_sections">Home Sections</string>
+    <string name="settings_home_sections_desc">Choose which sections appear on Home, and in what order.</string>
+    <string name="settings_player_background">Player background</string>
+    <string name="settings_player_background_orb">Orb</string>
+    <string name="settings_player_background_blurred">Blurred</string>
+    <string name="settings_player_background_minimal">Minimal</string>
     <string name="settings_app_icon">App Icon</string>
     <string name="settings_app_icon_normal">Normal</string>
     <string name="settings_app_icon_dynamic">Dynamic</string>
