@@ -625,7 +625,7 @@
         <div class="sidebar-group">
             <div class="sidebar-group-title"><span class="t-en">Authentication</span><span class="t-ru">Аутентификация</span></div>
             <a href="#client-id"><span class="t-en">client_id</span><span class="t-ru">client_id</span></a>
-            <a href="#oauth"><span class="t-en">OAuth token</span><span class="t-ru">OAuth токен</span></a>
+            <a href="#oauth"><span class="t-en">Token capture</span><span class="t-ru">Перехват токена</span></a>
             <a href="#headers"><span class="t-en">Request headers</span><span class="t-ru">Заголовки запроса</span></a>
         </div>
         <div class="sidebar-group">
@@ -713,30 +713,11 @@
         </section>
 
         <section class="doc-section" id="oauth">
-            <h2><span class="material-symbols-rounded">lock</span><span class="t-en">OAuth token</span><span class="t-ru">OAuth токен</span></h2>
+            <h2><span class="material-symbols-rounded">lock</span><span class="t-en">Token capture</span><span class="t-ru">Перехват токена</span></h2>
             <p class="t-en">A subset of endpoints act on behalf of a logged-in user (the current profile, private likes, liking or unliking a track). These require an <code class="inline">Authorization: OAuth &lt;token&gt;</code> header in addition to <code class="inline">client_id</code>.</p>
             <p class="t-ru">Часть эндпоинтов действует от имени вошедшего пользователя (текущий профиль, приватные лайки, лайк/анлайк трека). Для них нужен заголовок <code class="inline">Authorization: OAuth &lt;token&gt;</code> в дополнение к <code class="inline">client_id</code>.</p>
-            <p class="t-en">Resona supports two ways of obtaining a token:</p>
-            <p class="t-ru">Resona поддерживает два способа получить токен:</p>
-            <ul>
-                <li class="t-en"><strong>Standard authorization code flow</strong>, authorize URL <code class="inline">https://secure.soundcloud.com/authorize</code>, token URL <code class="inline">https://secure.soundcloud.com/oauth/token</code>, custom redirect scheme <code class="inline">scclient://oauth/callback</code>.</li>
-                <li class="t-ru"><strong>Стандартный authorization code flow</strong>: URL авторизации <code class="inline">https://secure.soundcloud.com/authorize</code>, URL токена <code class="inline">https://secure.soundcloud.com/oauth/token</code>, кастомная redirect-схема <code class="inline">scclient://oauth/callback</code>.</li>
-                <li class="t-en"><strong>WebView capture</strong>: load the real soundcloud.com login in an embedded WebView and read the token out of the page's own <code class="inline">Authorization</code> header (or its <code class="inline">window.__sc_hydration</code> state) once the user signs in. This is needed because write requests such as liking a track are blocked by SoundCloud's bot protection (DataDome) when they come from a bare HTTP client, but pass when they originate from a real browser context.</li>
-                <li class="t-ru"><strong>Перехват через WebView</strong>: открыть настоящую страницу входа soundcloud.com во встроенном WebView и после логина прочитать токен из заголовка <code class="inline">Authorization</code> её собственных запросов (либо из состояния <code class="inline">window.__sc_hydration</code>). Это нужно потому, что запросы на запись, например лайк трека, блокируются защитой от ботов SoundCloud (DataDome), если они идут от голого HTTP-клиента, но проходят, если исходят из настоящего браузерного контекста.</li>
-            </ul>
-            <div class="code-block">
-                <div class="code-block-head"><span>POST secure.soundcloud.com/oauth/token</span><button class="copy-btn" onclick="copyCode(this)"><span class="material-symbols-rounded">content_copy</span><span class="t-en">Copy</span><span class="t-ru">Копировать</span></button></div>
-                <pre><code><span class="tok-key">grant_type</span>=authorization_code&amp;<span class="tok-key">client_id</span>=YOUR_CLIENT_ID&amp;<span class="tok-key">redirect_uri</span>=scclient://oauth/callback&amp;<span class="tok-key">code</span>=AUTH_CODE</code></pre>
-            </div>
-            <div class="code-block">
-                <div class="code-block-head"><span>Response</span></div>
-                <pre><code>{
-  <span class="tok-key">"access_token"</span>: <span class="tok-str">"2-XXXXXXXXX-XXXXXXXXXX-xxxxxxxxxxxxxx"</span>,
-  <span class="tok-key">"refresh_token"</span>: <span class="tok-str">"3-XXXXXXXXX-XXXXXXXXXX-xxxxxxxxxxxxxx"</span>,
-  <span class="tok-key">"expires_in"</span>: <span class="tok-num">3600</span>,
-  <span class="tok-key">"scope"</span>: <span class="tok-str">"non-expiring"</span>
-}</code></pre>
-            </div>
+            <p class="t-en">Resona obtains the token by loading the real soundcloud.com login in an embedded WebView and reading it out of the page's own <code class="inline">Authorization</code> header (or its <code class="inline">window.__sc_hydration</code> state) once the user signs in. Session cookies are captured the same way. This is needed because write requests such as liking a track are blocked by SoundCloud's bot protection (DataDome) when they come from a bare HTTP client, but pass when they originate from a real browser context.</p>
+            <p class="t-ru">Resona получает токен, загружая настоящую страницу входа soundcloud.com во встроенном WebView, и после логина читает его из заголовка <code class="inline">Authorization</code> собственных запросов страницы (либо из состояния <code class="inline">window.__sc_hydration</code>). Cookies сессии перехватываются так же. Это нужно потому, что запросы на запись, например лайк трека, блокируются защитой от ботов SoundCloud (DataDome), если они идут от голого HTTP-клиента, но проходят, если исходят из настоящего браузерного контекста.</p>
         </section>
 
         <section class="doc-section" id="headers">
