@@ -7,9 +7,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -87,6 +92,20 @@ fun StatisticsScreen(
     val totalPlays by viewModel.totalPlays.collectAsState()
     val topArtists by viewModel.topArtists.collectAsState()
     val hasData by viewModel.hasData.collectAsState()
+    var showRankingInfo by remember { mutableStateOf(false) }
+
+    if (showRankingInfo) {
+        AlertDialog(
+            onDismissRequest = { showRankingInfo = false },
+            title = { Text(stringResource(R.string.statistics_top_artists_info_title)) },
+            text = { Text(stringResource(R.string.statistics_top_artists_info_body)) },
+            confirmButton = {
+                TextButton(onClick = { showRankingInfo = false }) {
+                    Text(stringResource(R.string.statistics_top_artists_info_dismiss))
+                }
+            },
+        )
+    }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -112,20 +131,20 @@ fun StatisticsScreen(
             ) {
                 item {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         StatCard(
                             targetValue = (totalMsListened / 60_000L).toInt(),
                             label = stringResource(R.string.statistics_hours_listened),
                             formatValue = { formatListenDuration(it) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                         StatCard(
                             targetValue = totalPlays,
                             label = stringResource(R.string.statistics_total_plays),
                             formatValue = { it.toString() },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
                         )
                     }
                 }
@@ -133,11 +152,25 @@ fun StatisticsScreen(
                 if (topArtists.isNotEmpty()) {
                     item { Spacer(Modifier.height(4.dp)) }
                     item {
-                        Text(
-                            stringResource(R.string.statistics_top_artists),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                stringResource(R.string.statistics_top_artists),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = { showRankingInfo = true }, modifier = Modifier.size(32.dp)) {
+                                Icon(
+                                    Icons.Outlined.Info,
+                                    contentDescription = stringResource(R.string.statistics_top_artists_info_title),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
+                        }
                     }
                     val maxMs = topArtists.first().totalMs.coerceAtLeast(1L)
                     itemsIndexed(topArtists, key = { _, stat -> stat.artistId }) { index, stat ->
