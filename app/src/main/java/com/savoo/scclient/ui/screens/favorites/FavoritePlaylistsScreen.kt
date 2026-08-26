@@ -93,7 +93,7 @@ fun FavoritePlaylistsScreen(
                     AlbumRow(
                         playlist = playlist,
                         onClick = { onPlaylistClick(playlist.id) },
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp).animateItem(),
                     )
                 }
             }

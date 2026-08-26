@@ -1,5 +1,8 @@
 package com.savoo.scclient.ui.screens.stats
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,8 +32,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -109,13 +116,15 @@ fun StatisticsScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         StatCard(
-                            value = formatListenDuration(totalMsListened),
+                            targetValue = (totalMsListened / 60_000L).toInt(),
                             label = stringResource(R.string.statistics_hours_listened),
+                            formatValue = { formatListenDuration(it) },
                             modifier = Modifier.weight(1f),
                         )
                         StatCard(
-                            value = totalPlays.toString(),
+                            targetValue = totalPlays,
                             label = stringResource(R.string.statistics_total_plays),
+                            formatValue = { it.toString() },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -143,7 +152,15 @@ fun StatisticsScreen(
 }
 
 @Composable
-private fun StatCard(value: String, label: String, modifier: Modifier = Modifier) {
+private fun StatCard(targetValue: Int, label: String, formatValue: @Composable (Int) -> String, modifier: Modifier = Modifier) {
+    var animateTo by remember { mutableStateOf(0) }
+    LaunchedEffect(targetValue) { animateTo = targetValue }
+    val animatedValue by animateIntAsState(
+        targetValue = animateTo,
+        animationSpec = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+        label = "statCountUp",
+    )
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
@@ -151,7 +168,7 @@ private fun StatCard(value: String, label: String, modifier: Modifier = Modifier
     ) {
         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp)) {
             Text(
-                value,
+                formatValue(animatedValue),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.primary,
@@ -246,8 +263,7 @@ private fun ArtistStatRow(rank: Int, stat: ArtistListenStat, shareOfMax: Float) 
 }
 
 @Composable
-private fun formatListenDuration(ms: Long): String {
-    val totalMinutes = ms / 60_000L
+private fun formatListenDuration(totalMinutes: Int): String {
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     return if (hours > 0) {

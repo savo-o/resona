@@ -2,6 +2,7 @@ package com.savoo.scclient.ui.screens.search
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -52,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +63,7 @@ import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.R
 import com.savoo.scclient.ui.components.AlbumRow
 import com.savoo.scclient.ui.components.ArtistRow
+import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
 import com.savoo.scclient.ui.components.TrackRow
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 
@@ -81,6 +84,7 @@ fun SearchScreen(
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val history by viewModel.history.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val haptic = rememberHapticTick()
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -114,13 +118,22 @@ fun SearchScreen(
                         .padding(horizontal = 20.dp, vertical = 4.dp),
                     placeholder = { Text(stringResource(R.string.search_hint)) },
                     leadingIcon = {
-                        Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    trailingIcon = {
-                        if (state.query.isNotEmpty()) {
-                            IconButton(onClick = { haptic(); viewModel.onQueryChange("") }) {
-                                Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.search_clear))
-                            }
+                        val hasQuery = state.query.isNotEmpty()
+                        val rotation by animateFloatAsState(
+                            targetValue = if (hasQuery) 180f else 0f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                            label = "searchIconRotation",
+                        )
+                        IconButton(
+                            onClick = { if (hasQuery) { haptic(); viewModel.onQueryChange("") } },
+                            enabled = hasQuery,
+                        ) {
+                            Icon(
+                                imageVector = if (rotation < 90f) Icons.Filled.Search else Icons.Filled.Clear,
+                                contentDescription = if (hasQuery) stringResource(R.string.search_clear) else null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.graphicsLayer { rotationZ = rotation },
+                            )
                         }
                     },
                 )
@@ -160,6 +173,7 @@ fun SearchScreen(
                                 query = query,
                                 onClick = { haptic(); viewModel.selectFromHistory(query) },
                                 onRemove = { haptic(); viewModel.removeHistoryItem(query) },
+                                modifier = Modifier.animateItem(),
                             )
                         }
                     }
@@ -199,6 +213,11 @@ fun SearchScreen(
 
                     Spacer(Modifier.height(4.dp))
 
+                    ExpressivePullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = { haptic(); viewModel.refreshResults() },
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
                     when {
                         state.isLoading || state.isResolvingLink -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             LoadingIndicator()
@@ -254,6 +273,7 @@ fun SearchScreen(
                                             if (isCurrentTrack) viewModel.playerController.togglePlayPause()
                                             else viewModel.playTrack(track)
                                         },
+                                        modifier = Modifier.animateItem(),
                                     )
                                 }
                                 }
@@ -266,6 +286,7 @@ fun SearchScreen(
                                         ArtistRow(
                                             user = user,
                                             onClick = { onArtistClick(user.id) },
+                                            modifier = Modifier.animateItem(),
                                         )
                                     }
                                 }
@@ -278,11 +299,13 @@ fun SearchScreen(
                                         AlbumRow(
                                             playlist = playlist,
                                             onClick = { onPlaylistClick(playlist.id) },
+                                            modifier = Modifier.animateItem(),
                                         )
                                     }
                                 }
                             }
                         }
+                    }
                     }
                 }
             }
@@ -296,10 +319,11 @@ private fun HistoryRow(
     query: String,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface,

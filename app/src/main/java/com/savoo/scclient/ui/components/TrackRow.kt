@@ -47,17 +47,13 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -117,7 +113,7 @@ fun TrackArtwork(
 /** Where a favorited track came from, shown as a small badge on its artwork in the Favorites list. */
 enum class FavoriteSource { LOCAL, ONLINE, BOTH }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TrackRow(
     track: Track,
@@ -303,69 +299,7 @@ fun TrackRow(
         }
     }
 
-    val canSwipeFavorite = onToggleFavorite != null && !selectionActive
-    val canSwipeDownload = onToggleDownload != null && !selectionActive
-    if (canSwipeFavorite || canSwipeDownload) {
-        val dismissState = rememberSwipeToDismissBoxState(
-            confirmValueChange = { value ->
-                when (value) {
-                    SwipeToDismissBoxValue.StartToEnd -> if (canSwipeFavorite) {
-                        haptics.like(); heartAnimating = true; onToggleFavorite?.invoke()
-                    }
-                    SwipeToDismissBoxValue.EndToStart -> if (canSwipeDownload) {
-                        haptics.click(); onToggleDownload?.invoke()
-                    }
-                    SwipeToDismissBoxValue.Settled -> {}
-                }
-                false
-            },
-        )
-        SwipeToDismissBox(
-            state = dismissState,
-            modifier = modifier,
-            enableDismissFromStartToEnd = canSwipeFavorite,
-            enableDismissFromEndToStart = canSwipeDownload,
-            backgroundContent = {
-                val (icon, color, alignment) = when (dismissState.dismissDirection) {
-                    SwipeToDismissBoxValue.StartToEnd -> Triple(
-                        if (isFavorite) Icons.Filled.FavoriteBorder else Icons.Filled.Favorite,
-                        MaterialTheme.colorScheme.primaryContainer,
-                        Alignment.CenterStart,
-                    )
-                    SwipeToDismissBoxValue.EndToStart -> Triple(
-                        if (isDownloaded) Icons.Filled.CloudDone else Icons.Filled.CloudDownload,
-                        MaterialTheme.colorScheme.secondaryContainer,
-                        Alignment.CenterEnd,
-                    )
-                    SwipeToDismissBoxValue.Settled -> Triple(Icons.Filled.Favorite, Color.Transparent, Alignment.Center)
-                }
-                val iconScale by animateFloatAsState(
-                    targetValue = 0.8f + dismissState.progress.coerceIn(0f, 1f) * 0.5f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-                    label = "swipeIconScale",
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(color)
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = alignment,
-                ) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.scale(iconScale),
-                    )
-                }
-            },
-        ) {
-            rowContent()
-        }
-    } else {
-        Box(modifier = modifier) { rowContent() }
-    }
+    Box(modifier = modifier) { rowContent() }
 }
 
 @Composable

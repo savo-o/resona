@@ -24,8 +24,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -103,6 +106,15 @@ private fun DockItem(
         label = "dockPadding",
     )
 
+    var iconBounce by remember { mutableStateOf(false) }
+    LaunchedEffect(selected) { if (selected) iconBounce = true }
+    val iconScale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (iconBounce) 1.3f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+        label = "dockIconBounce",
+        finishedListener = { if (iconBounce) iconBounce = false },
+    )
+
     Row(
         modifier = Modifier
             .scale(pressScale)
@@ -121,7 +133,7 @@ private fun DockItem(
             imageVector = icon,
             contentDescription = if (selected) null else label,
             tint = contentColor,
-            modifier = Modifier.height(22.dp),
+            modifier = Modifier.height(22.dp).scale(iconScale),
         )
         AnimatedVisibility(
             visible = selected,

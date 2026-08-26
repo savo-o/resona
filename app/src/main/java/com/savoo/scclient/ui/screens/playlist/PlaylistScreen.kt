@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -227,11 +228,13 @@ fun PlaylistScreen(
     val playerState by viewModel.playerController.state.collectAsState()
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     var sort by remember { mutableStateOf(TrackSort()) }
+    val listState = rememberLazyListState()
     val selection = rememberTrackSelection()
 
     androidx.compose.runtime.LaunchedEffect(playlistId) {
         viewModel.loadPlaylist(playlistId)
     }
+    androidx.compose.runtime.LaunchedEffect(sort) { listState.animateScrollToItem(0) }
 
     val context = LocalContext.current
     val sortedTracks = state.tracks.applySortOption(sort)
@@ -297,6 +300,7 @@ fun PlaylistScreen(
                 Text("Error: ${state.error}", color = MaterialTheme.colorScheme.error)
             }
             state.playlist != null -> LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(bottom = 100.dp),
             ) {
@@ -337,7 +341,7 @@ fun PlaylistScreen(
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
                     )
                 }
                 if (state.isResolvingTracks) {

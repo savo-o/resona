@@ -76,6 +76,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
 import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.haptics.rememberHaptics
@@ -110,6 +111,7 @@ fun HomeScreen(
     val playerState by viewModel.playerController.state.collectAsState()
     val mixTracks by viewModel.mixTracks.collectAsState()
     val mixDataLoading by viewModel.isMixLoading.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val haptics = rememberHaptics()
 
     var recentTracks by remember { mutableStateOf(viewModel.playerController.getRecentTracks()) }
@@ -129,10 +131,14 @@ fun HomeScreen(
     }
 
     Scaffold { padding ->
+        ExpressivePullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { haptics.tick(); viewModel.refresh() },
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
             HomeTopBar(
@@ -232,6 +238,7 @@ fun HomeScreen(
             }
 
             Spacer(Modifier.height(24.dp))
+        }
         }
     }
 }
@@ -573,6 +580,7 @@ private fun TrackSection(
                     isPlaying = playerState.isPlaying && isCurrentTrack,
                     isLoading = playerState.loadingTrackId == track.id && !isCurrentTrack,
                     onClick = { onTrackClick(track) },
+                    modifier = Modifier.animateItem(),
                 )
             }
         }
@@ -610,6 +618,7 @@ private fun HomeTrackCard(
     isPlaying: Boolean,
     isLoading: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val haptic = rememberHapticTick()
     val interactionSource = remember { MutableInteractionSource() }
@@ -621,7 +630,7 @@ private fun HomeTrackCard(
     )
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(120.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(interactionSource = interactionSource, indication = null) { haptic(); onClick() },
@@ -682,14 +691,18 @@ private fun ArtistSection(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             items(artists, key = { it.artistId }) { artist ->
-                HomeArtistChip(artist = artist, onClick = { onArtistClick(artist.artistId) })
+                HomeArtistChip(
+                    artist = artist,
+                    onClick = { onArtistClick(artist.artistId) },
+                    modifier = Modifier.animateItem(),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HomeArtistChip(artist: FavoriteArtist, onClick: () -> Unit) {
+private fun HomeArtistChip(artist: FavoriteArtist, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val haptic = rememberHapticTick()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -699,7 +712,7 @@ private fun HomeArtistChip(artist: FavoriteArtist, onClick: () -> Unit) {
         label = "artistChipScale",
     )
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(76.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(interactionSource = interactionSource, indication = null) { haptic(); onClick() },
@@ -754,14 +767,18 @@ private fun PlaylistSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(playlists, key = { it.playlistId }) { playlist ->
-                HomePlaylistCard(playlist = playlist, onClick = { onPlaylistClick(playlist.playlistId) })
+                HomePlaylistCard(
+                    playlist = playlist,
+                    onClick = { onPlaylistClick(playlist.playlistId) },
+                    modifier = Modifier.animateItem(),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun HomePlaylistCard(playlist: FavoritePlaylist, onClick: () -> Unit) {
+private fun HomePlaylistCard(playlist: FavoritePlaylist, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val haptic = rememberHapticTick()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -772,7 +789,7 @@ private fun HomePlaylistCard(playlist: FavoritePlaylist, onClick: () -> Unit) {
     )
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(120.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(interactionSource = interactionSource, indication = null) { haptic(); onClick() },

@@ -94,7 +94,7 @@ fun FavoriteArtistsScreen(
                     ArtistRow(
                         user = user,
                         onClick = { onArtistClick(user.id) },
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp).animateItem(),
                     )
                 }
             }

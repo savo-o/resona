@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -221,11 +222,13 @@ fun ArtistScreen(
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     var selectedBadge by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(TrackSort()) }
+    val listState = rememberLazyListState()
     val selection = rememberTrackSelection()
 
     androidx.compose.runtime.LaunchedEffect(userId) {
         viewModel.loadArtist(userId)
     }
+    androidx.compose.runtime.LaunchedEffect(sort) { listState.animateScrollToItem(0) }
 
     val context = LocalContext.current
     val sortedTracks = state.tracks.applySortOption(sort)
@@ -291,6 +294,7 @@ fun ArtistScreen(
                 Text("Error: ${state.error}", color = MaterialTheme.colorScheme.error)
             }
             state.user != null -> LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(bottom = 100.dp),
             ) {
@@ -337,7 +341,7 @@ fun ArtistScreen(
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
                     )
             }
         }

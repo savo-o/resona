@@ -96,6 +96,7 @@ fun DislikedArtistsScreen(
                         DislikedArtistRow(
                             artist = artist,
                             onRemove = { viewModel.removeDislike(artist.artistId) },
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -105,12 +106,12 @@ fun DislikedArtistsScreen(
 }
 
 @Composable
-private fun DislikedArtistRow(artist: ExcludedMixArtist, onRemove: () -> Unit) {
+private fun DislikedArtistRow(artist: ExcludedMixArtist, onRemove: () -> Unit, modifier: Modifier = Modifier) {
     val haptic = rememberHapticTick()
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

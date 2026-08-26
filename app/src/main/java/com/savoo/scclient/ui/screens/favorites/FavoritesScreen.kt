@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -49,6 +50,7 @@ import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.components.EmptyState
+import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
 import com.savoo.scclient.ui.components.FavoriteSource
 import com.savoo.scclient.ui.components.TrackRow
 import com.savoo.scclient.ui.components.TrackSelectionBar
@@ -56,6 +58,7 @@ import com.savoo.scclient.ui.components.TrackSort
 import com.savoo.scclient.ui.components.TrackSortButton
 import com.savoo.scclient.ui.components.applySortOption
 import com.savoo.scclient.ui.components.rememberTrackSelection
+import com.savoo.scclient.ui.haptics.rememberHapticTick
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -112,6 +115,9 @@ class FavoritesViewModel @Inject constructor(
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
     init {
         viewModelScope.launch {
             combine(tokenStore.isLoggedIn, onlineFavoritesEnabled) { loggedIn, enabled -> loggedIn && enabled }
@@ -121,7 +127,9 @@ class FavoritesViewModel @Inject constructor(
     }
 
     fun refreshOnline() {
+        if (!tokenStore.isLoggedIn.value || !onlineFavoritesEnabled.value) return
         viewModelScope.launch {
+            _isRefreshing.value = true
             runCatching { trackRepository.getLikedTracks() }
                 .onSuccess { result ->
                     com.savoo.scclient.debug.DebugLog.log("ResonaFavorites", "fetched ${result.size} online likes")
@@ -131,6 +139,7 @@ class FavoritesViewModel @Inject constructor(
                     com.savoo.scclient.debug.DebugLog.log("ResonaFavorites", "failed to fetch online likes: $e")
                     _message.value = context.getString(R.string.favorites_online_fetch_failed)
                 }
+            _isRefreshing.value = false
         }
     }
 
@@ -197,10 +206,14 @@ fun FavoritesScreen(
     val playerState by viewModel.playerController.state.collectAsState()
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     val message by viewModel.message.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var searchQuery by remember { mutableStateOf("") }
     var sort by remember { mutableStateOf(TrackSort()) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(sort) { listState.animateScrollToItem(0) }
     val selection = rememberTrackSelection()
+    val haptic = rememberHapticTick()
 
     LaunchedEffect(Unit) { viewModel.refreshOnline() }
 
@@ -256,7 +269,12 @@ fun FavoritesScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+        ExpressivePullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { haptic(); viewModel.refreshOnline() },
+            modifier = Modifier.padding(padding),
+        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             if (tracks.isNotEmpty()) {
                 SearchBarDefaults.InputField(
                     query = searchQuery,
@@ -287,6 +305,7 @@ fun FavoritesScreen(
                 )
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
@@ -310,11 +329,12 @@ fun FavoritesScreen(
                             selectionActive = selection.isActive,
                             isSelected = selection.contains(track.id),
                             onLongPress = { selection.toggle(track.id) },
-                            modifier = Modifier.padding(bottom = 8.dp),
+                            modifier = Modifier.padding(bottom = 8.dp).animateItem(),
                         )
                     }
                 }
             }
+        }
         }
     }
 }

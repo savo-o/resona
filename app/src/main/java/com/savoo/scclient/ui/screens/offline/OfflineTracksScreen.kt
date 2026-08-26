@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -195,6 +196,8 @@ fun OfflineTracksScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showWatchedFolders by remember { mutableStateOf(false) }
     var sort by remember { mutableStateOf(TrackSort()) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(sort) { listState.animateScrollToItem(0) }
     val selection = rememberTrackSelection()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -298,6 +301,7 @@ fun OfflineTracksScreen(
                 )
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
@@ -319,7 +323,7 @@ fun OfflineTracksScreen(
                             selectionActive = selection.isActive,
                             isSelected = selection.contains(track.id),
                             onLongPress = { selection.toggle(track.id) },
-                            modifier = Modifier.padding(bottom = 8.dp),
+                            modifier = Modifier.padding(bottom = 8.dp).animateItem(),
                         )
                     }
                 }

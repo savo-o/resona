@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -120,6 +121,9 @@ class HomeViewModel @Inject constructor(
     // instead of the "nothing here yet" empty state while favorites/discovery are still loading.
     private val _isMixLoading = MutableStateFlow(true)
     val isMixLoading = _isMixLoading.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -286,6 +290,30 @@ class HomeViewModel @Inject constructor(
 
     fun unexcludeArtist(artistId: Long) {
         viewModelScope.launch { excludedArtistDao.unexclude(artistId) }
+    }
+
+    /** Pull-to-refresh: re-syncs online likes and rebuilds the mix (fresh discovery pool) without
+     * disturbing whatever's currently playing. */
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            if (tokenStore.isLoggedIn.value) {
+                runCatching { trackRepository.getMe() }.onSuccess { _user.value = it }
+            }
+            if (tokenStore.isLoggedIn.value && settingsRepository.settings.first().onlineFavoritesEnabled) {
+                runCatching { trackRepository.getLikedTracks() }
+                    .onSuccess { favoritesRepository.syncOnlineLikes(it) }
+            }
+            _mixTracks.value = buildMix(
+                favoriteTracks.value,
+                offlineTracks.value,
+                favoriteArtists.value,
+                excludedArtists.value,
+                preferredArtistIds.value,
+                mixDiscoveryEnabled.value,
+            )
+            _isRefreshing.value = false
+        }
     }
 
     fun applyMixPreferencesAndPlay() {

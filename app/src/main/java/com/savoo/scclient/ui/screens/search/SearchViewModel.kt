@@ -68,6 +68,9 @@ class SearchViewModel @Inject constructor(
     private val _navEvent = MutableSharedFlow<SearchNavEvent>()
     val navEvent: SharedFlow<SearchNavEvent> = _navEvent.asSharedFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing = _isRefreshing.asStateFlow()
+
     val history = searchHistory.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val queryFlow = MutableStateFlow("")
@@ -157,6 +160,25 @@ class SearchViewModel @Inject constructor(
             }.onFailure { e ->
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
             }
+        }
+    }
+
+    /** Pull-to-refresh: re-runs the current query without touching [SearchUiState.isLoading], so the
+     * results stay visible under the refresh indicator instead of being swapped for a full-screen spinner. */
+    fun refreshResults() {
+        val query = _uiState.value.query.trim()
+        if (query.isBlank() || isSoundCloudUrl(query)) return
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            runCatching {
+                val tracks = repository.searchTracks(query)
+                val artists = repository.searchUsers(query)
+                val albums = repository.searchPlaylists(query)
+                Triple(tracks, artists, albums)
+            }.onSuccess { (tracks, artists, albums) ->
+                _uiState.value = _uiState.value.copy(tracks = tracks, artists = artists, albums = albums)
+            }
+            _isRefreshing.value = false
         }
     }
 
