@@ -1,6 +1,7 @@
 package com.savoo.scclient.data.remote
 
 import com.savoo.scclient.auth.TokenStore
+import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl
 import okhttp3.Interceptor
 import okhttp3.Response
@@ -41,7 +42,7 @@ class AuthInterceptor @Inject constructor(
 
         if (response.code == 401 || response.code == 403) {
             response.close()
-            val freshClientId = clientIdProvider.cachedOrFallback()
+            val freshClientId = runBlocking { clientIdProvider.refresh() }
             val retried = original.newBuilder()
                 .url(
                     original.url.newBuilder()
