@@ -9,6 +9,7 @@ import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.debug.DebugLog
 import javax.inject.Inject
 import javax.inject.Singleton
+import retrofit2.HttpException
 
 @Singleton
 class TrackRepository @Inject constructor(
@@ -104,11 +105,23 @@ class TrackRepository @Inject constructor(
 
     suspend fun getPlaylist(id: Long): Playlist = api.getPlaylist(id)
 
-    suspend fun resolvePlayableUrl(track: Track): String? {
-        val transcoding = track.media?.transcodings
-            ?.firstOrNull { it.format.protocol == "progressive" }
-            ?: track.media?.transcodings?.firstOrNull()
-            ?: return null
-        return api.resolveStreamUrl(transcoding.url).url
+    data class PlayableStream(val url: String, val isHls: Boolean)
+
+    suspend fun resolvePlayableStream(track: Track): PlayableStream? {
+        val candidates = (track.media?.transcodings ?: return null)
+            .filter { it.format.protocol == "progressive" || it.format.protocol == "hls" }
+            .sortedByDescending { it.format.protocol == "progressive" }
+        var lastNotFound: HttpException? = null
+        for (candidate in candidates) {
+            try {
+                val url = api.resolveStreamUrl(candidate.url).url
+                return PlayableStream(url, isHls = candidate.format.protocol == "hls")
+            } catch (e: HttpException) {
+                if (e.code() != 404) throw e
+                lastNotFound = e
+            }
+        }
+        lastNotFound?.let { throw it }
+        return null
     }
 }

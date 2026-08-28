@@ -259,6 +259,13 @@
     <string name="settings_keep_android_open_desc">Resona supports the Keep Android Open movement, which opposes Google\'s plan to require identity verification for every Android app - including ones installed outside the Play Store. Learn more at keepandroidopen.org.</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %s</string>
+    <string name="settings_eula">EULA</string>
+    <string name="settings_eula_desc">Terms of use</string>
+    <string name="eula_title">EULA</string>
+    <string name="eula_body">Resona is an unofficial, open source app for browsing and playing SoundCloud content. It is not affiliated with, endorsed by, or connected to SoundCloud in any way.\n\nYou use this app at your own risk. It comes with no warranty of any kind. The developer is not responsible for any issues, data loss, or account problems that come from using it.\n\nAll music, artwork, and other content stay the property of their original creators and rightsholders on SoundCloud. Resona does not host or own any of it, it just plays what is already public.\n\nBy using this app, you agree to also follow SoundCloud\'s own terms when interacting with their platform.\n\nResona itself is free and open source under the GPL v3 license. You can read the code, change it, or contribute on GitHub.</string>
+    <string name="eula_gate_checkbox">I have read and agree to the EULA</string>
+    <string name="eula_decline">Decline</string>
+    <string name="eula_agree">Agree and continue</string>
     <string name="settings_debug_menu">Debug Menu</string>
     <string name="settings_debug_menu_desc">Developer tools and diagnostics</string>
     <string name="settings_updates">Updates</string>

@@ -16,7 +16,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.media3.common.util.UnstableApi
-import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
@@ -25,6 +24,7 @@ import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 import com.savoo.scclient.ui.navigation.RootScreen
+import com.savoo.scclient.ui.screens.onboarding.EulaGateScreen
 import com.savoo.scclient.ui.screens.onboarding.OnboardingScreen
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.ui.theme.ResonaTheme
@@ -112,9 +112,17 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val settings by settingsRepository.settings.collectAsState(initial = AppSettings())
+            val settings = settingsRepository.settings.collectAsState(initial = null).value
             val trackSeedColor by playerController.seedColor.collectAsState()
             val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+
+            if (settings == null) {
+                androidx.compose.material3.Surface(
+                    color = if (systemDark) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White,
+                ) {}
+                return@setContent
+            }
+
             val isDark = when (settings.darkMode) {
                 DarkModeOption.SYSTEM -> systemDark
                 DarkModeOption.LIGHT -> false
@@ -146,17 +154,28 @@ class MainActivity : ComponentActivity() {
                     com.savoo.scclient.ui.haptics.LocalHapticsEnabled provides settings.hapticsEnabled,
                     com.savoo.scclient.ui.haptics.LocalHapticsIntensity provides settings.hapticsIntensity,
                 ) {
+                    var eulaDismissed by androidx.compose.runtime.remember { mutableStateOf(false) }
                     var onboardingDismissed by androidx.compose.runtime.remember { mutableStateOf(false) }
-                    if (!settings.onboardingCompleted && !onboardingDismissed) {
-                        val scope = rememberCoroutineScope()
-                        OnboardingScreen(
-                            onFinish = {
-                                onboardingDismissed = true
-                                scope.launch { settingsRepository.setOnboardingCompleted(true) }
-                            },
-                        )
-                    } else {
-                        RootScreen(initialDeepLink = deepLinkTarget)
+                    val scope = rememberCoroutineScope()
+                    when {
+                        !settings.eulaAccepted && !eulaDismissed -> {
+                            EulaGateScreen(
+                                onAccept = {
+                                    eulaDismissed = true
+                                    scope.launch { settingsRepository.setEulaAccepted(true) }
+                                },
+                                onDecline = { finish() },
+                            )
+                        }
+                        !settings.onboardingCompleted && !onboardingDismissed -> {
+                            OnboardingScreen(
+                                onFinish = {
+                                    onboardingDismissed = true
+                                    scope.launch { settingsRepository.setOnboardingCompleted(true) }
+                                },
+                            )
+                        }
+                        else -> RootScreen(initialDeepLink = deepLinkTarget)
                     }
                 }
             }

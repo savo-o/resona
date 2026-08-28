@@ -1,6 +1,7 @@
 package com.savoo.scclient.player
 
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -242,7 +243,7 @@ class PlayerController @Inject constructor(
                     val i = queueIndexOf(mediaId)
                     if (i < 0) return@launch
                     playerCommandMutex.withLock {
-                        controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url))
+                        controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url, resolved.isHls))
                         controller?.let {
                             if (it.currentMediaItem?.mediaId?.toLongOrNull() == mediaId) {
                                 it.seekTo(i, 0L)
@@ -312,7 +313,7 @@ class PlayerController @Inject constructor(
                             if (i < 0) return@launch
 
                             playerCommandMutex.withLock {
-                                controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url))
+                                controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url, resolved.isHls))
 
                                 // Only do this if we're still actually the current item - playback may have moved on to a
                                 // different (possibly still-pending) track while this resolve was in flight. replaceMediaItem
@@ -346,7 +347,7 @@ class PlayerController @Inject constructor(
         }
     }
 
-    private data class ResolvedTrack(val track: Track, val url: String, val needsCaching: Boolean)
+    private data class ResolvedTrack(val track: Track, val url: String, val needsCaching: Boolean, val isHls: Boolean = false)
 
     // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
     // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
@@ -362,12 +363,12 @@ class PlayerController @Inject constructor(
                 if (fullTrack.media == null) {
                     DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
                 }
-                val url = withContext(Dispatchers.IO) {
-                    runCatching { trackRepository.resolvePlayableUrl(fullTrack) }
-                        .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableUrl threw ${it}") }
+                val stream = withContext(Dispatchers.IO) {
+                    runCatching { trackRepository.resolvePlayableStream(fullTrack) }
+                        .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableStream threw ${it}") }
                         .getOrNull()
                 }
-                if (url != null) return ResolvedTrack(fullTrack, url, needsCaching = true)
+                if (stream != null) return ResolvedTrack(fullTrack, stream.url, needsCaching = !stream.isHls, isHls = stream.isHls)
                 if (attempt < attempts - 1) delay(500L * (attempt + 1))
             }
             DebugLog.log(TAG, "resolveTrack GAVE UP after $attempts attempts: id=${track.id} title=${track.title}")
@@ -383,9 +384,10 @@ class PlayerController @Inject constructor(
         controller?.seekToNext()
     }
 
-    private fun buildMediaItem(track: Track, url: String): MediaItem =
+    private fun buildMediaItem(track: Track, url: String, isHls: Boolean = false): MediaItem =
         MediaItem.Builder()
             .setUri(url)
+            .apply { if (isHls) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .setMediaId(track.id.toString())
             .setMediaMetadata(
                 MediaMetadata.Builder()
@@ -452,7 +454,7 @@ class PlayerController @Inject constructor(
                         idx < c.mediaItemCount && runCatching { c.getMediaItemAt(idx).mediaId.toLongOrNull() }.getOrNull() == mediaId
                     } ?: false
                     if (!stillThere) return@withLock
-                    controller?.replaceMediaItem(idx, buildMediaItem(resolved.track, resolved.url))
+                    controller?.replaceMediaItem(idx, buildMediaItem(resolved.track, resolved.url, resolved.isHls))
 
                     // If this neighbour became the current item while we were resolving it, recover it the same way the
                     // reactive path does - see the comment there for why seekTo() is needed, not just prepare().
@@ -747,7 +749,7 @@ class PlayerController @Inject constructor(
                 skipDueToFailure(track)
                 return@launch
             }
-            val (fullTrack, url, needsCaching) = resolved
+            val (fullTrack, url, needsCaching, isHls) = resolved
 
             recentTracks.removeAll { it.id == fullTrack.id }
             recentTracks.add(fullTrack)
@@ -764,7 +766,7 @@ class PlayerController @Inject constructor(
                 queueIndex = index
 
                 val allItems = queue.mapIndexed { i, t ->
-                    if (i == index) buildMediaItem(fullTrack, url) else buildPendingMediaItem(t)
+                    if (i == index) buildMediaItem(fullTrack, url, isHls) else buildPendingMediaItem(t)
                 }
 
                 beginListenSegment(fullTrack)
@@ -886,12 +888,12 @@ class PlayerController @Inject constructor(
             updateQueueState()
             scope.launch {
                 val resolved = resolveTrack(track) ?: return@launch
-                val (fullTrack, url, needsCaching) = resolved
+                val (fullTrack, url, needsCaching, isHls) = resolved
                 beginListenSegment(fullTrack)
                 _state.update { it.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null) }
                 extractSeedColor(fullTrack.artworkUrl)
                 controller?.apply {
-                    setMediaItem(buildMediaItem(fullTrack, url))
+                    setMediaItem(buildMediaItem(fullTrack, url, isHls))
                     prepare()
                     if (position > 0) seekTo(position)
                 }

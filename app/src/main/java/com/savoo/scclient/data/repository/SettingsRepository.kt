@@ -83,6 +83,7 @@ data class AppSettings(
     val hapticsIntensity: HapticsIntensity = HapticsIntensity.MEDIUM,
     val mixDiscoveryEnabled: Boolean = true,
     val onboardingCompleted: Boolean = false,
+    val eulaAccepted: Boolean = false,
     val crossfadeEnabled: Boolean = false,
     val seekBarStyle: SeekBarStyle = SeekBarStyle.WAVY,
     val customSeedColor: Color = OrangeSeed.Primary,
@@ -111,12 +112,16 @@ class SettingsRepository @Inject constructor(
         val HAPTICS_INTENSITY = stringPreferencesKey("haptics_intensity")
         val MIX_DISCOVERY_ENABLED = booleanPreferencesKey("mix_discovery_enabled")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val EULA_ACCEPTED = booleanPreferencesKey("eula_accepted")
         val CROSSFADE_ENABLED = booleanPreferencesKey("crossfade_enabled")
         val SEEK_BAR_STYLE = stringPreferencesKey("seek_bar_style")
         val CUSTOM_SEED_COLOR = intPreferencesKey("custom_seed_color")
         val HOME_SECTIONS = stringPreferencesKey("home_sections")
         val PLAYER_BACKGROUND_STYLE = stringPreferencesKey("player_background_style")
     }
+
+    private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
+        prefs.asMap().keys.any { it.name != Keys.ONBOARDING_COMPLETED.name && it.name != Keys.EULA_ACCEPTED.name }
 
     val settings = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -148,9 +153,8 @@ class SettingsRepository @Inject constructor(
                 runCatching { HapticsIntensity.valueOf(it) }.getOrNull()
             } ?: HapticsIntensity.MEDIUM,
             mixDiscoveryEnabled = prefs[Keys.MIX_DISCOVERY_ENABLED] ?: true,
-            // Missing key means either a fresh install (show onboarding) or an upgrade from a version that
-            // predates this flag (other settings already exist, so treat onboarding as already seen).
-            onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: prefs.asMap().isNotEmpty(),
+            onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: hasPreExistingSettings(prefs),
+            eulaAccepted = prefs[Keys.EULA_ACCEPTED] ?: hasPreExistingSettings(prefs),
             crossfadeEnabled = prefs[Keys.CROSSFADE_ENABLED] ?: false,
             seekBarStyle = prefs[Keys.SEEK_BAR_STYLE]?.let {
                 runCatching { SeekBarStyle.valueOf(it) }.getOrNull()
@@ -231,6 +235,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setOnboardingCompleted(value: Boolean) {
         context.dataStore.edit { it[Keys.ONBOARDING_COMPLETED] = value }
+    }
+
+    suspend fun setEulaAccepted(value: Boolean) {
+        context.dataStore.edit { it[Keys.EULA_ACCEPTED] = value }
     }
 
     suspend fun setCrossfadeEnabled(value: Boolean) {

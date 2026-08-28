@@ -80,10 +80,11 @@ class OfflineTrackManager @Inject constructor(
                 runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
             } else track
 
-            val url = trackRepository.resolvePlayableUrl(fullTrack)
+            val stream = trackRepository.resolvePlayableStream(fullTrack)
                 ?: return@withContext Result.failure(Exception("Cannot resolve track URL"))
+            if (stream.isHls) return@withContext Result.failure(Exception("Track has no downloadable stream"))
 
-            val request = Request.Builder().url(url).build()
+            val request = Request.Builder().url(stream.url).build()
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     return@withContext Result.failure(Exception("Download failed: ${response.code}"))

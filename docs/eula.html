@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>resona_eula</title>
+    <meta name="description" content="Resona EULA and terms of use.">
+    <link rel="icon" type="image/png" href="favicon.png">
+    <script>
+        (function () {
+            var storedTheme = localStorage.getItem('theme');
+            var dark = storedTheme ? storedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+
+            var storedLang = localStorage.getItem('lang');
+            var lang = storedLang ? storedLang : (navigator.language && navigator.language.toLowerCase().indexOf('ru') === 0 ? 'ru' : 'en');
+            document.documentElement.setAttribute('lang', lang);
+            document.documentElement.setAttribute('data-lang', lang);
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300;400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --md-sys-color-primary: #5B5DF0;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-primary-container: #E0DEFF;
+            --md-sys-color-on-primary-container: #1705A3;
+            --md-sys-color-surface: #FFFBFF;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-on-surface-variant: #49454E;
+            --md-sys-color-surface-container-low: #F7F2FA;
+            --md-sys-color-surface-container-high: #ECE6EF;
+            --md-sys-color-surface-container-highest: #E6E0E9;
+            --md-sys-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --md-sys-motion-emphasized: cubic-bezier(0.2, 0, 0, 1);
+        }
+
+        [data-theme="dark"] {
+            --md-sys-color-primary: #C3C1FF;
+            --md-sys-color-on-primary: #2700C3;
+            --md-sys-color-primary-container: #3F3DC4;
+            --md-sys-color-on-primary-container: #E0DEFF;
+            --md-sys-color-surface: #141218;
+            --md-sys-color-on-surface: #E6E0E9;
+            --md-sys-color-on-surface-variant: #CAC4D0;
+            --md-sys-color-surface-container-low: #1D1B20;
+            --md-sys-color-surface-container-high: #2B2930;
+            --md-sys-color-surface-container-highest: #36343B;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        html[data-lang="en"] .t-ru { display: none !important; }
+        html[data-lang="ru"] .t-en { display: none !important; }
+
+        body {
+            font-family: 'Google Sans Flex', system-ui, -apple-system, sans-serif;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            line-height: 1.6;
+        }
+
+        a { color: var(--md-sys-color-primary); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        .material-symbols-rounded {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        nav {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 100;
+            border-bottom: 1px solid var(--md-sys-color-surface-container-highest);
+            padding: 0 20px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .nav-brand img {
+            width: 32px;
+            height: 32px;
+            border-radius: 30% 70% 65% 35% / 40% 35% 65% 60%;
+            transition: border-radius 0.6s var(--md-sys-motion-spring);
+        }
+
+        .nav-brand:hover img { border-radius: 50%; }
+        .nav-brand span { font-weight: 600; font-size: 19px; letter-spacing: -0.4px; }
+
+        .nav-links { display: flex; gap: 6px; align-items: center; }
+
+        .nav-links a.nav-item {
+            text-decoration: none;
+            color: var(--md-sys-color-on-surface-variant);
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-links a.nav-item:hover {
+            background: var(--md-sys-color-surface-container-high);
+            color: var(--md-sys-color-on-surface);
+        }
+
+        .lang-switch {
+            display: flex;
+            background: var(--md-sys-color-surface-container-high);
+            border-radius: 100px;
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .lang-switch button {
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface-variant);
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            padding: 6px 11px;
+            border-radius: 100px;
+            cursor: pointer;
+            transition: all 0.25s var(--md-sys-motion-emphasized);
+        }
+
+        .lang-switch button.active {
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+        }
+
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface-variant);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, border-radius 0.35s var(--md-sys-motion-spring);
+        }
+
+        .icon-btn:hover { background: var(--md-sys-color-surface-container-high); border-radius: 14px; }
+        .icon-btn:active { transform: scale(0.88); }
+        .icon-btn .material-symbols-rounded { font-size: 22px; }
+
+        main {
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 128px 24px 100px;
+        }
+
+        h1 {
+            font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+            font-size: clamp(32px, 5vw, 44px);
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            margin-bottom: 28px;
+        }
+
+        main p {
+            font-size: 16px;
+            color: var(--md-sys-color-on-surface-variant);
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+
+        .updated {
+            font-size: 13px;
+            color: var(--md-sys-color-on-surface-variant);
+            margin-bottom: 32px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 32px 24px 48px;
+            font-size: 13px;
+            color: var(--md-sys-color-on-surface-variant);
+        }
+
+        @media (max-width: 480px) {
+            .nav-brand span { display: none; }
+            main { padding: 108px 20px 72px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="http://savo-o.github.io/resona/index.html" class="nav-brand">
+        <img src="logo.png" alt="Resona">
+        <span>Resona</span>
+    </a>
+    <div class="nav-links">
+        <a href="index.html" class="nav-item">
+            <span class="t-en">Home</span><span class="t-ru">Главная</span>
+        </a>
+        <a href="api.html" class="nav-item">
+            <span class="t-en">API Docs</span><span class="t-ru">API</span>
+        </a>
+        <div class="lang-switch">
+            <button id="langEnBtn" onclick="setLang('en')">EN</button>
+            <button id="langRuBtn" onclick="setLang('ru')">RU</button>
+        </div>
+        <button class="icon-btn" onclick="toggleTheme()" ondblclick="event.preventDefault(); resetTheme()" aria-label="Toggle theme">
+            <span class="material-symbols-rounded" id="themeIcon">dark_mode</span>
+        </button>
+    </div>
+</nav>
+
+<main>
+    <h1><span class="t-en">EULA</span><span class="t-ru">Пользовательское соглашение</span></h1>
+    <p class="updated"><span class="t-en">Last updated August 2026</span><span class="t-ru">Обновлено в августе 2026</span></p>
+
+    <p class="t-en">Resona is an unofficial, open source app for browsing and playing SoundCloud content. It is not affiliated with, endorsed by, or connected to SoundCloud in any way.</p>
+    <p class="t-ru">Resona это неофициальное приложение с открытым кодом для прослушивания SoundCloud. Оно никак не связано с самим SoundCloud, не одобрено им и не имеет к нему отношения.</p>
+
+    <p class="t-en">You use this app at your own risk. It comes with no warranty of any kind. The developer is not responsible for any issues, data loss, or account problems that come from using it.</p>
+    <p class="t-ru">Вы используете приложение на свой страх и риск. Никаких гарантий оно не даёт. Разработчик не несёт ответственности за проблемы, потерю данных или что-то, что случится с вашим аккаунтом SoundCloud из-за использования приложения.</p>
+
+    <p class="t-en">All music, artwork, and other content stay the property of their original creators and rightsholders on SoundCloud. Resona does not host or own any of it, it just plays what is already public.</p>
+    <p class="t-ru">Вся музыка, обложки и остальной контент остаются собственностью их авторов и правообладателей на SoundCloud. Resona ничего не хранит и не считает своим, а просто проигрывает то, что и так доступно публично.</p>
+
+    <p class="t-en">By using this app, you agree to also follow SoundCloud's own terms when interacting with their platform.</p>
+    <p class="t-ru">Используя приложение, вы соглашаетесь также соблюдать условия использования самого SoundCloud.</p>
+
+    <p class="t-en">Resona itself is free and open source under the <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3</a> license. You can read the code, change it, or contribute on <a href="https://github.com/savo-o/resona" target="_blank">GitHub</a>.</p>
+    <p class="t-ru">Сама Resona бесплатна и распространяется с открытым кодом по лицензии <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3</a>. Код можно посмотреть, изменить или предложить свои правки на <a href="https://github.com/savo-o/resona" target="_blank">GitHub</a>.</p>
+</main>
+
+<footer>
+    <p>&copy; Resona</p>
+</footer>
+
+<script>
+    function toggleTheme() {
+        const root = document.documentElement;
+        const icon = document.getElementById('themeIcon');
+        if (root.getAttribute('data-theme') === 'dark') {
+            root.removeAttribute('data-theme');
+            icon.textContent = 'dark_mode';
+            localStorage.setItem('theme', 'light');
+        } else {
+            root.setAttribute('data-theme', 'dark');
+            icon.textContent = 'light_mode';
+            localStorage.setItem('theme', 'dark');
+        }
+    }
+
+    function resetTheme() {
+        localStorage.removeItem('theme');
+        const root = document.documentElement;
+        const icon = document.getElementById('themeIcon');
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            root.setAttribute('data-theme', 'dark');
+            icon.textContent = 'light_mode';
+        } else {
+            root.removeAttribute('data-theme');
+            icon.textContent = 'dark_mode';
+        }
+    }
+
+    if (document.documentElement.getAttribute('data-theme') === 'dark') {
+        document.getElementById('themeIcon').textContent = 'light_mode';
+    }
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            const root = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (e.matches) {
+                root.setAttribute('data-theme', 'dark');
+                icon.textContent = 'light_mode';
+            } else {
+                root.removeAttribute('data-theme');
+                icon.textContent = 'dark_mode';
+            }
+        }
+    });
+
+    function setLang(lang) {
+        document.documentElement.setAttribute('lang', lang);
+        document.documentElement.setAttribute('data-lang', lang);
+        localStorage.setItem('lang', lang);
+        syncLangButtons();
+    }
+
+    function syncLangButtons() {
+        const lang = document.documentElement.getAttribute('data-lang');
+        document.getElementById('langEnBtn').classList.toggle('active', lang === 'en');
+        document.getElementById('langRuBtn').classList.toggle('active', lang === 'ru');
+    }
+    syncLangButtons();
+</script>
+</body>
+</html>

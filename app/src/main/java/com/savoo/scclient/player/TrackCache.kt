@@ -190,9 +190,10 @@ class TrackCache @Inject constructor(
                 val fullTrack = if (track.media == null) {
                     runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
                 } else track
-                val url = runCatching { trackRepository.resolvePlayableUrl(fullTrack) }.getOrNull()
+                val stream = runCatching { trackRepository.resolvePlayableStream(fullTrack) }.getOrNull()
                     ?: return@launch
-                cacheAudioFile(fullTrack, url)
+                if (stream.isHls) return@launch
+                cacheAudioFile(fullTrack, stream.url)
             }
         }
     }
