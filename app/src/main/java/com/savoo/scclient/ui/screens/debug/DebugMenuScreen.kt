@@ -68,7 +68,9 @@ import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.debug.DebugLog
+import com.savoo.scclient.debug.ScreenshotModeState
 import com.savoo.scclient.player.OfflineTrackManager
+import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.screens.home.GreetingDebugState
 import com.savoo.scclient.ui.screens.home.GreetingPeriod
 import com.savoo.scclient.ui.screens.home.greetingIndexForDate
@@ -79,7 +81,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -90,6 +95,7 @@ class DebugMenuViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val offlineTrackManager: OfflineTrackManager,
     private val database: AppDatabase,
+    private val playerController: PlayerController,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -97,6 +103,35 @@ class DebugMenuViewModel @Inject constructor(
     val verboseNetworkLogging = DebugLog.verboseNetworkLogging
 
     fun setVerboseNetworkLogging(enabled: Boolean) = DebugLog.setVerboseNetworkLogging(enabled)
+
+    val screenshotModeEnabled = ScreenshotModeState.enabled
+
+    fun setScreenshotMode(enabled: Boolean) {
+        ScreenshotModeState.setEnabled(enabled)
+        clearImageCache()
+    }
+
+    @OptIn(coil.annotation.ExperimentalCoilApi::class)
+    fun clearImageCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val loader = coil.Coil.imageLoader(context)
+            loader.memoryCache?.clear()
+            loader.diskCache?.clear()
+        }
+    }
+
+    val playerStateSnapshot = combine(playerController.state, playerController.queueEntries) { state, queue ->
+        buildString {
+            appendLine("Track: ${state.currentTrack?.title ?: "none"} (id=${state.currentTrack?.id ?: "-"})")
+            appendLine("Playing: ${state.isPlaying}  Buffering: ${state.isBuffering}")
+            appendLine("Position: ${state.positionMs}ms / ${state.durationMs}ms")
+            appendLine("Queue tag: ${state.queueTag ?: "-"}  index: ${state.queueIndex} / ${queue.size}")
+            appendLine("Loading track id: ${state.loadingTrackId ?: "-"}")
+            appendLine("Shuffle: ${state.shuffleEnabled}  Repeat mode: ${state.repeatMode}")
+            appendLine("Has next: ${state.hasNext}  Has prev: ${state.hasPrev}")
+            append("Retrying network: ${state.isRetryingNetwork}")
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
     val greetingOverridePeriod = GreetingDebugState.overridePeriod
     val greetingOverrideIndex = GreetingDebugState.overrideIndex
@@ -222,6 +257,8 @@ fun DebugMenuScreen(
     val offlineTracks by viewModel.offlineTracks.collectAsState()
     val traceEntries by viewModel.traceEntries.collectAsState()
     val verboseNetworkLogging by viewModel.verboseNetworkLogging.collectAsState()
+    val screenshotModeEnabled by viewModel.screenshotModeEnabled.collectAsState()
+    val playerStateSnapshot by viewModel.playerStateSnapshot.collectAsState()
     val greetingOverridePeriod by viewModel.greetingOverridePeriod.collectAsState()
     val greetingOverrideIndex by viewModel.greetingOverrideIndex.collectAsState()
     var clientIdOverride by remember { mutableStateOf("") }
@@ -397,6 +434,33 @@ fun DebugMenuScreen(
                 }
             }
 
+            DebugSectionCard(title = stringResource(R.string.debug_menu_screenshot_mode)) {
+                Text(
+                    stringResource(R.string.debug_menu_screenshot_mode_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.debug_menu_screenshot_mode_toggle),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = screenshotModeEnabled, onCheckedChange = { viewModel.setScreenshotMode(it) })
+                }
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = {
+                    viewModel.clearImageCache()
+                    scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.debug_menu_screenshot_mode_cache_cleared)) }
+                }) {
+                    Text(stringResource(R.string.debug_menu_screenshot_mode_clear_cache))
+                }
+            }
+
             DebugSectionCard(title = stringResource(R.string.debug_menu_greetings)) {
                 val activePeriod = greetingOverridePeriod ?: greetingPeriodForHour(LocalTime.now().hour)
                 val phrases = stringArrayResource(activePeriod.arrayRes)
@@ -455,6 +519,29 @@ fun DebugMenuScreen(
                 Spacer(Modifier.height(10.dp))
                 TextButton(onClick = { viewModel.clearGreetingOverride() }) {
                     Text(stringResource(R.string.debug_menu_greetings_clear))
+                }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_menu_player_state)) {
+                Text(
+                    stringResource(R.string.debug_menu_player_state_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                ) {
+                    SelectionContainer {
+                        Text(
+                            playerStateSnapshot,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(10.dp),
+                        )
+                    }
                 }
             }
 

@@ -39,6 +39,8 @@ import androidx.navigation.navArgument
 import com.savoo.scclient.R
 import com.savoo.scclient.ui.screens.account.AccountScreen
 import com.savoo.scclient.ui.screens.artist.ArtistScreen
+import com.savoo.scclient.ui.screens.charts.ChartsScreen
+import com.savoo.scclient.ui.screens.debug.CrashReportHost
 import com.savoo.scclient.ui.screens.debug.DebugMenuScreen
 import com.savoo.scclient.ui.screens.disliked.DislikedArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoriteArtistsScreen
@@ -140,6 +142,7 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
     }
 
     UpdateCheckHost()
+    CrashReportHost()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -264,6 +267,35 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     }
                     composable(Screen.OfflineTracks.route) {
                         OfflineTracksScreen(onBack = { navController.popBackStack() })
+                    }
+                    composable(
+                        route = Screen.Charts.route,
+                        enterTransition = {
+                            slideInHorizontally(
+                                initialOffsetX = { it },
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+                            ) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
+                        },
+                        exitTransition = {
+                            slideOutHorizontally(
+                                targetOffsetX = { -it / 3 },
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+                            ) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
+                        },
+                        popEnterTransition = {
+                            slideInHorizontally(
+                                initialOffsetX = { -it / 3 },
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+                            ) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
+                        },
+                        popExitTransition = {
+                            slideOutHorizontally(
+                                targetOffsetX = { it },
+                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
+                            ) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
+                        },
+                    ) {
+                        ChartsScreen(onBack = { navController.popBackStack() })
                     }
                     composable(
                         route = Screen.Artist.route,

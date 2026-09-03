@@ -105,6 +105,9 @@ class TrackRepository @Inject constructor(
 
     suspend fun getPlaylist(id: Long): Playlist = api.getPlaylist(id)
 
+    suspend fun getCharts(limit: Int = 50): List<Track> =
+        api.getCharts(kind = "trending", genre = "soundcloud:genres:all-music", limit = limit).collection.map { it.track }
+
     data class PlayableStream(val url: String, val isHls: Boolean)
 
     suspend fun resolvePlayableStream(track: Track): PlayableStream? {

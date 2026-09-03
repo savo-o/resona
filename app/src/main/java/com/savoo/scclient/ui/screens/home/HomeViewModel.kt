@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.OfflineTrack
+import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.repository.FavoritesRepository
@@ -36,6 +38,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.ln
+import kotlin.math.pow
+import kotlin.random.Random
 import javax.inject.Inject
 
 private fun FavoriteTrack.toTrack() = Track(
@@ -45,6 +50,7 @@ private fun FavoriteTrack.toTrack() = Track(
     artworkUrl = artworkUrl,
     user = User(id = userId, username = username, avatarUrl = userAvatarUrl),
     permalinkUrl = permalinkUrl,
+    genre = genre,
 )
 
 private fun OfflineTrack.toTrack() = Track(
@@ -54,6 +60,7 @@ private fun OfflineTrack.toTrack() = Track(
     artworkUrl = artworkUrl,
     user = User(id = userId, username = username, avatarUrl = userAvatarUrl),
     permalinkUrl = permalinkUrl,
+    genre = genre,
 )
 
 @HiltViewModel
@@ -62,6 +69,7 @@ class HomeViewModel @Inject constructor(
     favoritesDao: FavoritesDao,
     offlineTrackManager: OfflineTrackManager,
     private val excludedArtistDao: ExcludedArtistDao,
+    private val playHistoryDao: PlayHistoryDao,
     private val tokenStore: TokenStore,
     private val trackRepository: TrackRepository,
     private val favoritesRepository: FavoritesRepository,
@@ -197,6 +205,9 @@ class HomeViewModel @Inject constructor(
         preferredArtistIds: Set<Long>,
         discoveryEnabled: Boolean,
     ): List<Track> = withContext(Dispatchers.IO) {
+        val affinity = runCatching { computeAffinity(playHistoryDao.recentEvents(AFFINITY_EVENT_LIMIT)) }
+            .getOrElse { Affinity(emptyMap(), emptyMap()) }
+
         val excludedArtistIds = excludedArtists.mapTo(HashSet()) { it.artistId }
         val excludedNamesLower = excludedArtists.map { it.username.trim().lowercase() }.filter { it.isNotEmpty() }
         fun isExcluded(track: Track): Boolean =
@@ -213,7 +224,7 @@ class HomeViewModel @Inject constructor(
         android.util.Log.d(TAG, "buildMix: favorites=${favorites.size} offline=${offline.size} favoriteArtists=${artists.size} knownArtistIds=${knownArtistIds.size} excluded=${excludedArtistIds.size} preferred=${preferredArtistIds.size} discovery=$discoveryEnabled")
 
         if (!discoveryEnabled) {
-            return@withContext if (localPool.isEmpty()) emptyList() else localPool.shuffled()
+            return@withContext if (localPool.isEmpty()) emptyList() else weightedSample(localPool, localPool.size) { affinity.trackWeight(it) }
         }
 
         // "Discovery": pull a few tracks from artists the user already likes that aren't in their
@@ -230,7 +241,7 @@ class HomeViewModel @Inject constructor(
         // as long as that single call took (seen in the wild taking 10+ seconds) since they ran one
         // after another. A timed-out artist just contributes no discovery tracks this round.
         val discovery = coroutineScope {
-            discoveryArtistPool.shuffled().take(8).map { artistId ->
+            weightedSample(discoveryArtistPool, DISCOVERY_ARTIST_SAMPLE) { artistId -> affinity.artistWeight(artistId) }.map { artistId ->
                 async {
                     val artistTracks = runCatching {
                         withTimeoutOrNull(ARTIST_FETCH_TIMEOUT_MS) { trackRepository.getUserTracksPage(artistId) }
@@ -245,16 +256,78 @@ class HomeViewModel @Inject constructor(
                         .take(5)
                 }
             }.awaitAll()
-        }.flatten().distinctBy { it.id }.take(30)
+        }.flatten().distinctBy { it.id }.take(DISCOVERY_TRACK_CAP)
         android.util.Log.d(TAG, "buildMix: discovery=${discovery.size} localPool=${localPool.size}")
 
-        val pool = (localPool.shuffled() + discovery).distinctBy { it.id }
-        if (pool.isEmpty()) emptyList() else pool.shuffled()
+        // Capped so a large favorites/downloads library can't drown out discovery by sheer count -
+        // without this, a user with hundreds of local tracks would get a mix that's still ~90% local
+        // regardless of how discovery/affinity weighting is tuned.
+        val cappedLocalPool = if (localPool.size > MAX_LOCAL_POOL_TRACKS) {
+            weightedSample(localPool, MAX_LOCAL_POOL_TRACKS) { affinity.trackWeight(it) }
+        } else {
+            localPool
+        }
+        val pool = (cappedLocalPool.shuffled() + discovery).distinctBy { it.id }
+        if (pool.isEmpty()) emptyList() else weightedSample(pool, pool.size) { affinity.trackWeight(it) }
+    }
+
+    private data class Affinity(
+        val artistScore: Map<Long, Double>,
+        val genreScore: Map<String, Double>,
+    ) {
+        private val maxArtistScore = artistScore.values.maxOrNull() ?: 0.0
+        private val maxGenreScore = genreScore.values.maxOrNull() ?: 0.0
+
+        fun artistWeight(artistId: Long): Double =
+            1.0 + (if (maxArtistScore > 0) (artistScore[artistId] ?: 0.0) / maxArtistScore else 0.0)
+
+        fun trackWeight(track: Track): Double {
+            val artistPart = if (maxArtistScore > 0) (artistScore[track.user.id] ?: 0.0) / maxArtistScore else 0.0
+            val genrePart = if (maxGenreScore > 0) (genreScore[track.genre] ?: 0.0) / maxGenreScore else 0.0
+            return 1.0 + artistPart + GENRE_WEIGHT * genrePart
+        }
+    }
+
+    private fun computeAffinity(events: List<PlayEvent>): Affinity {
+        val now = System.currentTimeMillis()
+        val artistScore = HashMap<Long, Double>()
+        val genreScore = HashMap<String, Double>()
+        for (event in events) {
+            val daysAgo = (now - event.playedAt).coerceAtLeast(0L) / 86_400_000.0
+            val weight = event.msPlayed * 0.5.pow(daysAgo / RECENCY_HALF_LIFE_DAYS)
+            artistScore[event.artistId] = (artistScore[event.artistId] ?: 0.0) + weight
+            val genre = event.genre
+            if (!genre.isNullOrBlank()) {
+                genreScore[genre] = (genreScore[genre] ?: 0.0) + weight
+            }
+        }
+        return Affinity(artistScore, genreScore)
+    }
+
+    /** Weighted sampling without replacement: higher [weightOf] means more likely to be picked
+     * earlier, but every item can still appear - keeps the mix feeling like radio, not a ranked list. */
+    private fun <T> weightedSample(items: List<T>, count: Int, weightOf: (T) -> Double): List<T> {
+        if (items.isEmpty()) return emptyList()
+        return items
+            .map { item ->
+                val weight = weightOf(item).coerceAtLeast(0.0) + 0.01
+                val u = Random.nextDouble().coerceAtLeast(1e-12)
+                item to ln(u) / weight
+            }
+            .sortedByDescending { it.second }
+            .take(count.coerceAtMost(items.size))
+            .map { it.first }
     }
 
     companion object {
         private const val TAG = "HomeViewModel"
         private const val ARTIST_FETCH_TIMEOUT_MS = 5000L
+        private const val AFFINITY_EVENT_LIMIT = 500
+        private const val RECENCY_HALF_LIFE_DAYS = 14.0
+        private const val GENRE_WEIGHT = 0.3
+        private const val DISCOVERY_ARTIST_SAMPLE = 14
+        private const val DISCOVERY_TRACK_CAP = 45
+        private const val MAX_LOCAL_POOL_TRACKS = 40
 
         // Lets the hero Play button tell "the mix is the queue that's actually active" apart from
         // "the current track merely happens to also be somewhere in the mix's pool" - those aren't the

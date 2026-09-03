@@ -33,4 +33,7 @@ interface PlayHistoryDao {
         LIMIT :limit
     """)
     fun topArtists(limit: Int = 10): Flow<List<ArtistListenStat>>
+
+    @Query("SELECT * FROM play_history ORDER BY playedAt DESC LIMIT :limit")
+    suspend fun recentEvents(limit: Int = 500): List<PlayEvent>
 }

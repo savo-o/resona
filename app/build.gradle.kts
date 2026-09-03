@@ -24,8 +24,8 @@ android {
         targetSdk = 35
         // Canary CI builds override this via -PappVersionCode so each nightly build's
         // BuildConfig.VERSION_CODE keeps increasing without editing this file every run.
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 10
-        versionName = "1.2"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 11
+        versionName = "1.3"
 
         buildConfigField("String", "SC_CLIENT_ID_FALLBACK", "\"\"")
         // BETA Telegram import: get these at https://my.telegram.org/apps and put them in local.properties
@@ -122,6 +122,7 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
+    implementation(libs.jsoup)
 
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)
@@ -136,6 +137,7 @@ dependencies {
 
     implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("androidx.compose.ui:ui-text-google-fonts:1.6.0")
+    implementation("sh.calvin.reorderable:reorderable:3.1.0")
 
     implementation(libs.datastore.preferences)
     implementation(libs.security.crypto)

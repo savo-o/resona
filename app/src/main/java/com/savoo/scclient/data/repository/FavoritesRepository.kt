@@ -109,6 +109,7 @@ class FavoritesRepository @Inject constructor(
         userId = user.id,
         userAvatarUrl = user.avatarUrl,
         source = source,
+        genre = genre,
     )
 
     companion object {

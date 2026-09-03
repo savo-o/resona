@@ -17,4 +17,5 @@ data class FavoriteTrack(
     // "LOCAL" (favorited only in-app), "ONLINE" (mirrors a SoundCloud like, not separately
     // favorited locally), or "BOTH". See FavoriteSource in ui/components/TrackRow.kt.
     val source: String = "LOCAL",
+    val genre: String? = null,
 )

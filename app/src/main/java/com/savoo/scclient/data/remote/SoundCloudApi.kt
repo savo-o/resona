@@ -1,5 +1,6 @@
 package com.savoo.scclient.data.remote
 
+import com.savoo.scclient.data.model.ChartItem
 import com.savoo.scclient.data.model.LikeItem
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.SearchResponse
@@ -79,4 +80,12 @@ interface SoundCloudApi {
 
     @GET("playlists/{id}")
     suspend fun getPlaylist(@Path("id") id: Long): Playlist
+
+    @GET("charts")
+    suspend fun getCharts(
+        @Query("kind") kind: String,
+        @Query("genre") genre: String,
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0,
+    ): SearchResponse<ChartItem>
 }

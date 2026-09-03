@@ -51,11 +51,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Remove
@@ -66,6 +69,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -131,10 +135,11 @@ import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
 import android.content.Intent
 import com.savoo.scclient.R
-import com.savoo.scclient.data.model.LyricsLine
+import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.player.PlaybackState
+import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.components.TrackArtwork
@@ -252,6 +257,7 @@ fun PlayerSheet(
 
     if (showFullPlayer && track != null) {
         FullPlayerSheet(
+            controller = viewModel.controller,
             state = state,
             isFavorite = viewModel.isFavorite.collectAsState().value,
             isOffline = viewModel.isOffline.collectAsState().value,
@@ -285,6 +291,7 @@ fun PlayerSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FullPlayerSheet(
+    controller: PlayerController,
     state: PlaybackState,
     isFavorite: Boolean,
     isOffline: Boolean,
@@ -293,7 +300,7 @@ private fun FullPlayerSheet(
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
     backgroundStyle: com.savoo.scclient.data.repository.PlayerBackgroundStyle,
-    lyrics: List<LyricsLine>?,
+    lyrics: LyricsResult?,
     activeLyricsLine: Int,
     lyricsOffsetMs: Long,
     onAdjustLyricsOffset: (Long) -> Unit,
@@ -323,6 +330,7 @@ private fun FullPlayerSheet(
         dragHandle = null,
     ) {
         FullPlayerContent(
+            controller = controller,
             state = state,
             isFavorite = isFavorite,
             isOffline = isOffline,
@@ -583,6 +591,7 @@ private fun MiniPlayerRow(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun FullPlayerContent(
+    controller: PlayerController,
     state: PlaybackState,
     isFavorite: Boolean,
     isOffline: Boolean,
@@ -591,7 +600,7 @@ private fun FullPlayerContent(
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
     backgroundStyle: com.savoo.scclient.data.repository.PlayerBackgroundStyle,
-    lyrics: List<LyricsLine>?,
+    lyrics: LyricsResult?,
     activeLyricsLine: Int,
     lyricsOffsetMs: Long,
     onAdjustLyricsOffset: (Long) -> Unit,
@@ -615,6 +624,10 @@ private fun FullPlayerContent(
     val haptic = rememberHapticTick()
     val haptics = rememberHaptics()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
+    var showSleepTimer by remember { mutableStateOf(false) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
+    val sleepTimerRemainingMs by controller.sleepTimerRemainingMs.collectAsState()
     var isDragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
     var lastSeekTickSecond by remember { mutableStateOf(-1L) }
@@ -690,22 +703,54 @@ private fun FullPlayerContent(
                         tint = if (showLyrics) accent else palette.on,
                     )
                 }
-                IconButton(onClick = {
-                    haptic()
-                    state.currentTrack?.permalinkUrl?.let { url ->
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, url)
-                        }
-                        context.startActivity(Intent.createChooser(intent, null))
+                Box {
+                    IconButton(onClick = { haptic(); showOverflowMenu = true }) {
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.player_more_options),
+                            modifier = Modifier.size(24.dp),
+                            tint = if (sleepTimerRemainingMs != null) accent else palette.on,
+                        )
                     }
-                }) {
-                    Icon(
-                        Icons.Filled.Share,
-                        contentDescription = stringResource(R.string.player_share),
-                        modifier = Modifier.size(24.dp),
-                        tint = palette.on,
-                    )
+                    DropdownMenu(
+                        expanded = showOverflowMenu,
+                        onDismissRequest = { showOverflowMenu = false },
+                        shape = RoundedCornerShape(28.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shadowElevation = 8.dp,
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            ExpressiveMenuItem(
+                                icon = Icons.Filled.Bedtime,
+                                label = stringResource(R.string.player_sleep_timer),
+                                active = sleepTimerRemainingMs != null,
+                                onClick = { haptic(); showOverflowMenu = false; showSleepTimer = true },
+                            )
+                            ExpressiveMenuItem(
+                                icon = Icons.AutoMirrored.Filled.QueueMusic,
+                                label = stringResource(R.string.player_queue),
+                                onClick = { haptic(); showOverflowMenu = false; showQueue = true },
+                            )
+                            ExpressiveMenuItem(
+                                icon = Icons.Filled.Share,
+                                label = stringResource(R.string.player_share),
+                                onClick = {
+                                    haptic()
+                                    showOverflowMenu = false
+                                    state.currentTrack?.permalinkUrl?.let { url ->
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, url)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, null))
+                                    }
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -717,7 +762,7 @@ private fun FullPlayerContent(
         ) { lyricsMode ->
             if (lyricsMode) {
                 LyricsView(
-                    lines = lyrics,
+                    result = lyrics,
                     activeIndex = activeLyricsLine,
                     onSeek = onSeek,
                     offsetMs = lyricsOffsetMs,
@@ -1020,6 +1065,13 @@ private fun FullPlayerContent(
             }
         }
     }
+
+    if (showSleepTimer) {
+        SleepTimerSheet(controller = controller, onDismiss = { showSleepTimer = false })
+    }
+    if (showQueue) {
+        QueueSheet(controller = controller, onDismiss = { showQueue = false })
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1083,6 +1135,46 @@ private fun WavySeekTrack(
                 cap = StrokeCap.Round,
             )
         }
+    }
+}
+
+@Composable
+private fun ExpressiveMenuItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    active: Boolean = false,
+) {
+    val haptic = rememberHapticTick()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable { haptic(); onClick() }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -1269,7 +1361,7 @@ private fun ArtworkOrb(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LyricsView(
-    lines: List<LyricsLine>?,
+    result: LyricsResult?,
     activeIndex: Int,
     onSeek: (Long) -> Unit,
     offsetMs: Long,
@@ -1279,16 +1371,35 @@ private fun LyricsView(
 ) {
     val palette = rememberPlayerPalette()
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        when {
-            lines == null -> LoadingIndicator(color = accent)
-            lines.isEmpty() -> Text(
-                stringResource(R.string.player_lyrics_not_found),
+        when (result) {
+            null -> LoadingIndicator(color = accent)
+            LyricsResult.NotFound -> Text(
+                stringResource(R.string.player_lyrics_none_found),
                 style = MaterialTheme.typography.bodyMedium,
                 color = palette.onMuted,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 32.dp),
             )
-            else -> {
+            is LyricsResult.Plain -> Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    result.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = palette.on,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 24.dp),
+                )
+                Text(
+                    stringResource(R.string.player_lyrics_source, result.source),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.onMuted,
+                    modifier = Modifier.padding(bottom = 24.dp),
+                )
+            }
+            is LyricsResult.Synced -> {
+                val lines = result.lines
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val listState = rememberLazyListState()
                     val viewportPx = with(LocalDensity.current) { maxHeight.toPx() }
@@ -1424,7 +1535,7 @@ private fun LyricsLineItem(
 }
 
 @Composable
-private fun playingFromSource(queueTag: String?, artistName: String): String = when {
+internal fun playingFromSource(queueTag: String?, artistName: String): String = when {
     queueTag == null -> artistName
     queueTag == "home_mix" -> stringResource(R.string.player_source_mix)
     queueTag == "favorites" -> stringResource(R.string.player_source_favorites)

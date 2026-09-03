@@ -6,7 +6,7 @@ import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.ExcludedMixArtist
-import com.savoo.scclient.data.model.LyricsLine
+import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.LyricsRepository
 import com.savoo.scclient.data.repository.SeekBarStyle
@@ -56,7 +56,7 @@ class PlayerViewModel @Inject constructor(
         .flatMapLatest { track ->
             flow {
                 emit(null)
-                if (track != null) emit(lyricsRepository.getSyncedLyrics(track))
+                if (track != null) emit(lyricsRepository.getLyrics(track))
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -70,7 +70,8 @@ class PlayerViewModel @Inject constructor(
     val playerBackgroundStyle = settingsRepository.settings.map { it.playerBackgroundStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB)
 
-    val activeLyricsLine = combine(controller.state, lyrics, lyricsOffsetMs) { state, lines, offsetMs ->
+    val activeLyricsLine = combine(controller.state, lyrics, lyricsOffsetMs) { state, result, offsetMs ->
+        val lines = (result as? LyricsResult.Synced)?.lines
         if (lines.isNullOrEmpty()) -1
         else lines.indexOfLast { it.timeMs <= state.positionMs + 200 + offsetMs }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), -1)

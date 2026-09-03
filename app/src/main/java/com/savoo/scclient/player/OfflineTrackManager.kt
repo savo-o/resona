@@ -71,6 +71,7 @@ class OfflineTrackManager @Inject constructor(
                         userAvatarUrl = track.user.avatarUrl,
                         localPath = audioFile.absolutePath,
                         fileSizeBytes = audioFile.length(),
+                        genre = track.genre,
                     )
                 )
                 return@withContext Result.success(Unit)
@@ -125,6 +126,7 @@ class OfflineTrackManager @Inject constructor(
                         userAvatarUrl = track.user.avatarUrl,
                         localPath = audioFile.absolutePath,
                         fileSizeBytes = audioFile.length(),
+                        genre = track.genre,
                     )
                 )
                 DebugLog.log("OfflineTrack", "Saved ${track.title} (${audioFile.length()} bytes)")

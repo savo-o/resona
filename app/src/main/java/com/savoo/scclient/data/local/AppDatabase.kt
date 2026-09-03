@@ -10,13 +10,14 @@ import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.data.model.LyricsCacheEntity
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.TelegramImportRecord
 
 @Database(
-    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class],
-    version = 8,
+    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class, LyricsCacheEntity::class],
+    version = 10,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
@@ -24,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun telegramImportDao(): TelegramImportDao
     abstract fun playHistoryDao(): PlayHistoryDao
     abstract fun excludedArtistDao(): ExcludedArtistDao
+    abstract fun lyricsCacheDao(): LyricsCacheDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -150,9 +152,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE play_history ADD COLUMN genre TEXT")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN genre TEXT")
+                db.execSQL("ALTER TABLE offline_tracks ADD COLUMN genre TEXT")
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS lyrics_cache (
+                        trackId INTEGER NOT NULL,
+                        provider TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        content TEXT,
+                        source TEXT,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY(trackId, provider)
+                    )
+                """)
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .build()
     }
 }

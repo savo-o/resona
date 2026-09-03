@@ -13,4 +13,5 @@ data class PlayEvent(
     val artworkUrl: String?,
     val msPlayed: Long,
     val playedAt: Long,
+    val genre: String? = null,
 )

@@ -71,6 +71,12 @@
     <string name="home_section_artists">Ваши исполнители</string>
     <string name="home_section_playlists">Избранные альбомы</string>
     <string name="home_action_statistics">Статистика</string>
+    <string name="home_action_charts">Чарты</string>
+    <string name="charts_title">Чарты</string>
+    <string name="charts_subtitle">Новое и популярное · Вся музыка</string>
+    <string name="charts_play_all">Слушать всё</string>
+    <string name="charts_empty">Пока нет данных чарта</string>
+    <string name="charts_error">Не удалось загрузить чарт. Потяните вниз, чтобы повторить.</string>
 
     <!-- Mix customizer -->
     <string name="mix_customizer_title">Кого хотите послушать сегодня?</string>
@@ -145,7 +151,8 @@
     <string name="player_shuffle">Перемешать</string>
     <string name="player_repeat">Повтор</string>
     <string name="player_lyrics">Текст песни</string>
-    <string name="player_lyrics_not_found">Синхронизированный текст для этого трека не найден</string>
+    <string name="player_lyrics_none_found">Текст для этого трека не найден</string>
+    <string name="player_lyrics_source">Текст с %s</string>
     <string name="player_lyrics_offset_earlier">Сдвинуть текст раньше</string>
     <string name="player_lyrics_offset_later">Сдвинуть текст позже</string>
     <string name="player_playing_from">Играет из: %1$s</string>
@@ -155,6 +162,13 @@
     <string name="player_source_search">Поиск</string>
     <string name="player_exclude_artist">Не рекомендовать этого исполнителя</string>
     <string name="player_exclude_artist_short">Не рекомендовать исполнителя</string>
+    <string name="player_more_options">Ещё</string>
+    <string name="player_sleep_timer">Таймер сна</string>
+    <string name="player_sleep_timer_minutes_format">%d мин</string>
+    <string name="player_sleep_timer_active_format">Выключится через %s</string>
+    <string name="player_sleep_timer_cancel">Отключить</string>
+    <string name="player_queue">Очередь</string>
+    <string name="player_queue_remove">Убрать из очереди</string>
 
     <!-- Search tabs -->
     <string name="tab_tracks">Треки</string>
@@ -233,6 +247,8 @@
     <string name="settings_lyrics_provider_lrclib">LRCLIB</string>
     <string name="settings_lyrics_provider_kugou">Kugou</string>
     <string name="settings_lyrics_provider_desc">LRCLIB - источник по умолчанию, приоритетный и наиболее надёжный. Kugou экспериментальный и очень нестабильный, включайте только если знаете зачем.</string>
+    <string name="settings_lyrics_genius_fallback">Несинхронизированный текст с Genius</string>
+    <string name="settings_lyrics_genius_fallback_desc">Если синхронизированный текст не найден, искать обычный текст через неофициальный поиск Genius вместо пустого экрана</string>
     <string name="settings_haptics">Тактильный отклик</string>
     <string name="settings_haptics_desc">Вибрация при нажатиях и действиях</string>
     <string name="settings_haptics_intensity">Сила вибрации</string>
@@ -284,6 +300,9 @@
     <string name="update_dialog_title_canary">Доступна новая Canary-сборка</string>
     <string name="update_dialog_message_canary">Доступна более новая Canary-сборка.</string>
     <string name="update_dialog_later">Позже</string>
+    <string name="crash_dialog_title">Resona упало в прошлый раз</string>
+    <string name="crash_dialog_message">Вот что удалось зафиксировать перед сбоем. Можно скопировать это как отчёт об ошибке.</string>
+    <string name="crash_dialog_dismiss">Закрыть</string>
     <string name="update_dialog_open_github">Открыть GitHub</string>
 
     <!-- Debug Menu -->
@@ -315,6 +334,13 @@
     <string name="debug_menu_diagnostics">Диагностика</string>
     <string name="debug_menu_verbose_network">Подробный лог сети</string>
     <string name="debug_menu_verbose_network_desc">Пишет полные тела запросов/ответов в лог трассировки ниже</string>
+    <string name="debug_menu_screenshot_mode">Режим скриншотов</string>
+    <string name="debug_menu_screenshot_mode_toggle">Скрыть обложки и аватары</string>
+    <string name="debug_menu_screenshot_mode_desc">Заменяет обложки треков, плейлистов и артистов заглушками по всему приложению, чтобы на скриншотах не было чужих обложек. После включения перейдите на нужный экран заново, чтобы изменения применились.</string>
+    <string name="debug_menu_screenshot_mode_clear_cache">Очистить кэш изображений</string>
+    <string name="debug_menu_screenshot_mode_cache_cleared">Кэш изображений очищен</string>
+    <string name="debug_menu_player_state">Состояние плеера</string>
+    <string name="debug_menu_player_state_desc">Живой снимок PlayerController — полезно при отладке проблем с миксом и очередью</string>
     <string name="debug_menu_trace">Лог трассировки</string>
     <string name="debug_menu_trace_desc">Последние события приложения (вход, синхронизация избранного, сеть)</string>
     <string name="debug_menu_trace_empty">Записей пока нет</string>

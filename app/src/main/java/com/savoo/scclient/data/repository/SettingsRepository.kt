@@ -75,6 +75,7 @@ data class AppSettings(
     // provider - positive shifts lines later, negative earlier. Some tracks' data is simply off by a fixed amount.
     val lyricsOffsetMs: Long = 0L,
     val lyricsProvider: LyricsProvider = LyricsProvider.LRCLIB,
+    val geniusFallbackEnabled: Boolean = true,
     val onlineFavoritesEnabled: Boolean = false,
     val updateChannel: UpdateChannel = UpdateChannel.RELEASE,
     val autoCheckUpdates: Boolean = true,
@@ -104,6 +105,7 @@ class SettingsRepository @Inject constructor(
         val LANGUAGE = stringPreferencesKey("language")
         val LYRICS_OFFSET_MS = longPreferencesKey("lyrics_offset_ms")
         val LYRICS_PROVIDER = stringPreferencesKey("lyrics_provider")
+        val GENIUS_FALLBACK_ENABLED = booleanPreferencesKey("genius_fallback_enabled")
         val ONLINE_FAVORITES_ENABLED = booleanPreferencesKey("online_favorites_enabled")
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
@@ -140,6 +142,7 @@ class SettingsRepository @Inject constructor(
             lyricsProvider = prefs[Keys.LYRICS_PROVIDER]?.let {
                 runCatching { LyricsProvider.valueOf(it) }.getOrNull()
             } ?: LyricsProvider.LRCLIB,
+            geniusFallbackEnabled = prefs[Keys.GENIUS_FALLBACK_ENABLED] ?: true,
             onlineFavoritesEnabled = prefs[Keys.ONLINE_FAVORITES_ENABLED] ?: false,
             updateChannel = prefs[Keys.UPDATE_CHANNEL]?.let {
                 runCatching { UpdateChannel.valueOf(it) }.getOrNull()
@@ -203,6 +206,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setLyricsProvider(provider: LyricsProvider) {
         context.dataStore.edit { it[Keys.LYRICS_PROVIDER] = provider.name }
+    }
+
+    suspend fun setGeniusFallbackEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.GENIUS_FALLBACK_ENABLED] = value }
     }
 
     suspend fun setOnlineFavoritesEnabled(value: Boolean) {

@@ -73,6 +73,12 @@ data class TokenResponse(
 )
 
 @JsonClass(generateAdapter = true)
+data class ChartItem(
+    val score: Double? = null,
+    @Json(name = "track") val track: Track = Track(id = 0),
+)
+
+@JsonClass(generateAdapter = true)
 data class Playlist(
     val id: Long,
     val title: String,

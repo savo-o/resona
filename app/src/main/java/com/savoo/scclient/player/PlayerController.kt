@@ -65,7 +65,17 @@ data class PlaybackState(
     // (the two look the same if you only check track membership, but they're not: e.g. a track played
     // from Jump Back In can also be part of the mix's pool without the mix itself being what's active).
     val queueTag: String? = null,
+    // Index into the current queue, kept separate from currentTrack.id because a queue can legitimately
+    // hold the same track id twice (playlists do this) - the id alone can't disambiguate which copy is
+    // actually playing, which the Queue screen needs to highlight the right row.
+    val queueIndex: Int = -1,
 )
+
+// Wraps a Track with a synthetic id that's stable for the life of this queue slot (assigned once, when
+// the entry is added) and untouched by later moves/removes - unlike Track.id, which a queue can hold
+// duplicates of (playlists do this), a QueueEntry.id always identifies exactly one slot, which is what
+// the Queue screen's drag-to-reorder needs for smooth, uninterrupted dragging across list positions.
+data class QueueEntry(val id: Long, val track: Track)
 
 @UnstableApi
 @Singleton
@@ -87,7 +97,13 @@ class PlayerController @Inject constructor(
     val seedColor = _seedColor.asStateFlow()
     private val _skippedTrackEvents = MutableSharedFlow<Track>(extraBufferCapacity = 1)
     val skippedTrackEvents = _skippedTrackEvents.asSharedFlow()
-    private val queue = mutableListOf<Track>()
+    private val _queueEntries = MutableStateFlow<List<QueueEntry>>(emptyList())
+    val queueEntries = _queueEntries.asStateFlow()
+    private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
+    val sleepTimerRemainingMs = _sleepTimerRemainingMs.asStateFlow()
+    private var sleepTimerJob: kotlinx.coroutines.Job? = null
+    private val queue = mutableListOf<QueueEntry>()
+    private var nextQueueEntryId = 0L
     private var queueIndex = -1
     private var currentQueueTag: String? = null
     private var playRequestId = 0L
@@ -96,7 +112,7 @@ class PlayerController @Inject constructor(
     // shuffleModeEnabled - replaceMediaItem() turned out to internally remove+reinsert the period, which mutates
     // ExoPlayer's own shuffle order as a side effect, so "previous" could land somewhere unexpected after any
     // background resolve had happened. Keeping native shuffle permanently off avoids that entirely.
-    private val originalOrder = mutableListOf<Track>()
+    private val originalOrder = mutableListOf<QueueEntry>()
     private val recentTracks = mutableListOf<Track>()
     private val prefs = context.getSharedPreferences("player_state", Context.MODE_PRIVATE)
     private val errorRetryCount = mutableMapOf<Long, Int>()
@@ -118,6 +134,7 @@ class PlayerController @Inject constructor(
     private var listenArtistId: Long = 0L
     private var listenArtistName: String = ""
     private var listenArtworkUrl: String? = null
+    private var listenGenre: String? = null
     private var listenAccumulatedMs: Long = 0L
     private var listenSegmentStartRealtime: Long? = null
     private val minListenMsToRecord = 5_000L
@@ -142,15 +159,18 @@ class PlayerController @Inject constructor(
     private fun isPending(mediaItem: MediaItem?): Boolean =
         mediaItem?.localConfiguration?.uri?.scheme == PENDING_SCHEME
 
+    private fun wrap(track: Track): QueueEntry = QueueEntry(nextQueueEntryId++, track)
+    private fun wrapAll(tracks: List<Track>): List<QueueEntry> = tracks.map { wrap(it) }
+
     // A queue can legitimately hold the same track twice (playlists do this), so a plain indexOf/find
     // by value would resolve every duplicate to the first copy and swap the URL onto the wrong window.
     // When the id being looked up is what's playing right now, the player's own index is authoritative.
     private fun queueIndexOf(mediaId: Long): Int {
         controller?.let { c ->
             val current = c.currentMediaItemIndex
-            if (current in queue.indices && queue[current].id == mediaId) return current
+            if (current in queue.indices && queue[current].track.id == mediaId) return current
         }
-        return queue.indexOfFirst { it.id == mediaId }
+        return queue.indexOfFirst { it.track.id == mediaId }
     }
 
     init {
@@ -217,7 +237,7 @@ class PlayerController @Inject constructor(
             if (mediaId in resolvingMediaIds) return // an in-flight resolution will prepare()/play() or skip once it finishes
             val attempts = (errorRetryCount[mediaId] ?: 0) + 1
             errorRetryCount[mediaId] = attempts
-            val track = queue.find { it.id == mediaId }
+            val track = queue.find { it.track.id == mediaId }?.track
             if (attempts > 2) {
                 DebugLog.log(TAG, "Giving up on track $mediaId after $attempts failed attempts, skipping")
                 errorRetryCount.remove(mediaId)
@@ -268,7 +288,7 @@ class PlayerController @Inject constructor(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val mediaId = mediaItem?.mediaId?.toLongOrNull() ?: return
-            val track = queue.firstOrNull { it.id == mediaId }
+            val track = queue.firstOrNull { it.track.id == mediaId }?.track
             DebugLog.log(TAG, "onMediaItemTransition: id=$mediaId title=${track?.title} reason=$reason pending=${isPending(mediaItem)} queueIndex(before)=$queueIndex")
             if (track != null) {
                 val idx = queueIndexOf(mediaId)
@@ -434,8 +454,8 @@ class PlayerController @Inject constructor(
         DebugLog.log(TAG, "preload resolve start: id=$mediaId")
         scope.launch {
             try {
-                val track = queue.getOrNull(preloadIndex)?.takeIf { it.id == mediaId }
-                    ?: queue.firstOrNull { it.id == mediaId }
+                val track = queue.getOrNull(preloadIndex)?.track?.takeIf { it.id == mediaId }
+                    ?: queue.firstOrNull { it.track.id == mediaId }?.track
                     ?: return@launch
                 val resolved = resolveTrack(track, reportProgress = false)
                 if (resolved == null) {
@@ -446,7 +466,7 @@ class PlayerController @Inject constructor(
 
                 // The queue may have been reordered (shuffle) or rebuilt while this was resolving, so the
                 // index we prefetched for can now hold a different track - only replace if it still matches.
-                val idx = preloadIndex.takeIf { queue.getOrNull(it)?.id == mediaId } ?: queueIndexOf(mediaId)
+                val idx = preloadIndex.takeIf { queue.getOrNull(it)?.track?.id == mediaId } ?: queueIndexOf(mediaId)
                 if (idx < 0) return@launch
 
                 playerCommandMutex.withLock {
@@ -522,6 +542,7 @@ class PlayerController @Inject constructor(
         listenArtistId = track.user.id
         listenArtistName = track.user.username
         listenArtworkUrl = track.artworkUrl
+        listenGenre = track.genre
         listenAccumulatedMs = 0L
         listenSegmentStartRealtime = if (controller?.isPlaying == true) System.currentTimeMillis() else null
     }
@@ -551,6 +572,7 @@ class PlayerController @Inject constructor(
                 artworkUrl = listenArtworkUrl,
                 msPlayed = ms,
                 playedAt = System.currentTimeMillis(),
+                genre = listenGenre,
             )
             scope.launch(Dispatchers.IO) { runCatching { playHistoryDao.insert(event) } }
         }
@@ -578,9 +600,9 @@ class PlayerController @Inject constructor(
     fun play(track: Track) {
         currentQueueTag = null
         _state.update { it.copy(loadingTrackId = track.id) }
-        val idx = queue.indexOfFirst { it.id == track.id }
+        val idx = queue.indexOfFirst { it.track.id == track.id }
         val idxForThisTrack = if (idx >= 0) idx else {
-            queue.add(track)
+            queue.add(wrap(track))
             queue.lastIndex
         }
         queueIndex = idxForThisTrack
@@ -605,24 +627,25 @@ class PlayerController @Inject constructor(
         // but this queue played in order, and turning shuffle off would jump back to the old queue's
         // tracks. Re-shuffle the new queue up front instead, same as toggleShuffle()'s own algorithm.
         if (_state.value.shuffleEnabled) {
-            val startTrack = tracks[clampedStart]
+            val wrapped = wrapAll(tracks)
+            val startEntry = wrapped[clampedStart]
             originalOrder.clear()
-            originalOrder.addAll(tracks)
-            val rest = tracks.filterIndexed { i, _ -> i != clampedStart }.shuffled()
+            originalOrder.addAll(wrapped)
+            val rest = wrapped.filterIndexed { i, _ -> i != clampedStart }.shuffled()
             queue.clear()
-            queue.add(startTrack)
+            queue.add(startEntry)
             queue.addAll(rest)
             queueIndex = 0
         } else {
             originalOrder.clear()
             queue.clear()
-            queue.addAll(tracks)
+            queue.addAll(wrapAll(tracks))
             queueIndex = clampedStart
         }
 
-        _state.update { it.copy(loadingTrackId = queue[queueIndex].id) }
+        _state.update { it.copy(loadingTrackId = queue[queueIndex].track.id) }
         updateQueueState()
-        doPlay(queue[queueIndex], queueIndex, ++playRequestId)
+        doPlay(queue[queueIndex].track, queueIndex, ++playRequestId)
     }
 
     fun skipToNext() {
@@ -634,18 +657,18 @@ class PlayerController @Inject constructor(
         fun matches(t: Track): Boolean =
             t.user.id == artistId || (usernameLower.isNotEmpty() && t.title.lowercase().contains(usernameLower))
 
-        if (queue.isEmpty() || queue.none { matches(it) }) return
+        if (queue.isEmpty() || queue.none { matches(it.track) }) return
 
         var resumeTrack: Track? = null
         for (offset in 1..queue.size) {
-            val candidate = queue[(queueIndex + offset) % queue.size]
+            val candidate = queue[(queueIndex + offset) % queue.size].track
             if (!matches(candidate)) {
                 resumeTrack = candidate
                 break
             }
         }
 
-        val filteredQueue = queue.filterNot { matches(it) }
+        val filteredQueue = queue.filterNot { matches(it.track) }
         if (filteredQueue.isEmpty()) {
             queue.clear()
             originalOrder.clear()
@@ -654,29 +677,92 @@ class PlayerController @Inject constructor(
             controller?.stop()
             controller?.clearMediaItems()
             flushListenSegment()
+            _queueEntries.value = emptyList()
             _state.update {
-                it.copy(currentTrack = null, isPlaying = false, isBuffering = false, hasNext = false, hasPrev = false, queueTag = null)
+                it.copy(currentTrack = null, isPlaying = false, isBuffering = false, hasNext = false, hasPrev = false, queueTag = null, queueIndex = -1)
             }
             return
         }
 
         if (originalOrder.isNotEmpty()) {
-            val filteredOriginal = originalOrder.filterNot { matches(it) }
+            val filteredOriginal = originalOrder.filterNot { matches(it.track) }
             originalOrder.clear()
             originalOrder.addAll(filteredOriginal)
         }
 
         queue.clear()
         queue.addAll(filteredQueue)
-        queueIndex = resumeTrack?.let { rt -> queue.indexOfFirst { it.id == rt.id } }?.takeIf { it >= 0 } ?: 0
+        queueIndex = resumeTrack?.let { rt -> queue.indexOfFirst { it.track.id == rt.id } }?.takeIf { it >= 0 } ?: 0
 
-        _state.update { it.copy(loadingTrackId = queue[queueIndex].id) }
+        _state.update { it.copy(loadingTrackId = queue[queueIndex].track.id) }
         updateQueueState()
-        doPlay(queue[queueIndex], queueIndex, ++playRequestId)
+        doPlay(queue[queueIndex].track, queueIndex, ++playRequestId)
     }
 
     fun skipToPrevious() {
         controller?.seekToPrevious()
+    }
+
+    // Repositions a queue entry without touching what's actually playing - moveMediaItem() re-indexes the
+    // existing window in place (no re-resolve, no audible hiccup), unlike the setMediaItems()-based rebuilds
+    // used elsewhere in this file for bulk queue changes.
+    fun moveQueueItem(from: Int, to: Int) {
+        if (from !in queue.indices || to !in queue.indices || from == to) return
+        val item = queue.removeAt(from)
+        queue.add(to, item)
+        queueIndex = when {
+            from == queueIndex -> to
+            from < queueIndex && to >= queueIndex -> queueIndex - 1
+            from > queueIndex && to <= queueIndex -> queueIndex + 1
+            else -> queueIndex
+        }
+        controller?.moveMediaItem(from, to)
+        // Belt-and-suspenders resync: MediaController mirrors the session's player state locally and
+        // synchronously for commands it issues itself, so this reflects the post-move reality immediately.
+        controller?.currentMediaItemIndex?.takeIf { it in queue.indices }?.let { queueIndex = it }
+        updateQueueState()
+    }
+
+    // Removing the currently playing entry is the one case that can trigger a real onMediaItemTransition
+    // (ExoPlayer auto-advances to whatever now occupies that slot) - queueIndex is deliberately NOT adjusted
+    // by hand for that case below; it's resynced straight from the controller once the removal has applied.
+    fun removeQueueItem(index: Int) {
+        if (index !in queue.indices) return
+        val removed = queue.removeAt(index)
+        if (originalOrder.isNotEmpty()) {
+            val i = originalOrder.indexOfFirst { it.id == removed.id }
+            if (i >= 0) originalOrder.removeAt(i)
+        }
+        if (queue.isEmpty()) {
+            queueIndex = -1
+            currentQueueTag = null
+            controller?.stop()
+            controller?.clearMediaItems()
+            flushListenSegment()
+            _queueEntries.value = emptyList()
+            _state.update {
+                it.copy(currentTrack = null, isPlaying = false, isBuffering = false, hasNext = false, hasPrev = false, queueTag = null, queueIndex = -1)
+            }
+            return
+        }
+        val wasCurrent = index == queueIndex
+        if (!wasCurrent && index < queueIndex) queueIndex--
+        controller?.removeMediaItem(index)
+        if (wasCurrent) {
+            queueIndex = controller?.currentMediaItemIndex?.takeIf { it in queue.indices } ?: index.coerceIn(0, queue.lastIndex)
+        }
+        updateQueueState()
+    }
+
+    // Jumps playback straight to an existing queue slot (tap-to-play in the Queue screen) without
+    // reshuffling or otherwise touching the rest of the queue.
+    fun playFromQueue(index: Int) {
+        if (index !in queue.indices) return
+        val entry = queue[index]
+        queueIndex = index
+        _state.update { it.copy(loadingTrackId = entry.track.id) }
+        updateQueueState()
+        doPlay(entry.track, index, ++playRequestId)
     }
 
     fun toggleShuffle() {
@@ -697,6 +783,8 @@ class PlayerController @Inject constructor(
             originalOrder.clear()
             queueIndex = current?.let { c -> queue.indexOfFirst { it.id == c.id } }?.takeIf { it >= 0 } ?: 0
         }
+        // `current`/originalOrder entries are matched by QueueEntry.id above, not Track.id - correctly
+        // disambiguates duplicate tracks in the queue, unlike matching on the track's own id would.
 
         rebuildTimelinePreservingPlayback()
         _state.update { it.copy(shuffleEnabled = enabling) }
@@ -710,7 +798,7 @@ class PlayerController @Inject constructor(
         val c = controller ?: return
         val currentItem = c.currentMediaItem ?: return
         val pos = c.currentPosition
-        val items = queue.mapIndexed { i, t -> if (i == queueIndex) currentItem else buildPendingMediaItem(t) }
+        val items = queue.mapIndexed { i, t -> if (i == queueIndex) currentItem else buildPendingMediaItem(t.track) }
         c.setMediaItems(items, queueIndex, pos)
         c.prepare()
         if (c.playWhenReady) c.play()
@@ -730,12 +818,35 @@ class PlayerController @Inject constructor(
         }
     }
 
+    fun startSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = scope.launch {
+            var remaining = minutes * 60_000L
+            _sleepTimerRemainingMs.value = remaining
+            while (remaining > 0) {
+                delay(1000L)
+                remaining -= 1000L
+                _sleepTimerRemainingMs.value = remaining.coerceAtLeast(0L)
+            }
+            _sleepTimerRemainingMs.value = null
+            controller?.pause()
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        _sleepTimerRemainingMs.value = null
+    }
+
     private fun updateQueueState() {
+        _queueEntries.value = queue.toList()
         _state.update {
             it.copy(
                 hasNext = controller?.hasNextMediaItem() ?: (queueIndex < queue.lastIndex),
                 hasPrev = controller?.hasPreviousMediaItem() ?: (queueIndex > 0),
                 queueTag = currentQueueTag,
+                queueIndex = queueIndex,
             )
         }
     }
@@ -761,12 +872,12 @@ class PlayerController @Inject constructor(
                 // toggleShuffle() reorders `queue` without issuing a new play request, so requestIndex
                 // can be stale by the time a slow resolve finishes - trusting it would drop this track's
                 // real URL onto whatever now sits at that position and play the wrong song.
-                val index = queue.indexOfFirst { it.id == fullTrack.id }
+                val index = queue.indexOfFirst { it.track.id == fullTrack.id }
                     .takeIf { it >= 0 } ?: requestIndex.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
                 queueIndex = index
 
                 val allItems = queue.mapIndexed { i, t ->
-                    if (i == index) buildMediaItem(fullTrack, url, isHls) else buildPendingMediaItem(t)
+                    if (i == index) buildMediaItem(fullTrack, url, isHls) else buildPendingMediaItem(t.track)
                 }
 
                 beginListenSegment(fullTrack)
@@ -834,6 +945,7 @@ class PlayerController @Inject constructor(
 
     fun release() {
         stopPositionPolling()
+        sleepTimerJob?.cancel()
         flushListenSegment()
         saveState()
         controller?.release()
@@ -846,7 +958,7 @@ class PlayerController @Inject constructor(
             putString("last_track", trackToJson(track).toString())
             putLong("position_ms", _state.value.positionMs)
             val queueJson = JSONArray()
-            queue.forEach { queueJson.put(trackToJson(it)) }
+            queue.forEach { queueJson.put(trackToJson(it.track)) }
             putString("queue", queueJson.toString())
             putInt("queue_index", queueIndex)
             val recentJson = JSONArray()
@@ -881,7 +993,7 @@ class PlayerController @Inject constructor(
                 val arr = JSONArray(queueStr)
                 queue.clear()
                 for (i in 0 until arr.length()) {
-                    queue.add(jsonToTrack(arr.getJSONObject(i)))
+                    queue.add(wrap(jsonToTrack(arr.getJSONObject(i))))
                 }
                 queueIndex = queueIdx.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
             }

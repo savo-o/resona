@@ -5,11 +5,13 @@ import android.content.SharedPreferences
 import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.local.LyricsCacheDao
 import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.local.TelegramImportDao
 import com.savoo.scclient.data.remote.AuthInterceptor
 import com.savoo.scclient.data.remote.ConnectivityEventBus
+import com.savoo.scclient.data.remote.GeniusApi
 import com.savoo.scclient.data.remote.GitHubReleaseApi
 import com.savoo.scclient.data.remote.KugouApi
 import com.savoo.scclient.data.remote.LyricsApi
@@ -46,6 +48,10 @@ annotation class GitHubRetrofit
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class KugouRetrofit
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class GeniusRetrofit
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -182,6 +188,31 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    @GeniusRetrofit
+    fun provideGeniusRetrofit(@PlainHttpClient client: OkHttpClient): Retrofit {
+        val uaClient = client.newBuilder()
+            .addInterceptor { chain ->
+                chain.proceed(
+                    chain.request().newBuilder()
+                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Mobile Safari/537.36")
+                        .header("Accept", "text/html,application/json")
+                        .build()
+                )
+            }
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://genius.com/")
+            .client(uaClient)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideGeniusApi(@GeniusRetrofit retrofit: Retrofit): GeniusApi =
+        retrofit.create(GeniusApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         AppDatabase.create(context)
 
@@ -199,4 +230,7 @@ object NetworkModule {
 
     @Provides
     fun provideExcludedArtistDao(db: AppDatabase): ExcludedArtistDao = db.excludedArtistDao()
+
+    @Provides
+    fun provideLyricsCacheDao(db: AppDatabase): LyricsCacheDao = db.lyricsCacheDao()
 }

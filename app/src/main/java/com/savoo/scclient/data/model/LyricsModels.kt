@@ -18,3 +18,9 @@ data class LyricsLine(
     val timeMs: Long,
     val text: String,
 )
+
+sealed interface LyricsResult {
+    data class Synced(val lines: List<LyricsLine>) : LyricsResult
+    data class Plain(val text: String, val source: String) : LyricsResult
+    data object NotFound : LyricsResult
+}

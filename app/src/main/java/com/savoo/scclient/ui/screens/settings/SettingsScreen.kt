@@ -166,6 +166,7 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeEnabled(value: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(value) }
     fun setSeekBarStyle(style: SeekBarStyle) = viewModelScope.launch { repository.setSeekBarStyle(style) }
     fun setLyricsProvider(provider: LyricsProvider) = viewModelScope.launch { repository.setLyricsProvider(provider) }
+    fun setGeniusFallbackEnabled(value: Boolean) = viewModelScope.launch { repository.setGeniusFallbackEnabled(value) }
     fun setCustomSeedColor(color: Color) = viewModelScope.launch { repository.setCustomSeedColor(color) }
     fun setHomeSections(sections: List<HomeSectionConfig>) = viewModelScope.launch { repository.setHomeSections(sections) }
     fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
@@ -503,6 +504,12 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+                )
+                SwitchItem(
+                    title = stringResource(R.string.settings_lyrics_genius_fallback),
+                    subtitle = stringResource(R.string.settings_lyrics_genius_fallback_desc),
+                    checked = settings.geniusFallbackEnabled,
+                    onCheckedChange = { viewModel.setGeniusFallbackEnabled(it) }
                 )
                 SettingsDivider()
                 SwitchItem(
