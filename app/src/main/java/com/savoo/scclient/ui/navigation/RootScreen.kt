@@ -111,6 +111,18 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
             is DeepLinkTarget.Playlist -> {
                 navController.navigate(Screen.Playlist.createRoute(initialDeepLink.playlistId))
             }
+            is DeepLinkTarget.Shortcut -> {
+                val route = when (initialDeepLink.target) {
+                    ShortcutTarget.FAVORITES -> Screen.Favorites.route
+                    ShortcutTarget.OFFLINE -> Screen.OfflineTracks.route
+                    ShortcutTarget.SEARCH -> Screen.Search.route
+                }
+                navController.navigate(route) {
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
             is DeepLinkTarget.ResolveUrl -> {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try {

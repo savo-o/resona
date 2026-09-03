@@ -6,6 +6,7 @@ import coil.ImageLoaderFactory
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.debug.CrashReporter
 import com.savoo.scclient.debug.ScreenshotModeInterceptor
+import com.savoo.scclient.ui.navigation.AppShortcuts
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ class SCApplication : Application(), ImageLoaderFactory {
                 clientIdProvider.refresh()
             }
         }
+        appScope.launch { AppShortcuts.install(this@SCApplication) }
     }
 
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)

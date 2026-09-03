@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.outlined.Info
@@ -57,6 +58,7 @@ import androidx.lifecycle.viewModelScope
 import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.ArtistListenStat
+import com.savoo.scclient.data.local.TrackListenStat
 import com.savoo.scclient.data.repository.StatsRepository
 import com.savoo.scclient.ui.components.EmptyState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -78,6 +80,12 @@ class StatisticsViewModel @Inject constructor(
     val topArtists = statsRepository.topArtists(10)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val topTracks = statsRepository.topTracks(10)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val topGenre = statsRepository.topGenre
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     val hasData = combine(totalPlays, topArtists) { plays, artists -> plays > 0 || artists.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 }
@@ -91,8 +99,22 @@ fun StatisticsScreen(
     val totalMsListened by viewModel.totalMsListened.collectAsState()
     val totalPlays by viewModel.totalPlays.collectAsState()
     val topArtists by viewModel.topArtists.collectAsState()
+    val topTracks by viewModel.topTracks.collectAsState()
+    val topGenre by viewModel.topGenre.collectAsState()
     val hasData by viewModel.hasData.collectAsState()
     var showRankingInfo by remember { mutableStateOf(false) }
+    var showWrapped by remember { mutableStateOf(false) }
+
+    if (showWrapped) {
+        WrappedSheet(
+            totalHours = (totalMsListened / 3_600_000L).toInt(),
+            totalPlays = totalPlays,
+            topGenre = topGenre,
+            topArtists = topArtists,
+            topTracks = topTracks,
+            onDismiss = { showWrapped = false },
+        )
+    }
 
     if (showRankingInfo) {
         AlertDialog(

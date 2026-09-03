@@ -2,18 +2,26 @@ package com.savoo.scclient.ui.navigation
 
 import android.content.Intent
 
+enum class ShortcutTarget { FAVORITES, OFFLINE, SEARCH }
+
 sealed class DeepLinkTarget {
     data class Artist(val userId: Long) : DeepLinkTarget()
     data class Playlist(val playlistId: Long) : DeepLinkTarget()
     data class ResolveUrl(val url: String) : DeepLinkTarget()
+    data class Shortcut(val target: ShortcutTarget) : DeepLinkTarget()
     data object None : DeepLinkTarget()
 
     companion object {
+        const val EXTRA_SHORTCUT_TARGET = "shortcut_target"
+
         private val VALID_HOSTS = setOf(
             "soundcloud.com", "m.soundcloud.com", "www.soundcloud.com", "on.soundcloud.com"
         )
 
         fun fromIntent(intent: Intent): DeepLinkTarget {
+            intent.getStringExtra(EXTRA_SHORTCUT_TARGET)?.let { raw ->
+                runCatching { ShortcutTarget.valueOf(raw) }.getOrNull()?.let { return Shortcut(it) }
+            }
             if (intent.action == Intent.ACTION_SEND) {
                 val shared = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return None
                 val url = Regex("""https?://\S+""").find(shared)?.value?.trimEnd('.', ',', ';', '!', '?', ')', '"', '\'') ?: return None

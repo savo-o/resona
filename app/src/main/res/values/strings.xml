@@ -17,6 +17,14 @@
     <string name="onboarding_next">Next</string>
     <string name="onboarding_get_started">Get Started</string>
 
+    <!-- Home screen launcher icon shortcuts -->
+    <string name="shortcut_favorites_short">Favorites</string>
+    <string name="shortcut_favorites_long">Open Favorites</string>
+    <string name="shortcut_offline_short">Offline</string>
+    <string name="shortcut_offline_long">Open Offline Tracks</string>
+    <string name="shortcut_search_short">Search</string>
+    <string name="shortcut_search_long">Search Tracks</string>
+
     <!-- Navigation -->
     <string name="nav_home">Home</string>
     <string name="nav_search">Search</string>
@@ -105,6 +113,14 @@
     <string name="statistics_top_artists_info_title">How ranking works</string>
     <string name="statistics_top_artists_info_body">Artists are ranked by total time actually played, not by number of taps or skips. Pausing doesn\'t count, and a listen only counts once you\'ve played at least 5 seconds of a track. The play count next to each artist is a separate tally of how many listens crossed that threshold.</string>
     <string name="statistics_top_artists_info_dismiss">Got it</string>
+    <string name="statistics_share">Share recap</string>
+    <string name="wrapped_kicker">YOUR LISTENING RECAP</string>
+    <string name="wrapped_hours_listened">hours listened</string>
+    <string name="wrapped_plays_count">%d plays</string>
+    <string name="wrapped_top_artists">Top Artists</string>
+    <string name="wrapped_top_tracks">Top Tracks</string>
+    <string name="wrapped_footer">Made with Resona</string>
+    <string name="wrapped_share">Share</string>
 
     <!-- Search -->
     <string name="search_hint">Tracks, artists, albums…</string>

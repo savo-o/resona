@@ -14,6 +14,15 @@ data class ArtistListenStat(
     val playCount: Int,
 )
 
+data class TrackListenStat(
+    val trackId: Long,
+    val title: String,
+    val artistName: String,
+    val artworkUrl: String?,
+    val totalMs: Long,
+    val playCount: Int,
+)
+
 @Dao
 interface PlayHistoryDao {
     @Insert
@@ -36,4 +45,22 @@ interface PlayHistoryDao {
 
     @Query("SELECT * FROM play_history ORDER BY playedAt DESC LIMIT :limit")
     suspend fun recentEvents(limit: Int = 500): List<PlayEvent>
+
+    @Query("""
+        SELECT trackId, title, artistName, MAX(artworkUrl) AS artworkUrl, SUM(msPlayed) AS totalMs, COUNT(*) AS playCount
+        FROM play_history
+        GROUP BY trackId
+        ORDER BY totalMs DESC
+        LIMIT :limit
+    """)
+    fun topTracks(limit: Int = 10): Flow<List<TrackListenStat>>
+
+    @Query("""
+        SELECT genre FROM play_history
+        WHERE genre IS NOT NULL AND genre != ''
+        GROUP BY genre
+        ORDER BY SUM(msPlayed) DESC
+        LIMIT 1
+    """)
+    fun topGenre(): Flow<String?>
 }

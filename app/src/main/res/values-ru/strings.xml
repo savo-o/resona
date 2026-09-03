@@ -17,6 +17,14 @@
     <string name="onboarding_next">Далее</string>
     <string name="onboarding_get_started">Начать</string>
 
+    <!-- Home screen launcher icon shortcuts -->
+    <string name="shortcut_favorites_short">Избранное</string>
+    <string name="shortcut_favorites_long">Открыть Избранное</string>
+    <string name="shortcut_offline_short">Офлайн</string>
+    <string name="shortcut_offline_long">Открыть офлайн-треки</string>
+    <string name="shortcut_search_short">Поиск</string>
+    <string name="shortcut_search_long">Поиск треков</string>
+
     <!-- Navigation -->
     <string name="nav_home">Главная</string>
     <string name="nav_search">Поиск</string>
@@ -105,6 +113,14 @@
     <string name="statistics_top_artists_info_title">Как считается рейтинг</string>
     <string name="statistics_top_artists_info_body">Исполнители ранжируются по суммарному времени реального прослушивания, а не по числу нажатий или пропусков. Пауза не засчитывается, а само прослушивание учитывается только если трек играл минимум 5 секунд. Число прослушиваний рядом с исполнителем - отдельный счётчик того, сколько раз это условие было выполнено.</string>
     <string name="statistics_top_artists_info_dismiss">Понятно</string>
+    <string name="statistics_share">Поделиться итогами</string>
+    <string name="wrapped_kicker">ТВОЙ ИТОГ ПРОСЛУШИВАНИЙ</string>
+    <string name="wrapped_hours_listened">часов прослушано</string>
+    <string name="wrapped_plays_count">%d прослушиваний</string>
+    <string name="wrapped_top_artists">Топ артистов</string>
+    <string name="wrapped_top_tracks">Топ треков</string>
+    <string name="wrapped_footer">Сделано в Resona</string>
+    <string name="wrapped_share">Поделиться</string>
 
     <!-- Search -->
     <string name="search_hint">Треки, исполнители, альбомы…</string>

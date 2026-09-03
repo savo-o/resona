@@ -2,6 +2,7 @@ package com.savoo.scclient.player
 
 import android.app.PendingIntent
 import android.content.Intent
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -24,6 +25,7 @@ class PlaybackService : MediaSessionService() {
 
         val player = ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
+            .setAudioAttributes(AudioAttributes.DEFAULT, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
 
