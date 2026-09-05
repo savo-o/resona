@@ -20,6 +20,22 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
+internal fun looksLikeAudioFile(file: File): Boolean = try {
+    file.inputStream().use { input ->
+        val header = ByteArray(16)
+        val read = input.read(header)
+        if (read <= 0) {
+            false
+        } else {
+            val prefix = String(header, 0, read, Charsets.US_ASCII).trimStart()
+            !prefix.startsWith("#EXTM3U") && !prefix.startsWith("<") &&
+                !prefix.startsWith("{") && !prefix.startsWith("[")
+        }
+    }
+} catch (_: Exception) {
+    false
+}
+
 @Singleton
 class TrackCache @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -64,7 +80,7 @@ class TrackCache @Inject constructor(
     fun getCachedFilePath(trackId: Long): String? {
         val file = File(audioDir, "$trackId.mp3")
         if (!file.exists() || file.length() <= 0) return null
-        if (!looksLikeAudio(file)) {
+        if (!looksLikeAudioFile(file)) {
             // Poisoned entry from before the HLS-fallback fix below: resolvePlayableUrl can hand back
             // an HLS manifest URL (or, rarely, an HTML/JSON error page) when a track has no progressive
             // transcoding, and that got downloaded byte-for-byte into this ".mp3" file. It "exists and
@@ -76,24 +92,6 @@ class TrackCache @Inject constructor(
         return file.absolutePath
     }
 
-    // A real MP3 starts with an ID3 tag or an MPEG frame sync; an HLS playlist starts with "#EXTM3U"
-    // and an API error response is HTML/JSON - cheap enough to sniff the first few bytes and reject
-    // anything that isn't audio rather than caching (and forever replaying) the wrong content.
-    private fun looksLikeAudio(file: File): Boolean = try {
-        file.inputStream().use { input ->
-            val header = ByteArray(16)
-            val read = input.read(header)
-            if (read <= 0) {
-                false
-            } else {
-                val prefix = String(header, 0, read, Charsets.US_ASCII).trimStart()
-                !prefix.startsWith("#EXTM3U") && !prefix.startsWith("<") &&
-                    !prefix.startsWith("{") && !prefix.startsWith("[")
-            }
-        }
-    } catch (_: Exception) {
-        false
-    }
 
     suspend fun cacheAudioFile(track: Track, url: String) = withContext(Dispatchers.IO) {
         val lock = downloadLocks.getOrPut(track.id) { Mutex() }
@@ -114,7 +112,7 @@ class TrackCache @Inject constructor(
                             input.copyTo(output)
                         }
                     }
-                    if (tmpFile.length() > 0 && looksLikeAudio(tmpFile) && tmpFile.renameTo(file)) {
+                    if (tmpFile.length() > 0 && looksLikeAudioFile(tmpFile) && tmpFile.renameTo(file)) {
                         cacheTrackInfo(track)
                         evictOld()
                     } else {

@@ -41,17 +41,16 @@ private enum class ConnectivityBannerMode { OFFLINE, RESTORED }
 
 @Composable
 fun ConnectivityBanner(modifier: Modifier = Modifier) {
-    val unreachableTick by ConnectivityEventBus.unreachableTick.collectAsState()
+    val isUnreachable by ConnectivityEventBus.isUnreachable.collectAsState()
     val restoredTick by ConnectivityEventBus.restoredTick.collectAsState()
     var mode by remember { mutableStateOf(ConnectivityBannerMode.OFFLINE) }
     var visible by remember { mutableStateOf(false) }
 
-    LaunchedEffect(unreachableTick) {
-        if (unreachableTick == 0) return@LaunchedEffect
-        mode = ConnectivityBannerMode.OFFLINE
-        visible = true
-        delay(2000)
-        visible = false
+    LaunchedEffect(isUnreachable) {
+        if (isUnreachable) {
+            mode = ConnectivityBannerMode.OFFLINE
+            visible = true
+        }
     }
 
     LaunchedEffect(restoredTick) {
@@ -59,7 +58,7 @@ fun ConnectivityBanner(modifier: Modifier = Modifier) {
         mode = ConnectivityBannerMode.RESTORED
         visible = true
         delay(2000)
-        visible = false
+        if (!ConnectivityEventBus.isUnreachable.value) visible = false
     }
 
     AnimatedVisibility(

@@ -54,6 +54,7 @@ fun EulaGateScreen(
             text = stringResource(R.string.eula_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
         )
 
         Spacer(Modifier.height(20.dp))
@@ -80,6 +81,7 @@ fun EulaGateScreen(
             Text(
                 text = stringResource(R.string.eula_gate_checkbox),
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
 

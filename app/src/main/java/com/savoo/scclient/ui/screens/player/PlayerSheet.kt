@@ -209,7 +209,7 @@ fun PlayerSheet(
                     trackTitle = skipped.title,
                     onRetry = {
                         skippedTrack = null
-                        viewModel.controller.play(skipped)
+                        viewModel.controller.retryTrack(skipped)
                     },
                     onDismiss = { skippedTrack = null },
                     modifier = Modifier

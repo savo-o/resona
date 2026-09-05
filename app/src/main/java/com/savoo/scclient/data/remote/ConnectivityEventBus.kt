@@ -1,6 +1,5 @@
 package com.savoo.scclient.data.remote
 
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -12,15 +11,17 @@ object ConnectivityEventBus {
     private val _restoredTick = MutableStateFlow(0)
     val restoredTick = _restoredTick.asStateFlow()
 
-    private val isUnreachable = AtomicBoolean(false)
+    private val _isUnreachable = MutableStateFlow(false)
+    val isUnreachable = _isUnreachable.asStateFlow()
 
     fun notifyUnreachable() {
-        isUnreachable.set(true)
-        _unreachableTick.update { it + 1 }
+        if (_isUnreachable.compareAndSet(expect = false, update = true)) {
+            _unreachableTick.update { it + 1 }
+        }
     }
 
     fun notifyReachable() {
-        if (isUnreachable.compareAndSet(true, false)) {
+        if (_isUnreachable.compareAndSet(expect = true, update = false)) {
             _restoredTick.update { it + 1 }
         }
     }

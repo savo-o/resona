@@ -23,6 +23,7 @@ import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
@@ -375,23 +376,24 @@ class PlayerController @Inject constructor(
         offlineTrackManager.getLocalPath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
 
+        val effectiveAttempts = if (ConnectivityEventBus.isUnreachable.value) 1 else attempts
         try {
-            repeat(attempts) { attempt ->
+            repeat(effectiveAttempts) { attempt ->
                 if (attempt > 0 && reportProgress) _state.update { it.copy(isRetryingNetwork = true) }
                 val fullTrack = if (attempt == 0 && track.media != null) track
                     else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(track.id) }.getOrNull() } ?: track
                 if (fullTrack.media == null) {
-                    DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: getTrack() returned no media")
+                    DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$effectiveAttempts id=${track.id} title=${track.title}: getTrack() returned no media")
                 }
                 val stream = withContext(Dispatchers.IO) {
                     runCatching { trackRepository.resolvePlayableStream(fullTrack) }
-                        .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$attempts id=${track.id} title=${track.title}: resolvePlayableStream threw ${it}") }
+                        .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$effectiveAttempts id=${track.id} title=${track.title}: resolvePlayableStream threw ${it}") }
                         .getOrNull()
                 }
                 if (stream != null) return ResolvedTrack(fullTrack, stream.url, needsCaching = !stream.isHls, isHls = stream.isHls)
-                if (attempt < attempts - 1) delay(500L * (attempt + 1))
+                if (attempt < effectiveAttempts - 1) delay(500L * (attempt + 1))
             }
-            DebugLog.log(TAG, "resolveTrack GAVE UP after $attempts attempts: id=${track.id} title=${track.title}")
+            DebugLog.log(TAG, "resolveTrack GAVE UP after $effectiveAttempts attempts: id=${track.id} title=${track.title}")
             return null
         } finally {
             if (reportProgress) _state.update { it.copy(isRetryingNetwork = false) }
@@ -399,6 +401,12 @@ class PlayerController @Inject constructor(
     }
 
     private fun skipDueToFailure(track: Track) {
+        if (ConnectivityEventBus.isUnreachable.value) {
+            DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title} offline, pausing instead of skipping")
+            controller?.pause()
+            _state.update { it.copy(loadingTrackId = null, isBuffering = false) }
+            return
+        }
         DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title}")
         _skippedTrackEvents.tryEmit(track)
         controller?.seekToNext()
@@ -608,6 +616,11 @@ class PlayerController @Inject constructor(
         queueIndex = idxForThisTrack
         updateQueueState()
         doPlay(track, idxForThisTrack, ++playRequestId)
+    }
+
+    fun retryTrack(track: Track) {
+        val idx = queue.indexOfFirst { it.track.id == track.id }
+        if (idx >= 0) playFromQueue(idx) else play(track)
     }
 
     fun playQueue(tracks: List<Track>, startIndex: Int = 0, repeatAll: Boolean = false, tag: String? = null) {

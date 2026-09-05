@@ -58,7 +58,7 @@ class OfflineTrackManager @Inject constructor(
         _downloadingTrackIds.update { it + track.id }
         try {
             val audioFile = File(offlineDir, "${track.id}.mp3")
-            if (audioFile.exists() && audioFile.length() > 0) {
+            if (audioFile.exists() && audioFile.length() > 0 && looksLikeAudioFile(audioFile)) {
                 offlineDao.saveTrack(
                     OfflineTrack(
                         trackId = track.id,
@@ -76,6 +76,7 @@ class OfflineTrackManager @Inject constructor(
                 )
                 return@withContext Result.success(Unit)
             }
+            audioFile.delete()
 
             val fullTrack = if (track.media == null) {
                 runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
@@ -85,16 +86,21 @@ class OfflineTrackManager @Inject constructor(
                 ?: return@withContext Result.failure(Exception("Cannot resolve track URL"))
             if (stream.isHls) return@withContext Result.failure(Exception("Track has no downloadable stream"))
 
+            val tmpAudioFile = File(offlineDir, "${track.id}.mp3.tmp")
             val request = Request.Builder().url(stream.url).build()
             httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     return@withContext Result.failure(Exception("Download failed: ${response.code}"))
                 }
                 response.body?.byteStream()?.use { input ->
-                    audioFile.outputStream().use { output ->
+                    tmpAudioFile.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
+            }
+            if (tmpAudioFile.length() <= 0 || !looksLikeAudioFile(tmpAudioFile) || !tmpAudioFile.renameTo(audioFile)) {
+                tmpAudioFile.delete()
+                return@withContext Result.failure(Exception("Downloaded file is empty or invalid"))
             }
 
             val artworkFile = File(offlineDir, "${track.id}.jpg")
@@ -113,28 +119,23 @@ class OfflineTrackManager @Inject constructor(
                 } catch (_: Exception) {}
             }
 
-            if (audioFile.length() > 0) {
-                offlineDao.saveTrack(
-                    OfflineTrack(
-                        trackId = track.id,
-                        title = track.title,
-                        username = track.user.username,
-                        artworkUrl = track.artworkUrl,
-                        durationMs = track.durationMs,
-                        permalinkUrl = track.permalinkUrl,
-                        userId = track.user.id,
-                        userAvatarUrl = track.user.avatarUrl,
-                        localPath = audioFile.absolutePath,
-                        fileSizeBytes = audioFile.length(),
-                        genre = track.genre,
-                    )
+            offlineDao.saveTrack(
+                OfflineTrack(
+                    trackId = track.id,
+                    title = track.title,
+                    username = track.user.username,
+                    artworkUrl = track.artworkUrl,
+                    durationMs = track.durationMs,
+                    permalinkUrl = track.permalinkUrl,
+                    userId = track.user.id,
+                    userAvatarUrl = track.user.avatarUrl,
+                    localPath = audioFile.absolutePath,
+                    fileSizeBytes = audioFile.length(),
+                    genre = track.genre,
                 )
-                DebugLog.log("OfflineTrack", "Saved ${track.title} (${audioFile.length()} bytes)")
-                Result.success(Unit)
-            } else {
-                audioFile.delete()
-                Result.failure(Exception("Downloaded file is empty"))
-            }
+            )
+            DebugLog.log("OfflineTrack", "Saved ${track.title} (${audioFile.length()} bytes)")
+            Result.success(Unit)
         } catch (e: Exception) {
             DebugLog.log("OfflineTrack", "Failed to save: ${e.message}")
             Result.failure(e)
