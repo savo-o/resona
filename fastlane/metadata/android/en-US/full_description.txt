@@ -1,0 +1,13 @@
+Resona is an unofficial, open source client for SoundCloud. No ads, no telemetry.
+
+- Offline downloads without a subscription
+- Lyrics for pretty much anything, even niche tracks, with a few sources chained as fallback and synced timing where it's available
+- A home mix that keeps discovering new stuff from artists you already like
+- Import tracks straight from Telegram chats
+- A folder watcher that picks up local audio files automatically
+- Favorites and playlists, with multi-select and swipe actions
+- Listening stats
+- Custom color themes, app icons, dynamic color that adapts to the track's artwork
+- No account required, log in only if you want to sync your own likes
+
+Not affiliated with SoundCloud. Licensed under GPLv3.

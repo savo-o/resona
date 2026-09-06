@@ -5,6 +5,10 @@
 <h1 align="center">Resona</h1>
 
 <p align="center">
+  English · <a href="README.ru.md">Русский</a>
+</p>
+
+<p align="center">
   An open source SoundCloud client for Android.<br>
   No ads. No account required.
   <a href="https://keepandroidopen.org" target="_blank" rel="noopener noreferrer">
@@ -20,22 +24,19 @@
 
 ## Screenshots
 
-<details>
-<summary>Show screenshots</summary>
-
-<br>
-
 <p align="center">
-  <img src="screenshots/home.png" width="220">
-  <img src="screenshots/player.png" width="220">
-  <img src="screenshots/library.png" width="220">
+  <img src="screenshots/eng_main.png" width="220">
+  <img src="screenshots/eng_new_player.png" width="220">
+  <img src="screenshots/eng_new_lyrics.png" width="220">
+  <img src="screenshots/eng_offline.jpg" width="220">
+  <img src="screenshots/eng_customization.png" width="220">
 </p>
-
-</details>
 
 ## Install
 
 Grab the latest APK from [GitHub Releases](https://github.com/savo-o/resona/releases/latest). Resona isn't on Google Play, so you'll need to allow installs from your file manager or browser.
+
+You can also track updates automatically with [Obtainium](https://github.com/ImranR98/Obtainium), just point it at this repo.
 
 ## Features
 
@@ -44,10 +45,11 @@ Grab the latest APK from [GitHub Releases](https://github.com/savo-o/resona/rele
 - Offline downloads, plus a folder watcher that picks up local files automatically
 - Import tracks straight from Telegram chats
 - Home mix that keeps discovering new stuff from artists you already like
-- Lyrics, crossfade, shuffle and repeat that actually behave
+- Lyrics for pretty much anything, even niche tracks, with a few sources chained as fallback and synced timing where it's available
+- Crossfade, shuffle and repeat that actually behave
 - Favorites and playlists, with multi-select and swipe actions to manage them fast
 - Listening stats
-- Dynamic color that adapts to the track's artwork
+- Custom color themes and app icons, dynamic color that adapts to the track's artwork
 
 ## Build
 
