@@ -53,11 +53,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.savoo.scclient.R
+import com.savoo.scclient.data.repository.AppBackgroundMode
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.HomeSection
 import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
+import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.ui.components.SwitchItem
 import com.savoo.scclient.ui.haptics.rememberHapticTick
@@ -351,15 +353,57 @@ fun CustomizationScreen(
                 }
             }
 
-            SettingsSectionCard(title = stringResource(R.string.settings_player_background)) {
+            SettingsSectionCard(title = stringResource(R.string.settings_app_background)) {
                 run {
-                    // BLURRED_ARTWORK stays fully working in code, it's just not offered here - the look
-                    // didn't land, so it's hidden rather than ripped out.
-                    val styles = listOf(PlayerBackgroundStyle.ORB, PlayerBackgroundStyle.MINIMAL)
-                    val styleLabelResIds = listOf(
-                        R.string.settings_player_background_orb,
-                        R.string.settings_player_background_minimal,
+                    val modes = AppBackgroundMode.entries
+                    val modeLabelResIds = listOf(
+                        R.string.settings_app_background_dynamic,
+                        R.string.settings_app_background_default,
+                        R.string.settings_app_background_custom,
+                        R.string.settings_app_background_player_only,
                     )
+                    val modeDescResIds = listOf(
+                        R.string.settings_app_background_dynamic_desc,
+                        R.string.settings_app_background_default_desc,
+                        R.string.settings_app_background_custom_desc,
+                        R.string.settings_app_background_player_only_desc,
+                    )
+                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        modes.forEachIndexed { index, mode ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.backgroundMode == mode,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setBackgroundMode(mode) } },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(stringResource(modeLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                    Text(
+                        stringResource(modeDescResIds[modes.indexOf(settings.backgroundMode).coerceAtLeast(0)]),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                    )
+                    if (settings.backgroundMode == AppBackgroundMode.CUSTOM) {
+                        CustomColorPicker(
+                            color = settings.backgroundCustomColor,
+                            onColorChange = { viewModel.setBackgroundCustomColor(it) },
+                        )
+                    }
+                }
+            }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_player_style)) {
+                run {
+                    val styles = listOf(PlayerStyle.PIXEL, PlayerStyle.CLASSIC)
+                    val styleLabelResIds = listOf(R.string.settings_player_style_pixel, R.string.settings_player_style_legacy)
                     ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         styles.forEachIndexed { index, style ->
                             val shapes = when (index) {
@@ -368,12 +412,41 @@ fun CustomizationScreen(
                                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                             }
                             ToggleButton(
-                                checked = settings.playerBackgroundStyle == style,
-                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setPlayerBackgroundStyle(style) } },
+                                checked = settings.playerStyle == style,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setPlayerStyle(style) } },
                                 modifier = Modifier.weight(1f),
                                 shapes = shapes,
                             ) {
                                 Text(stringResource(styleLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (settings.playerStyle == PlayerStyle.CLASSIC) {
+                SettingsSectionCard(title = stringResource(R.string.settings_player_background)) {
+                    run {
+                        val styles = listOf(PlayerBackgroundStyle.ORB, PlayerBackgroundStyle.MINIMAL)
+                        val styleLabelResIds = listOf(
+                            R.string.settings_player_background_orb,
+                            R.string.settings_player_background_minimal,
+                        )
+                        ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                            styles.forEachIndexed { index, style ->
+                                val shapes = when (index) {
+                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    styles.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                }
+                                ToggleButton(
+                                    checked = settings.playerBackgroundStyle == style,
+                                    onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setPlayerBackgroundStyle(style) } },
+                                    modifier = Modifier.weight(1f),
+                                    shapes = shapes,
+                                ) {
+                                    Text(stringResource(styleLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                                }
                             }
                         }
                     }

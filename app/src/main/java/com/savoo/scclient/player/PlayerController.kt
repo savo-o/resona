@@ -14,7 +14,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.RawResourceDataSource
 import androidx.palette.graphics.Palette
-import coil.ImageLoader
+import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.google.common.util.concurrent.MoreExecutors
@@ -35,7 +35,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -101,6 +103,7 @@ class PlayerController @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
     private var positionJob: kotlinx.coroutines.Job? = null
+    private var seedColorJob: kotlinx.coroutines.Job? = null
 
     private val _state = MutableStateFlow(PlaybackState())
     val state = _state.asStateFlow()
@@ -1108,29 +1111,35 @@ class PlayerController @Inject constructor(
         )
     )
 
+    // Cancelling the previous extraction is what keeps the color in sync while skipping quickly:
+    // these run at wildly different speeds (cache hit vs network fetch vs decode), so without it
+    // whichever request happens to finish last wins, which is rarely the track now playing.
     private fun extractSeedColor(artworkUrl: String?) {
+        seedColorJob?.cancel()
         if (artworkUrl == null) {
             _seedColor.value = null
             return
         }
-        scope.launch {
+        seedColorJob = scope.launch {
             try {
-                val loader = ImageLoader(context)
                 val request = ImageRequest.Builder(context)
                     .data(artworkUrl.replace("-large", "-t500x500"))
                     .allowHardware(false)
                     .build()
-                val result = loader.execute(request)
+                val result = context.imageLoader.execute(request)
                 if (result is SuccessResult) {
                     val bitmap = (result.drawable as? BitmapDrawable)?.bitmap
                     if (bitmap != null) {
                         val palette = Palette.from(bitmap).generate()
                         val swatch = palette.vibrantSwatch ?: palette.dominantSwatch
                         if (swatch != null) {
+                            ensureActive()
                             _seedColor.value = Color(swatch.rgb)
                         }
                     }
                 }
+            } catch (_: CancellationException) {
+                throw CancellationException()
             } catch (_: Exception) {
                 _seedColor.value = null
             }

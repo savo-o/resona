@@ -80,6 +80,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.model.UpdateChannel
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.data.repository.AppIconManager
+import com.savoo.scclient.data.repository.AppBackgroundMode
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.DarkModeOption
@@ -88,6 +89,7 @@ import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.LyricsProvider
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
+import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.UpdateCheckResult
@@ -170,6 +172,9 @@ class SettingsViewModel @Inject constructor(
     fun setCustomSeedColor(color: Color) = viewModelScope.launch { repository.setCustomSeedColor(color) }
     fun setHomeSections(sections: List<HomeSectionConfig>) = viewModelScope.launch { repository.setHomeSections(sections) }
     fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
+    fun setPlayerStyle(style: PlayerStyle) = viewModelScope.launch { repository.setPlayerStyle(style) }
+    fun setBackgroundMode(mode: AppBackgroundMode) = viewModelScope.launch { repository.setBackgroundMode(mode) }
+    fun setBackgroundCustomColor(color: Color) = viewModelScope.launch { repository.setBackgroundCustomColor(color) }
 
     fun checkForUpdates() {
         viewModelScope.launch {

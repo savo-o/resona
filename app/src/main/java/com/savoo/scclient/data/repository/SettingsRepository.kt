@@ -43,6 +43,10 @@ enum class SeekBarStyle { CLASSIC, WAVY }
 
 enum class PlayerBackgroundStyle { ORB, BLURRED_ARTWORK, MINIMAL }
 
+enum class PlayerStyle { CLASSIC, PIXEL }
+
+enum class AppBackgroundMode { DYNAMIC, DEFAULT, CUSTOM, PLAYER_ONLY }
+
 enum class HomeSection { JUMP_BACK_IN, FAVORITES, OFFLINE, ARTISTS, PLAYLISTS }
 
 data class HomeSectionConfig(val section: HomeSection, val visible: Boolean = true)
@@ -90,6 +94,10 @@ data class AppSettings(
     val customSeedColor: Color = OrangeSeed.Primary,
     val homeSections: List<HomeSectionConfig> = DefaultHomeSections,
     val playerBackgroundStyle: PlayerBackgroundStyle = PlayerBackgroundStyle.ORB,
+    val playerStyle: PlayerStyle = PlayerStyle.PIXEL,
+    val backgroundMode: AppBackgroundMode = AppBackgroundMode.PLAYER_ONLY,
+    val backgroundCustomColor: Color = Color(0xFF1B1B1F),
+    val playerHintShown: Boolean = false,
 )
 
 @Singleton
@@ -120,6 +128,10 @@ class SettingsRepository @Inject constructor(
         val CUSTOM_SEED_COLOR = intPreferencesKey("custom_seed_color")
         val HOME_SECTIONS = stringPreferencesKey("home_sections")
         val PLAYER_BACKGROUND_STYLE = stringPreferencesKey("player_background_style")
+        val PLAYER_STYLE = stringPreferencesKey("player_style")
+        val BACKGROUND_MODE = stringPreferencesKey("background_mode")
+        val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
+        val PLAYER_HINT_SHOWN = booleanPreferencesKey("player_hint_shown")
     }
 
     private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
@@ -171,6 +183,14 @@ class SettingsRepository @Inject constructor(
             } ?: PlayerBackgroundStyle.ORB).let {
                 if (it == PlayerBackgroundStyle.BLURRED_ARTWORK) PlayerBackgroundStyle.ORB else it
             },
+            playerStyle = prefs[Keys.PLAYER_STYLE]?.let {
+                runCatching { PlayerStyle.valueOf(it) }.getOrNull()
+            } ?: PlayerStyle.PIXEL,
+            backgroundMode = prefs[Keys.BACKGROUND_MODE]?.let {
+                runCatching { AppBackgroundMode.valueOf(it) }.getOrNull()
+            } ?: AppBackgroundMode.PLAYER_ONLY,
+            backgroundCustomColor = prefs[Keys.BACKGROUND_CUSTOM_COLOR]?.let { Color(it) } ?: Color(0xFF1B1B1F),
+            playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
         )
     }
 
@@ -266,5 +286,21 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) {
         context.dataStore.edit { it[Keys.PLAYER_BACKGROUND_STYLE] = style.name }
+    }
+
+    suspend fun setPlayerStyle(style: PlayerStyle) {
+        context.dataStore.edit { it[Keys.PLAYER_STYLE] = style.name }
+    }
+
+    suspend fun setBackgroundMode(mode: AppBackgroundMode) {
+        context.dataStore.edit { it[Keys.BACKGROUND_MODE] = mode.name }
+    }
+
+    suspend fun setBackgroundCustomColor(color: Color) {
+        context.dataStore.edit { it[Keys.BACKGROUND_CUSTOM_COLOR] = color.toArgb() }
+    }
+
+    suspend fun setPlayerHintShown(value: Boolean) {
+        context.dataStore.edit { it[Keys.PLAYER_HINT_SHOWN] = value }
     }
 }

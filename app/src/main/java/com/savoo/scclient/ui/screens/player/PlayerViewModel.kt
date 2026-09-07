@@ -67,6 +67,19 @@ class PlayerViewModel @Inject constructor(
     val seekBarStyle = settingsRepository.settings.map { it.seekBarStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SeekBarStyle.CLASSIC)
 
+    val backgroundMode = settingsRepository.settings.map { it.backgroundMode }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.AppBackgroundMode.DYNAMIC)
+
+    val playerHintShown = settingsRepository.settings.map { it.playerHintShown }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun dismissPlayerHint() {
+        viewModelScope.launch { settingsRepository.setPlayerHintShown(true) }
+    }
+
+    val playerStyle = settingsRepository.settings.map { it.playerStyle }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.PlayerStyle.PIXEL)
+
     val playerBackgroundStyle = settingsRepository.settings.map { it.playerBackgroundStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB)
 

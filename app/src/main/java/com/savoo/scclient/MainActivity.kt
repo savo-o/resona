@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.luminance
 import androidx.core.view.WindowCompat
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.repository.DarkModeOption
@@ -129,10 +130,21 @@ class MainActivity : ComponentActivity() {
                 DarkModeOption.DARK -> true
             }
 
-            LaunchedEffect(isDark) {
+            val backgroundMode = settings.backgroundMode
+            val pixelWash = backgroundMode == com.savoo.scclient.data.repository.AppBackgroundMode.DYNAMIC &&
+                trackSeedColor != null
+            val customBackground = settings.backgroundCustomColor
+                .takeIf { backgroundMode == com.savoo.scclient.data.repository.AppBackgroundMode.CUSTOM }
+
+            LaunchedEffect(isDark, pixelWash, customBackground) {
                 val controller = WindowCompat.getInsetsController(window, window.decorView)
-                controller.isAppearanceLightStatusBars = !isDark
-                controller.isAppearanceLightNavigationBars = !isDark
+                val lightBars = when {
+                    pixelWash -> false
+                    customBackground != null -> customBackground.luminance() > 0.5f
+                    else -> !isDark
+                }
+                controller.isAppearanceLightStatusBars = lightBars
+                controller.isAppearanceLightNavigationBars = lightBars
             }
 
             val effectiveTheme = if (settings.dynamicFromTrack && trackSeedColor != null) {
@@ -149,6 +161,8 @@ class MainActivity : ComponentActivity() {
                     settings.colorTheme == AppColorTheme.CUSTOM -> settings.customSeedColor
                     else -> null
                 },
+                tintSurfaces = pixelWash,
+                customBackground = customBackground,
             ) {
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.savoo.scclient.ui.haptics.LocalHapticsEnabled provides settings.hapticsEnabled,
