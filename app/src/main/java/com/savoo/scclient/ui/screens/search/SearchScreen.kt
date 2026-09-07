@@ -83,6 +83,7 @@ fun SearchScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
     val history by viewModel.history.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val haptic = rememberHapticTick()
@@ -273,6 +274,7 @@ fun SearchScreen(
                                             if (isCurrentTrack) viewModel.playerController.togglePlayPause()
                                             else viewModel.playTrack(track)
                                         },
+                                        unavailableReason = unavailableReasons[track.id],
                                         modifier = Modifier.animateItem(),
                                     )
                                 }

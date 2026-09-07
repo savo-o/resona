@@ -14,20 +14,34 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.savoo.scclient.R
+import com.savoo.scclient.data.model.UnavailableReason
 
 @Composable
 fun TrackSkippedBanner(
     trackTitle: String,
+    reason: UnavailableReason?,
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showDetails by remember { mutableStateOf(false) }
+    if (showDetails && reason != null) {
+        TrackUnavailableDialog(
+            trackTitle = trackTitle,
+            reason = reason,
+            onDismiss = { showDetails = false },
+        )
+    }
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.errorContainer,
@@ -55,8 +69,14 @@ fun TrackSkippedBanner(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.track_skipped_retry))
+            if (reason != null) {
+                TextButton(onClick = { showDetails = true }) {
+                    Text(stringResource(R.string.track_skipped_details))
+                }
+            } else {
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.track_skipped_retry))
+                }
             }
         }
     }

@@ -60,6 +60,7 @@ fun ChartsScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val hasError by viewModel.hasError.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
 
     Scaffold(topBar = {
         TopAppBar(
@@ -131,6 +132,7 @@ fun ChartsScreen(
                                 track = track,
                                 isPlaying = playerState.isPlaying && isCurrent,
                                 isLoading = playerState.loadingTrackId == track.id,
+                                unavailableReason = unavailableReasons[track.id],
                                 onClick = {
                                     if (isCurrent) viewModel.playerController.togglePlayPause() else viewModel.playFrom(track.id)
                                 },
@@ -151,6 +153,7 @@ private fun ChartTrackRow(
     track: Track,
     isPlaying: Boolean,
     isLoading: Boolean,
+    unavailableReason: com.savoo.scclient.data.model.UnavailableReason?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -175,6 +178,7 @@ private fun ChartTrackRow(
             isPlaying = isPlaying,
             isLoading = isLoading,
             onTogglePlayPause = onClick,
+            unavailableReason = unavailableReason,
             modifier = Modifier.weight(1f),
         )
     }

@@ -146,7 +146,13 @@
     <string name="network_unavailable">No connection</string>
     <string name="network_restored">Connection restored</string>
     <string name="track_skipped_message">Couldn\'t load \"%1$s\", skipped</string>
+    <string name="track_skipped_deleted">\"%1$s\" was deleted by its uploader</string>
+    <string name="track_skipped_drm">\"%1$s\" needs a paid SoundCloud plan</string>
+    <string name="track_unavailable">Unavailable</string>
     <string name="track_skipped_retry">Retry</string>
+    <string name="track_skipped_details">Details</string>
+    <string name="track_dialog_ok">Got it</string>
+    <string name="track_unavailable_note">This is a SoundCloud restriction, not a Resona bug.</string>
     <string name="network_retrying">Weak connection, retrying…</string>
 
     <!-- Favorites -->

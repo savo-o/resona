@@ -146,7 +146,13 @@
     <string name="network_unavailable">Отсутствует подключение</string>
     <string name="network_restored">Подключение восстановлено</string>
     <string name="track_skipped_message">Не удалось загрузить «%1$s», трек пропущен</string>
+    <string name="track_skipped_deleted">«%1$s» удалён автором</string>
+    <string name="track_skipped_drm">«%1$s» доступен только с платной подпиской SoundCloud</string>
+    <string name="track_unavailable">Недоступен</string>
     <string name="track_skipped_retry">Повторить</string>
+    <string name="track_skipped_details">Подробнее</string>
+    <string name="track_dialog_ok">Понятно</string>
+    <string name="track_unavailable_note">Это ограничение SoundCloud, а не баг Resona.</string>
     <string name="network_retrying">Слабый интернет, повторная попытка…</string>
 
     <!-- Favorites -->

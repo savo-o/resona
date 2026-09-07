@@ -9,6 +9,7 @@ import com.savoo.scclient.data.local.LyricsCacheDao
 import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.local.TelegramImportDao
+import com.savoo.scclient.data.local.UnavailableTrackDao
 import com.savoo.scclient.data.remote.AuthInterceptor
 import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.remote.GeniusApi
@@ -233,4 +234,7 @@ object NetworkModule {
 
     @Provides
     fun provideLyricsCacheDao(db: AppDatabase): LyricsCacheDao = db.lyricsCacheDao()
+
+    @Provides
+    fun provideUnavailableTrackDao(db: AppDatabase): UnavailableTrackDao = db.unavailableTrackDao()
 }

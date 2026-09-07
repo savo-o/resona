@@ -14,10 +14,11 @@ import com.savoo.scclient.data.model.LyricsCacheEntity
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.TelegramImportRecord
+import com.savoo.scclient.data.model.UnavailableTrackEntity
 
 @Database(
-    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class, LyricsCacheEntity::class],
-    version = 10,
+    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class, LyricsCacheEntity::class, UnavailableTrackEntity::class],
+    version = 11,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playHistoryDao(): PlayHistoryDao
     abstract fun excludedArtistDao(): ExcludedArtistDao
     abstract fun lyricsCacheDao(): LyricsCacheDao
+    abstract fun unavailableTrackDao(): UnavailableTrackDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -176,9 +178,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS unavailable_tracks (
+                        trackId INTEGER NOT NULL PRIMARY KEY,
+                        reason TEXT NOT NULL,
+                        markedAt INTEGER NOT NULL
+                    )
+                """)
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .build()
     }
 }

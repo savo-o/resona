@@ -226,6 +226,7 @@ fun PlaylistScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     var sort by remember { mutableStateOf(TrackSort()) }
     val listState = rememberLazyListState()
@@ -341,6 +342,7 @@ fun PlaylistScreen(
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },
+                        unavailableReason = unavailableReasons[track.id],
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
                     )
                 }

@@ -204,6 +204,7 @@ fun FavoritesScreen(
     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState()
     val offlineTrackIds by viewModel.offlineTrackIds.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     val message by viewModel.message.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
@@ -329,6 +330,7 @@ fun FavoritesScreen(
                             selectionActive = selection.isActive,
                             isSelected = selection.contains(track.id),
                             onLongPress = { selection.toggle(track.id) },
+                            unavailableReason = unavailableReasons[track.id],
                             modifier = Modifier.padding(bottom = 8.dp).animateItem(),
                         )
                     }

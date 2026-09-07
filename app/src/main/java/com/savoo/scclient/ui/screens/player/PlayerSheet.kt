@@ -167,7 +167,7 @@ fun PlayerSheet(
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
     val track = state.currentTrack
     val haptics = rememberHaptics()
-    var skippedTrack by remember { mutableStateOf<Track?>(null) }
+    var skippedTrack by remember { mutableStateOf<com.savoo.scclient.player.SkippedTrack?>(null) }
 
     BackHandler(enabled = showFullPlayer) { showFullPlayer = false }
 
@@ -184,12 +184,12 @@ fun PlayerSheet(
         viewModel.controller.skippedTrackEvents.collect { skipped ->
             skippedTrack = skipped
             delay(5000)
-            if (skippedTrack?.id == skipped.id) skippedTrack = null
+            if (skippedTrack?.track?.id == skipped.track.id) skippedTrack = null
         }
     }
 
     Column {
-        var lastSkippedTrack by remember { mutableStateOf<Track?>(null) }
+        var lastSkippedTrack by remember { mutableStateOf<com.savoo.scclient.player.SkippedTrack?>(null) }
         skippedTrack?.let { lastSkippedTrack = it }
         AnimatedVisibility(
             visible = skippedTrack != null,
@@ -206,10 +206,11 @@ fun PlayerSheet(
         ) {
             lastSkippedTrack?.let { skipped ->
                 TrackSkippedBanner(
-                    trackTitle = skipped.title,
+                    trackTitle = skipped.track.title,
+                    reason = skipped.reason,
                     onRetry = {
                         skippedTrack = null
-                        viewModel.controller.retryTrack(skipped)
+                        viewModel.controller.retryTrack(skipped.track)
                     },
                     onDismiss = { skippedTrack = null },
                     modifier = Modifier

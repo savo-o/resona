@@ -20,13 +20,17 @@ import coil.request.SuccessResult
 import com.google.common.util.concurrent.MoreExecutors
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.PlayHistoryDao
+import com.savoo.scclient.data.local.UnavailableTrackDao
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.UnavailableReason
+import com.savoo.scclient.data.model.UnavailableTrackEntity
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
+import retrofit2.HttpException
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,10 +38,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -78,6 +85,8 @@ data class PlaybackState(
 // the Queue screen's drag-to-reorder needs for smooth, uninterrupted dragging across list positions.
 data class QueueEntry(val id: Long, val track: Track)
 
+data class SkippedTrack(val track: Track, val reason: UnavailableReason?)
+
 @UnstableApi
 @Singleton
 class PlayerController @Inject constructor(
@@ -87,6 +96,7 @@ class PlayerController @Inject constructor(
     val offlineTrackManager: OfflineTrackManager,
     private val playHistoryDao: PlayHistoryDao,
     private val settingsRepository: SettingsRepository,
+    private val unavailableTrackDao: UnavailableTrackDao,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -96,8 +106,11 @@ class PlayerController @Inject constructor(
     val state = _state.asStateFlow()
     private val _seedColor = MutableStateFlow<Color?>(null)
     val seedColor = _seedColor.asStateFlow()
-    private val _skippedTrackEvents = MutableSharedFlow<Track>(extraBufferCapacity = 1)
+    private val _skippedTrackEvents = MutableSharedFlow<SkippedTrack>(extraBufferCapacity = 1)
     val skippedTrackEvents = _skippedTrackEvents.asSharedFlow()
+    val unavailableReasons: StateFlow<Map<Long, UnavailableReason>> = unavailableTrackDao.observeAll()
+        .map { list -> list.associate { it.trackId to it.reason } }
+        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
     private val _queueEntries = MutableStateFlow<List<QueueEntry>>(emptyList())
     val queueEntries = _queueEntries.asStateFlow()
     private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
@@ -242,7 +255,7 @@ class PlayerController @Inject constructor(
             if (attempts > 2) {
                 DebugLog.log(TAG, "Giving up on track $mediaId after $attempts failed attempts, skipping")
                 errorRetryCount.remove(mediaId)
-                if (track != null) skipDueToFailure(track) else controller?.seekToNext()
+                if (track != null) scope.launch { skipDueToFailure(track) } else controller?.seekToNext()
                 return
             }
             if (track == null) {
@@ -372,25 +385,64 @@ class PlayerController @Inject constructor(
 
     // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
     // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
+    private suspend fun markUnavailable(trackId: Long, reason: UnavailableReason) {
+        withContext(Dispatchers.IO) {
+            unavailableTrackDao.mark(UnavailableTrackEntity(trackId, reason, System.currentTimeMillis()))
+        }
+        while (true) {
+            val index = queue.indexOfFirst { it.track.id == trackId }
+            if (index < 0) break
+            removeQueueItem(index)
+        }
+    }
+
     private suspend fun resolveTrack(track: Track, attempts: Int = 3, reportProgress: Boolean = true): ResolvedTrack? {
         offlineTrackManager.getLocalPath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
+
+        withContext(Dispatchers.IO) { unavailableTrackDao.get(track.id) }?.let {
+            DebugLog.log(TAG, "resolveTrack: id=${track.id} title=${track.title} already marked ${it.reason}, skipping")
+            return null
+        }
 
         val effectiveAttempts = if (ConnectivityEventBus.isUnreachable.value) 1 else attempts
         try {
             repeat(effectiveAttempts) { attempt ->
                 if (attempt > 0 && reportProgress) _state.update { it.copy(isRetryingNetwork = true) }
+                var deleted = false
                 val fullTrack = if (attempt == 0 && track.media != null) track
-                    else withContext(Dispatchers.IO) { runCatching { trackRepository.getTrack(track.id) }.getOrNull() } ?: track
+                    else withContext(Dispatchers.IO) {
+                        runCatching { trackRepository.getTrack(track.id) }
+                            .onFailure { if (it is HttpException && it.code() == 404) deleted = true }
+                            .getOrNull()
+                    } ?: track
+                if (deleted) {
+                    DebugLog.log(TAG, "resolveTrack id=${track.id} title=${track.title}: getTrack() 404, marking DELETED")
+                    markUnavailable(track.id, UnavailableReason.DELETED)
+                    return null
+                }
                 if (fullTrack.media == null) {
                     DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$effectiveAttempts id=${track.id} title=${track.title}: getTrack() returned no media")
                 }
-                val stream = withContext(Dispatchers.IO) {
+                val transcodings = fullTrack.media?.transcodings
+                if (!transcodings.isNullOrEmpty() && transcodings.none { it.format.protocol == "progressive" || it.format.protocol == "hls" }) {
+                    DebugLog.log(TAG, "resolveTrack id=${track.id} title=${track.title}: only encrypted transcodings, marking DRM")
+                    markUnavailable(track.id, UnavailableReason.DRM)
+                    return null
+                }
+                val streamResult = withContext(Dispatchers.IO) {
                     runCatching { trackRepository.resolvePlayableStream(fullTrack) }
                         .onFailure { DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$effectiveAttempts id=${track.id} title=${track.title}: resolvePlayableStream threw ${it}") }
-                        .getOrNull()
                 }
-                if (stream != null) return ResolvedTrack(fullTrack, stream.url, needsCaching = !stream.isHls, isHls = stream.isHls)
+                streamResult.getOrNull()?.let { stream ->
+                    return ResolvedTrack(fullTrack, stream.url, needsCaching = !stream.isHls, isHls = stream.isHls)
+                }
+                val streamFailure = streamResult.exceptionOrNull()
+                if (streamFailure is HttpException && streamFailure.code() == 404) {
+                    DebugLog.log(TAG, "resolveTrack id=${track.id} title=${track.title}: all playable formats 404 on resolve, marking DRM")
+                    markUnavailable(track.id, UnavailableReason.DRM)
+                    return null
+                }
                 if (attempt < effectiveAttempts - 1) delay(500L * (attempt + 1))
             }
             DebugLog.log(TAG, "resolveTrack GAVE UP after $effectiveAttempts attempts: id=${track.id} title=${track.title}")
@@ -400,15 +452,16 @@ class PlayerController @Inject constructor(
         }
     }
 
-    private fun skipDueToFailure(track: Track) {
+    private suspend fun skipDueToFailure(track: Track) {
         if (ConnectivityEventBus.isUnreachable.value) {
             DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title} offline, pausing instead of skipping")
             controller?.pause()
             _state.update { it.copy(loadingTrackId = null, isBuffering = false) }
             return
         }
-        DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title}")
-        _skippedTrackEvents.tryEmit(track)
+        val reason = withContext(Dispatchers.IO) { unavailableTrackDao.get(track.id) }?.reason
+        DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title} reason=$reason")
+        _skippedTrackEvents.tryEmit(SkippedTrack(track, reason))
         controller?.seekToNext()
     }
 

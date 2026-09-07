@@ -219,6 +219,7 @@ fun ArtistScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
+    val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     var selectedBadge by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(TrackSort()) }
@@ -341,6 +342,7 @@ fun ArtistScreen(
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },
+                        unavailableReason = unavailableReasons[track.id],
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
                     )
             }

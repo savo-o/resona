@@ -17,6 +17,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,12 +35,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -62,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -69,10 +73,13 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.UnavailableReason
 
 /**
  * Shared artwork tile: shows a music-note placeholder behind the real image, so tracks with no
@@ -131,6 +138,7 @@ fun TrackRow(
     selectionActive: Boolean = false,
     isSelected: Boolean = false,
     onLongPress: (() -> Unit)? = null,
+    unavailableReason: UnavailableReason? = null,
 ) {
     val haptic = com.savoo.scclient.ui.haptics.rememberHapticTick()
     val haptics = com.savoo.scclient.ui.haptics.rememberHaptics()
@@ -210,6 +218,7 @@ fun TrackRow(
                     selectionActive = selectionActive,
                     isSelected = isSelected,
                     burstHeart = burstHeart,
+                    unavailableReason = unavailableReason,
                     onTap = { handleRowTap() },
                     onLongPress = onLongPress,
                     onDoubleTapLike = {
@@ -228,10 +237,10 @@ fun TrackRow(
                         text = track.title,
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (unavailableReason != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        text = track.user.username,
+                        text = if (unavailableReason != null) stringResource(R.string.track_unavailable) else track.user.username,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -310,6 +319,7 @@ private fun ArtworkWithOverlays(
     selectionActive: Boolean,
     isSelected: Boolean,
     burstHeart: Boolean,
+    unavailableReason: UnavailableReason?,
     onTap: () -> Unit,
     onLongPress: (() -> Unit)?,
     onDoubleTapLike: () -> Unit,
@@ -326,7 +336,9 @@ private fun ArtworkWithOverlays(
         TrackArtwork(
             artworkUrl = track.artworkUrl,
             contentDescription = track.title,
-            modifier = Modifier.size(56.dp),
+            modifier = Modifier
+                .size(56.dp)
+                .then(if (unavailableReason != null) Modifier.alpha(0.5f) else Modifier),
         )
         if (isPlaying) {
             EqualizerOverlay(
@@ -334,6 +346,27 @@ private fun ArtworkWithOverlays(
                     .size(56.dp)
                     .clip(RoundedCornerShape(14.dp))
             )
+        }
+        if (unavailableReason != null) {
+            var showUnavailableDialog by remember { mutableStateOf(false) }
+            if (showUnavailableDialog) {
+                TrackUnavailableDialog(
+                    trackTitle = track.title,
+                    reason = unavailableReason,
+                    onDismiss = { showUnavailableDialog = false },
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(2.dp)
+                    .clickable { showUnavailableDialog = true },
+            ) {
+                FavoriteSourceBadge(
+                    icon = if (unavailableReason == UnavailableReason.DRM) Icons.Filled.Lock else Icons.Filled.Block,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
         }
         if (favoriteSource != null) {
             Row(
