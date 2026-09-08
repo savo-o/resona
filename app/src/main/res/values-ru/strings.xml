@@ -148,6 +148,8 @@
     <string name="track_skipped_message">Не удалось загрузить «%1$s», трек пропущен</string>
     <string name="track_skipped_deleted">«%1$s» удалён автором</string>
     <string name="track_skipped_drm">«%1$s» доступен только с платной подпиской SoundCloud</string>
+    <string name="track_skipped_preview">SoundCloud отдаёт только 30-секундный отрывок «%1$s» — целиком трек доступен с SoundCloud Go+</string>
+    <string name="track_unavailable_message">«%1$s» недоступен</string>
     <string name="track_unavailable">Недоступен</string>
     <string name="track_skipped_retry">Повторить</string>
     <string name="track_skipped_details">Подробнее</string>

@@ -35,45 +35,54 @@ fun SleepTimerSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        SleepTimerContent(controller = controller, onDismiss = onDismiss)
+    }
+}
+
+@Composable
+fun SleepTimerContent(
+    controller: PlayerController,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val haptic = rememberHapticTick()
     val remainingMs by controller.sleepTimerRemainingMs.collectAsState()
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
+        Text(
+            stringResource(R.string.player_sleep_timer),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(16.dp))
+
+        val remaining = remainingMs
+        if (remaining != null) {
             Text(
-                stringResource(R.string.player_sleep_timer),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+                stringResource(R.string.player_sleep_timer_active_format, formatRemaining(remaining)),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.height(16.dp))
-
-            val remaining = remainingMs
-            if (remaining != null) {
-                Text(
-                    stringResource(R.string.player_sleep_timer_active_format, formatRemaining(remaining)),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(
-                    onClick = { haptic(); controller.cancelSleepTimer() },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.player_sleep_timer_cancel))
-                }
-            } else {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(SLEEP_TIMER_OPTIONS_MIN) { minutes ->
-                        FilterChip(
-                            selected = false,
-                            onClick = { haptic(); controller.startSleepTimer(minutes); onDismiss() },
-                            label = { Text(stringResource(R.string.player_sleep_timer_minutes_format, minutes)) },
-                        )
-                    }
+            OutlinedButton(
+                onClick = { haptic(); controller.cancelSleepTimer() },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.player_sleep_timer_cancel))
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(SLEEP_TIMER_OPTIONS_MIN) { minutes ->
+                    FilterChip(
+                        selected = false,
+                        onClick = { haptic(); controller.startSleepTimer(minutes); onDismiss() },
+                        label = { Text(stringResource(R.string.player_sleep_timer_minutes_format, minutes)) },
+                    )
                 }
             }
-            Spacer(Modifier.height(20.dp))
         }
+        Spacer(Modifier.height(20.dp))
     }
 }
 

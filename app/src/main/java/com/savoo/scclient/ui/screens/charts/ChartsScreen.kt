@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.ui.components.EmptyState
 import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
 import com.savoo.scclient.ui.components.TrackRow
@@ -132,7 +133,7 @@ fun ChartsScreen(
                                 track = track,
                                 isPlaying = playerState.isPlaying && isCurrent,
                                 isLoading = playerState.loadingTrackId == track.id,
-                                unavailableReason = unavailableReasons[track.id],
+                                unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
                                 onClick = {
                                     if (isCurrent) viewModel.playerController.togglePlayPause() else viewModel.playFrom(track.id)
                                 },

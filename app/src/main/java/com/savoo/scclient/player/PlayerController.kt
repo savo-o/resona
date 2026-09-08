@@ -25,6 +25,7 @@ import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.UnavailableReason
 import com.savoo.scclient.data.model.UnavailableTrackEntity
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.repository.SettingsRepository
@@ -386,12 +387,16 @@ class PlayerController @Inject constructor(
 
     private data class ResolvedTrack(val track: Track, val url: String, val needsCaching: Boolean, val isHls: Boolean = false)
 
-    // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
-    // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
-    private suspend fun markUnavailable(trackId: Long, reason: UnavailableReason) {
+    private fun knownReason(track: Track): UnavailableReason? =
+        unavailableReasons.value[track.id] ?: track.restrictionReason()
+
+    private suspend fun persistUnavailable(trackId: Long, reason: UnavailableReason) {
         withContext(Dispatchers.IO) {
             unavailableTrackDao.mark(UnavailableTrackEntity(trackId, reason, System.currentTimeMillis()))
         }
+    }
+
+    private fun evictFromQueue(trackId: Long) {
         while (true) {
             val index = queue.indexOfFirst { it.track.id == trackId }
             if (index < 0) break
@@ -399,12 +404,20 @@ class PlayerController @Inject constructor(
         }
     }
 
+    private suspend fun markUnavailable(trackId: Long, reason: UnavailableReason) {
+        persistUnavailable(trackId, reason)
+        evictFromQueue(trackId)
+    }
+
+    // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
+    // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
     private suspend fun resolveTrack(track: Track, attempts: Int = 3, reportProgress: Boolean = true): ResolvedTrack? {
         offlineTrackManager.getLocalPath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
 
         withContext(Dispatchers.IO) { unavailableTrackDao.get(track.id) }?.let {
             DebugLog.log(TAG, "resolveTrack: id=${track.id} title=${track.title} already marked ${it.reason}, skipping")
+            evictFromQueue(track.id)
             return null
         }
 
@@ -422,6 +435,11 @@ class PlayerController @Inject constructor(
                 if (deleted) {
                     DebugLog.log(TAG, "resolveTrack id=${track.id} title=${track.title}: getTrack() 404, marking DELETED")
                     markUnavailable(track.id, UnavailableReason.DELETED)
+                    return null
+                }
+                fullTrack.restrictionReason()?.let { restriction ->
+                    DebugLog.log(TAG, "resolveTrack id=${track.id} title=${track.title}: policy=${fullTrack.policy}, marking $restriction")
+                    markUnavailable(track.id, restriction)
                     return null
                 }
                 if (fullTrack.media == null) {
@@ -455,17 +473,36 @@ class PlayerController @Inject constructor(
         }
     }
 
-    private suspend fun skipDueToFailure(track: Track) {
+    private suspend fun skipDueToFailure(track: Track, fallbackIndex: Int = -1) {
         if (ConnectivityEventBus.isUnreachable.value) {
             DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title} offline, pausing instead of skipping")
             controller?.pause()
             _state.update { it.copy(loadingTrackId = null, isBuffering = false) }
             return
         }
-        val reason = withContext(Dispatchers.IO) { unavailableTrackDao.get(track.id) }?.reason
+        val reason = withContext(Dispatchers.IO) { unavailableTrackDao.get(track.id) }?.reason ?: track.restrictionReason()
         DebugLog.log(TAG, "skipDueToFailure: id=${track.id} title=${track.title} reason=$reason")
         _skippedTrackEvents.tryEmit(SkippedTrack(track, reason))
-        controller?.seekToNext()
+
+        val isCurrentInPlayer = controller?.currentMediaItem?.mediaId == track.id.toString()
+        val isCurrentInQueue = queue.getOrNull(queueIndex)?.track?.id == track.id
+        if (!isCurrentInPlayer && !isCurrentInQueue) {
+            DebugLog.log(TAG, "skipDueToFailure: id=${track.id} no longer the selected track, leaving playback alone")
+            return
+        }
+        if (isCurrentInPlayer) {
+            controller?.seekToNext()
+            return
+        }
+        val next = if (fallbackIndex >= 0) {
+            queue.drop(fallbackIndex).firstOrNull { it.track.id != track.id && knownReason(it.track) == null }
+        } else null
+        val nextIndex = next?.let { entry -> queue.indexOfFirst { it.id == entry.id } } ?: -1
+        if (nextIndex >= 0) {
+            playFromQueue(nextIndex)
+        } else {
+            _state.update { it.copy(loadingTrackId = null, isBuffering = false) }
+        }
     }
 
     private fun buildMediaItem(track: Track, url: String, isHls: Boolean = false): MediaItem =
@@ -662,6 +699,12 @@ class PlayerController @Inject constructor(
     }
 
     fun play(track: Track) {
+        knownReason(track)?.let { reason ->
+            DebugLog.log(TAG, "play: id=${track.id} title=${track.title} known unavailable ($reason), not touching playback")
+            _skippedTrackEvents.tryEmit(SkippedTrack(track, reason))
+            scope.launch { persistUnavailable(track.id, reason) }
+            return
+        }
         currentQueueTag = null
         _state.update { it.copy(loadingTrackId = track.id) }
         val idx = queue.indexOfFirst { it.track.id == track.id }
@@ -679,9 +722,29 @@ class PlayerController @Inject constructor(
         if (idx >= 0) playFromQueue(idx) else play(track)
     }
 
-    fun playQueue(tracks: List<Track>, startIndex: Int = 0, repeatAll: Boolean = false, tag: String? = null) {
-        if (tracks.isEmpty()) return
-        val clampedStart = startIndex.coerceIn(0, tracks.lastIndex)
+    fun playQueue(
+        sourceTracks: List<Track>,
+        startIndex: Int = 0,
+        repeatAll: Boolean = false,
+        tag: String? = null,
+        startExact: Boolean = true,
+    ) {
+        if (sourceTracks.isEmpty()) return
+        val requested = sourceTracks[startIndex.coerceIn(0, sourceTracks.lastIndex)]
+        if (startExact) {
+            knownReason(requested)?.let { reason ->
+                DebugLog.log(TAG, "playQueue: requested id=${requested.id} title=${requested.title} unavailable ($reason), not starting a queue")
+                _skippedTrackEvents.tryEmit(SkippedTrack(requested, reason))
+                scope.launch { persistUnavailable(requested.id, reason) }
+                return
+            }
+        }
+        val tracks = sourceTracks.filter { knownReason(it) == null }
+        if (tracks.isEmpty()) {
+            _skippedTrackEvents.tryEmit(SkippedTrack(requested, knownReason(requested)))
+            return
+        }
+        val clampedStart = tracks.indexOfFirst { it.id == requested.id }.coerceAtLeast(0).coerceAtMost(tracks.lastIndex)
         currentQueueTag = tag
 
         // Session-only, not persisted to prefs (unlike cycleRepeatMode()) - a queue that wants to loop
@@ -816,7 +879,7 @@ class PlayerController @Inject constructor(
         }
         val wasCurrent = index == queueIndex
         if (!wasCurrent && index < queueIndex) queueIndex--
-        controller?.removeMediaItem(index)
+        controller?.let { if (index < it.mediaItemCount) it.removeMediaItem(index) }
         if (wasCurrent) {
             queueIndex = controller?.currentMediaItemIndex?.takeIf { it in queue.indices } ?: index.coerceIn(0, queue.lastIndex)
         }
@@ -828,6 +891,12 @@ class PlayerController @Inject constructor(
     fun playFromQueue(index: Int) {
         if (index !in queue.indices) return
         val entry = queue[index]
+        knownReason(entry.track)?.let { reason ->
+            DebugLog.log(TAG, "playFromQueue: id=${entry.track.id} title=${entry.track.title} known unavailable ($reason)")
+            _skippedTrackEvents.tryEmit(SkippedTrack(entry.track, reason))
+            scope.launch { markUnavailable(entry.track.id, reason) }
+            return
+        }
         queueIndex = index
         _state.update { it.copy(loadingTrackId = entry.track.id) }
         updateQueueState()
@@ -926,7 +995,7 @@ class PlayerController @Inject constructor(
             if (requestId != playRequestId) return@launch
             if (resolved == null) {
                 _state.update { it.copy(loadingTrackId = null) }
-                skipDueToFailure(track)
+                skipDueToFailure(track, requestIndex)
                 return@launch
             }
             val (fullTrack, url, needsCaching, isHls) = resolved

@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.R
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.ui.components.AlbumRow
 import com.savoo.scclient.ui.components.ArtistRow
 import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
@@ -274,7 +275,7 @@ fun SearchScreen(
                                             if (isCurrentTrack) viewModel.playerController.togglePlayPause()
                                             else viewModel.playTrack(track)
                                         },
-                                        unavailableReason = unavailableReasons[track.id],
+                                        unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
                                         modifier = Modifier.animateItem(),
                                     )
                                 }

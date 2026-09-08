@@ -344,7 +344,7 @@ class HomeViewModel @Inject constructor(
         // something else, then starting the mix again used to hand back the exact same order every
         // time - felt like "the same mix" rather than a different session of the same pool. Shuffling
         // a copy here doesn't affect what the hero artwork is showing (that reads mixTracks directly).
-        playerController.playQueue(tracks.shuffled(), repeatAll = true, tag = MIX_QUEUE_TAG)
+        playerController.playQueue(tracks.shuffled(), repeatAll = true, tag = MIX_QUEUE_TAG, startExact = false)
     }
 
     fun playFrom(tracks: List<Track>, trackId: Long, tag: String? = null) {

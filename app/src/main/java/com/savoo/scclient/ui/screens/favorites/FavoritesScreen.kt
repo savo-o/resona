@@ -44,6 +44,7 @@ import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
@@ -330,7 +331,7 @@ fun FavoritesScreen(
                             selectionActive = selection.isActive,
                             isSelected = selection.contains(track.id),
                             onLongPress = { selection.toggle(track.id) },
-                            unavailableReason = unavailableReasons[track.id],
+                            unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
                             modifier = Modifier.padding(bottom = 8.dp).animateItem(),
                         )
                     }

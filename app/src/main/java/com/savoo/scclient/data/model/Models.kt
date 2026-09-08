@@ -15,6 +15,7 @@ data class Track(
     @Json(name = "genre") val genre: String? = null,
     @Json(name = "media") val media: Media? = null,
     @Json(name = "permalink_url") val permalinkUrl: String? = null,
+    @Json(name = "policy") val policy: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -26,7 +27,8 @@ data class Media(
 data class Transcoding(
     val url: String,
     val format: TranscodingFormat,
-    val quality: String? = null
+    val quality: String? = null,
+    val snipped: Boolean? = null
 )
 
 @JsonClass(generateAdapter = true)

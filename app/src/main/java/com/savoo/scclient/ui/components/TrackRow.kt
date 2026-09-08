@@ -363,7 +363,7 @@ private fun ArtworkWithOverlays(
                     .clickable { showUnavailableDialog = true },
             ) {
                 FavoriteSourceBadge(
-                    icon = if (unavailableReason == UnavailableReason.DRM) Icons.Filled.Lock else Icons.Filled.Block,
+                    icon = if (unavailableReason == UnavailableReason.DELETED) Icons.Filled.Block else Icons.Filled.Lock,
                     tint = MaterialTheme.colorScheme.error,
                 )
             }

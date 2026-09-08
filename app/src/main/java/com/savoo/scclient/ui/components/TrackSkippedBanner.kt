@@ -62,7 +62,10 @@ fun TrackSkippedBanner(
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                stringResource(R.string.track_skipped_message, trackTitle),
+                stringResource(
+                    if (reason != null) R.string.track_unavailable_message else R.string.track_skipped_message,
+                    trackTitle,
+                ),
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,

@@ -66,6 +66,7 @@ import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.remote.BadgeRepository
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
@@ -129,7 +130,7 @@ class ArtistViewModel @Inject constructor(
 
     fun playAll(tracks: List<Track> = _uiState.value.tracks) {
         if (tracks.isNotEmpty()) {
-            playerController.playQueue(tracks, 0, tag = artistQueueTag())
+            playerController.playQueue(tracks, 0, tag = artistQueueTag(), startExact = false)
         }
     }
 
@@ -342,7 +343,7 @@ fun ArtistScreen(
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },
-                        unavailableReason = unavailableReasons[track.id],
+                        unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
                     )
             }

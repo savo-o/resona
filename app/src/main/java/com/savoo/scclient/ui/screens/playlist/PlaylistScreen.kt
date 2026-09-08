@@ -60,6 +60,7 @@ import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
@@ -136,7 +137,7 @@ class PlaylistViewModel @Inject constructor(
 
     fun playAll(tracks: List<Track> = _uiState.value.tracks) {
         if (tracks.isNotEmpty()) {
-            playerController.playQueue(tracks, 0, tag = playlistQueueTag())
+            playerController.playQueue(tracks, 0, tag = playlistQueueTag(), startExact = false)
         }
     }
 
@@ -342,7 +343,7 @@ fun PlaylistScreen(
                         selectionActive = selection.isActive,
                         isSelected = selection.contains(track.id),
                         onLongPress = { selection.toggle(track.id) },
-                        unavailableReason = unavailableReasons[track.id],
+                        unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
                     )
                 }

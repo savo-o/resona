@@ -72,6 +72,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -462,6 +463,7 @@ private data class PixelPalette(
     val accentInk: Color,
     val onBackground: Color,
     val onBackgroundMuted: Color,
+    val scheme: ColorScheme,
 )
 
 // Every color here is derived from the current track's extracted artwork color (glowColor) - a
@@ -493,6 +495,7 @@ private fun rememberPixelPalette(glowColor: Color?, artworkOnly: Boolean): Pixel
         accentInk = scheme.onPrimary,
         onBackground = scheme.onSurface,
         onBackgroundMuted = scheme.onSurfaceVariant,
+        scheme = scheme,
     )
 }
 
@@ -780,8 +783,9 @@ private fun PixelPlayerContent(
     val haptic = rememberHapticTick()
     val haptics = rememberHaptics()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
-    var showQueue by remember { mutableStateOf(false) }
-    var showSleepTimer by remember { mutableStateOf(false) }
+    var panel by remember { mutableStateOf<PixelPanel?>(null) }
+    var lastPanel by remember { mutableStateOf(PixelPanel.QUEUE) }
+    panel?.let { lastPanel = it }
     var showOverflowMenu by remember { mutableStateOf(false) }
     val sleepTimerRemainingMs by controller.sleepTimerRemainingMs.collectAsState()
     var isDragging by remember { mutableStateOf(false) }
@@ -832,7 +836,7 @@ private fun PixelPlayerContent(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 24.dp)
-            .padding(top = 24.dp, bottom = 12.dp)
+            .padding(top = 18.dp, bottom = 12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -934,8 +938,10 @@ private fun PixelPlayerContent(
                     onColor = palette.onBackground,
                     mutedColor = palette.onBackgroundMuted,
                     surfaceColor = palette.surface,
+                    offsetControlTopPadding = 4.dp,
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(top = 14.dp)
                         .nestedScroll(sheetDragGuard),
                 )
             } else {
@@ -1278,13 +1284,13 @@ private fun PixelPlayerContent(
                         label = stringResource(R.string.player_sleep_timer),
                         palette = palette,
                         active = sleepTimerRemainingMs != null,
-                        onClick = { haptic(); showOverflowMenu = false; showSleepTimer = true },
+                        onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.SLEEP_TIMER },
                     )
                     PixelMenuItem(
                         icon = Icons.AutoMirrored.Filled.QueueMusic,
                         label = stringResource(R.string.player_queue),
                         palette = palette,
-                        onClick = { haptic(); showOverflowMenu = false; showQueue = true },
+                        onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.QUEUE },
                     )
                     PixelMenuItem(
                         icon = Icons.Filled.Share,
@@ -1305,15 +1311,80 @@ private fun PixelPlayerContent(
                 }
             }
         }
-    }
 
-    if (showSleepTimer) {
-        SleepTimerSheet(controller = controller, onDismiss = { showSleepTimer = false })
-    }
-    if (showQueue) {
-        QueueSheet(controller = controller, onDismiss = { showQueue = false })
+        BackHandler(enabled = showOverflowMenu || panel != null) {
+            showOverflowMenu = false
+            panel = null
+        }
+
+        if (panel != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { panel = null },
+            )
+        }
+        AnimatedVisibility(
+            visible = panel != null,
+            enter = fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+                slideInVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                    initialOffsetY = { it },
+                ),
+            exit = fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
+                slideOutVertically(
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                    targetOffsetY = { it },
+                ),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = palette.background,
+                contentColor = palette.onBackground,
+                shadowElevation = 12.dp,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                MaterialTheme(
+                    colorScheme = palette.scheme.copy(
+                        background = palette.background,
+                        surface = palette.surface,
+                        onSurface = palette.onBackground,
+                        onSurfaceVariant = palette.onBackgroundMuted,
+                        primary = palette.accent,
+                        onPrimary = palette.accentInk,
+                    )
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .size(width = 34.dp, height = 4.dp)
+                                .background(palette.onBackgroundMuted.copy(alpha = 0.4f), RoundedCornerShape(50)),
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        when (lastPanel) {
+                            PixelPanel.QUEUE -> QueueContent(
+                                controller = controller,
+                                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.8f),
+                            )
+                            PixelPanel.SLEEP_TIMER -> SleepTimerContent(
+                                controller = controller,
+                                onDismiss = { panel = null },
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
+
+private enum class PixelPanel { QUEUE, SLEEP_TIMER }
 
 
 @Composable
@@ -1529,6 +1600,7 @@ private fun LyricsView(
     mutedColor: Color,
     surfaceColor: Color,
     modifier: Modifier = Modifier,
+    offsetControlTopPadding: Dp = 20.dp,
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (result) {
@@ -1609,7 +1681,7 @@ private fun LyricsView(
                         surfaceColor = surfaceColor,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(top = 20.dp),
+                            .padding(top = offsetControlTopPadding),
                     )
                 }
             }

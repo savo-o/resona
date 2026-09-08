@@ -65,6 +65,6 @@ class ChartsViewModel @Inject constructor(
     fun playAll() {
         val list = tracks.value
         if (list.isEmpty()) return
-        playerController.playQueue(list, 0, repeatAll = true, tag = queueTag())
+        playerController.playQueue(list, 0, repeatAll = true, tag = queueTag(), startExact = false)
     }
 }

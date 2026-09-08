@@ -148,6 +148,8 @@
     <string name="track_skipped_message">Couldn\'t load \"%1$s\", skipped</string>
     <string name="track_skipped_deleted">\"%1$s\" was deleted by its uploader</string>
     <string name="track_skipped_drm">\"%1$s\" needs a paid SoundCloud plan</string>
+    <string name="track_skipped_preview">SoundCloud only serves a 30-second preview of \"%1$s\" - the full track needs SoundCloud Go+</string>
+    <string name="track_unavailable_message">\"%1$s\" is unavailable</string>
     <string name="track_unavailable">Unavailable</string>
     <string name="track_skipped_retry">Retry</string>
     <string name="track_skipped_details">Details</string>

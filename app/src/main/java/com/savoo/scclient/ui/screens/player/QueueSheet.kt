@@ -54,6 +54,23 @@ fun QueueSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    ) {
+        QueueContent(
+            controller = controller,
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+        )
+    }
+}
+
+@Composable
+fun QueueContent(
+    controller: PlayerController,
+    modifier: Modifier = Modifier,
+) {
     val haptic = rememberHapticTick()
     val hapticFeedback = LocalHapticFeedback.current
     val entries by controller.queueEntries.collectAsState()
@@ -63,49 +80,38 @@ fun QueueSheet(
         controller.moveQueueItem(from.index, to.index)
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .padding(horizontal = 20.dp),
-        ) {
+    Column(modifier = modifier.padding(horizontal = 20.dp)) {
+        Text(
+            stringResource(R.string.player_queue),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+        )
+        state.currentTrack?.let { current ->
             Text(
-                stringResource(R.string.player_queue),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+                playingFromSource(state.queueTag, current.user.username),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            state.currentTrack?.let { current ->
-                Text(
-                    playingFromSource(state.queueTag, current.user.username),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.height(12.dp))
+        }
+        Spacer(Modifier.height(12.dp))
 
-            LazyColumn(state = lazyListState, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                itemsIndexed(entries, key = { _, entry -> entry.id }) { index, entry ->
-                    ReorderableItem(reorderableState, key = entry.id) { isDragging ->
-                        QueueRow(
-                            entry = entry,
-                            isCurrent = index == state.queueIndex,
-                            isDragging = isDragging,
-                            onPlay = { haptic(); controller.playFromQueue(index) },
-                            onRemove = { haptic(); controller.removeQueueItem(index) },
-                            dragModifier = Modifier.longPressDraggableHandle(
-                                onDragStarted = { hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress) },
-                                onDragStopped = { hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress) },
-                            ),
-                        )
-                    }
+        LazyColumn(state = lazyListState, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            itemsIndexed(entries, key = { _, entry -> entry.id }) { index, entry ->
+                ReorderableItem(reorderableState, key = entry.id) { isDragging ->
+                    QueueRow(
+                        entry = entry,
+                        isCurrent = index == state.queueIndex,
+                        isDragging = isDragging,
+                        onPlay = { haptic(); controller.playFromQueue(index) },
+                        onRemove = { haptic(); controller.removeQueueItem(index) },
+                        dragModifier = Modifier.longPressDraggableHandle(
+                            onDragStarted = { hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress) },
+                            onDragStopped = { hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress) },
+                        ),
+                    )
                 }
-                item { Spacer(Modifier.height(12.dp)) }
             }
+            item { Spacer(Modifier.height(12.dp)) }
         }
     }
 }

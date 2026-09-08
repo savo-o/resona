@@ -30,6 +30,7 @@ fun TrackUnavailableDialog(
                         when (reason) {
                             UnavailableReason.DELETED -> R.string.track_skipped_deleted
                             UnavailableReason.DRM -> R.string.track_skipped_drm
+                            UnavailableReason.PREVIEW -> R.string.track_skipped_preview
                         },
                         trackTitle,
                     )
