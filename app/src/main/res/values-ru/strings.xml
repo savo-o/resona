@@ -258,6 +258,8 @@
     <string name="settings_app_background_custom_desc">Свой цвет фона, карточки треков отступают от него на несколько ступеней</string>
     <string name="settings_app_background_player_only_desc">От обложки красится только плеер, остальное приложение остаётся обычным</string>
     <string name="settings_player_style">Стиль плеера</string>
+    <string name="settings_pixel_glow">Свечение за обложкой</string>
+    <string name="settings_pixel_glow_desc">Мягкий круговой градиент в цвет текущего трека — тот же, что в Legacy Orb</string>
     <string name="settings_player_style_pixel">Pixel</string>
     <string name="settings_player_style_legacy">Legacy</string>
     <string name="settings_player_background">Фон плеера</string>

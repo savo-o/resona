@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.savoo.scclient.R
@@ -368,20 +369,33 @@ fun CustomizationScreen(
                         R.string.settings_app_background_custom_desc,
                         R.string.settings_app_background_player_only_desc,
                     )
-                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        modes.forEachIndexed { index, mode ->
-                            val shapes = when (index) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                modes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                            }
-                            ToggleButton(
-                                checked = settings.backgroundMode == mode,
-                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setBackgroundMode(mode) } },
-                                modifier = Modifier.weight(1f),
-                                shapes = shapes,
-                            ) {
-                                Text(stringResource(modeLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        modes.chunked(2).forEach { row ->
+                            ButtonGroup(modifier = Modifier.fillMaxWidth()) {
+                                row.forEachIndexed { indexInRow, mode ->
+                                    val index = modes.indexOf(mode)
+                                    val shapes = if (indexInRow == 0) {
+                                        ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                    } else {
+                                        ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                    }
+                                    ToggleButton(
+                                        checked = settings.backgroundMode == mode,
+                                        onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setBackgroundMode(mode) } },
+                                        modifier = Modifier.weight(1f),
+                                        shapes = shapes,
+                                    ) {
+                                        Text(
+                                            stringResource(modeLabelResIds[index]),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -420,6 +434,14 @@ fun CustomizationScreen(
                                 Text(stringResource(styleLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
                             }
                         }
+                    }
+                    if (settings.playerStyle == PlayerStyle.PIXEL) {
+                        SwitchItem(
+                            title = stringResource(R.string.settings_pixel_glow),
+                            subtitle = stringResource(R.string.settings_pixel_glow_desc),
+                            checked = settings.pixelGlowEnabled,
+                            onCheckedChange = { viewModel.setPixelGlowEnabled(it) },
+                        )
                     }
                 }
             }

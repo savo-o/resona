@@ -258,6 +258,8 @@
     <string name="settings_app_background_custom_desc">Your own color for the background, with track pills stepped away from it</string>
     <string name="settings_app_background_player_only_desc">Only the player follows the cover, the rest of the app stays plain</string>
     <string name="settings_player_style">Player style</string>
+    <string name="settings_pixel_glow">Glow behind the artwork</string>
+    <string name="settings_pixel_glow_desc">A soft radial gradient in the current track colour - the same one the Legacy Orb player uses</string>
     <string name="settings_player_style_pixel">Pixel</string>
     <string name="settings_player_style_legacy">Legacy</string>
     <string name="settings_player_background">Player background</string>

@@ -98,6 +98,7 @@ data class AppSettings(
     val backgroundMode: AppBackgroundMode = AppBackgroundMode.PLAYER_ONLY,
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
     val playerHintShown: Boolean = false,
+    val pixelGlowEnabled: Boolean = true,
 )
 
 @Singleton
@@ -132,6 +133,7 @@ class SettingsRepository @Inject constructor(
         val BACKGROUND_MODE = stringPreferencesKey("background_mode")
         val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
         val PLAYER_HINT_SHOWN = booleanPreferencesKey("player_hint_shown")
+        val PIXEL_GLOW_ENABLED = booleanPreferencesKey("pixel_glow_enabled")
     }
 
     private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
@@ -191,6 +193,7 @@ class SettingsRepository @Inject constructor(
             } ?: AppBackgroundMode.PLAYER_ONLY,
             backgroundCustomColor = prefs[Keys.BACKGROUND_CUSTOM_COLOR]?.let { Color(it) } ?: Color(0xFF1B1B1F),
             playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
+            pixelGlowEnabled = prefs[Keys.PIXEL_GLOW_ENABLED] ?: true,
         )
     }
 
@@ -302,5 +305,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setPlayerHintShown(value: Boolean) {
         context.dataStore.edit { it[Keys.PLAYER_HINT_SHOWN] = value }
+    }
+
+    suspend fun setPixelGlowEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.PIXEL_GLOW_ENABLED] = value }
     }
 }

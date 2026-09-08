@@ -283,6 +283,7 @@ fun PlayerSheet(
             showCustomizeHint = !viewModel.playerHintShown.collectAsState().value,
             onDismissCustomizeHint = { viewModel.dismissPlayerHint() },
             backgroundStyle = viewModel.playerBackgroundStyle.collectAsState().value,
+            pixelGlowEnabled = viewModel.pixelGlowEnabled.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsOffsetMs = viewModel.lyricsOffsetMs.collectAsState().value,
@@ -319,6 +320,7 @@ private fun FullPlayerSheet(
     playerStyle: PlayerStyle,
     backgroundMode: AppBackgroundMode,
     backgroundStyle: PlayerBackgroundStyle,
+    pixelGlowEnabled: Boolean,
     showCustomizeHint: Boolean,
     onDismissCustomizeHint: () -> Unit,
     lyrics: LyricsResult?,
@@ -393,6 +395,8 @@ private fun FullPlayerSheet(
             isMixPlaying = isMixPlaying,
             palette = pixelPalette,
             seekBarStyle = seekBarStyle,
+            glowColor = glowColor,
+            showGlow = pixelGlowEnabled,
             showCustomizeHint = showCustomizeHint,
             onDismissCustomizeHint = onDismissCustomizeHint,
             lyrics = lyrics,
@@ -551,6 +555,9 @@ private fun PixelArtwork(
     progress: Float,
     palette: PixelPalette,
     slideOffsetX: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
+    glowColor: Color?,
+    showGlow: Boolean,
+    isPlaying: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val blobShape = remember { BlobShape() }
@@ -567,6 +574,9 @@ private fun PixelArtwork(
         val ringStroke = 4.dp
         val ringSize = artSize + ringGap * 2 + ringStroke
         Box(modifier = Modifier.size(artSize), contentAlignment = Alignment.Center) {
+            if (showGlow) {
+                OrbGlow(glowColor = glowColor, isPlaying = isPlaying, orbSize = artSize * 1.1f)
+            }
             TrackArtwork(
                 artworkUrl = artworkUrl,
                 contentDescription = null,
@@ -757,6 +767,8 @@ private fun PixelPlayerContent(
     isMixPlaying: Boolean,
     palette: PixelPalette,
     seekBarStyle: SeekBarStyle,
+    glowColor: Color?,
+    showGlow: Boolean,
     showCustomizeHint: Boolean = false,
     onDismissCustomizeHint: () -> Unit = {},
     lyrics: LyricsResult?,
@@ -963,6 +975,9 @@ private fun PixelPlayerContent(
                             } else 0f,
                             palette = palette,
                             slideOffsetX = slideOffset,
+                            glowColor = glowColor,
+                            showGlow = showGlow,
+                            isPlaying = state.isPlaying,
                             modifier = Modifier
                                 .size(artSize)
                                 .align(Alignment.BottomCenter),
@@ -2304,20 +2319,14 @@ private fun PlayerCircleIconButton(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ArtworkOrb(
-    artworkUrl: String?,
+private fun OrbGlow(
     glowColor: Color?,
     isPlaying: Boolean,
-    progress: Float,
-    slideOffsetX: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
-    style: com.savoo.scclient.data.repository.PlayerBackgroundStyle = com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB,
-    modifier: Modifier = Modifier,
+    orbSize: Dp,
 ) {
-    val fallback = MaterialTheme.colorScheme.primary
     val colorSpec = tween<Color>(1400, easing = FastOutSlowInEasing)
-    val orbA by animateColorAsState(glowColor ?: fallback, colorSpec, label = "orbColorA")
+    val orbA by animateColorAsState(glowColor ?: MaterialTheme.colorScheme.primary, colorSpec, label = "orbColorA")
     val orbB by animateColorAsState(
         glowColor?.let { lerp(it, MaterialTheme.colorScheme.tertiary, 0.55f) } ?: MaterialTheme.colorScheme.tertiary,
         colorSpec,
@@ -2369,6 +2378,57 @@ private fun ArtworkOrb(
         label = "orbBreathe",
     )
 
+    Box(
+        modifier = Modifier
+            .requiredSize(orbSize)
+            .graphicsLayer {
+                scaleX = breathe * presence; scaleY = breathe * presence
+                alpha = presenceAlpha
+                val rad = Math.toRadians(angleA.toDouble())
+                translationX = (cos(rad) * 70f).toFloat()
+                translationY = (sin(rad) * 70f).toFloat()
+            }
+            .background(softGradient(orbA.copy(alpha = 1f)), CircleShape)
+            .blur(46.dp, BlurredEdgeTreatment.Unbounded)
+    )
+    Box(
+        modifier = Modifier
+            .requiredSize(orbSize * 0.85f)
+            .graphicsLayer {
+                scaleX = breathe * presence; scaleY = breathe * presence
+                alpha = presenceAlpha
+                val rad = Math.toRadians(angleB.toDouble())
+                translationX = (cos(rad) * 65f).toFloat()
+                translationY = (sin(rad) * 65f).toFloat()
+            }
+            .background(softGradient(orbB.copy(alpha = 1f)), CircleShape)
+            .blur(46.dp, BlurredEdgeTreatment.Unbounded)
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ArtworkOrb(
+    artworkUrl: String?,
+    glowColor: Color?,
+    isPlaying: Boolean,
+    progress: Float,
+    slideOffsetX: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
+    style: com.savoo.scclient.data.repository.PlayerBackgroundStyle = com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB,
+    modifier: Modifier = Modifier,
+) {
+    val fallback = MaterialTheme.colorScheme.primary
+    val presenceAlpha by animateFloatAsState(
+        targetValue = if (isPlaying) 1f else 0.3f,
+        animationSpec = tween(900, easing = FastOutSlowInEasing),
+        label = "orbPresenceAlpha",
+    )
+    val orbA by animateColorAsState(
+        glowColor ?: fallback,
+        tween(1400, easing = FastOutSlowInEasing),
+        label = "orbColorA",
+    )
+
     val blobShape = remember { BlobShape() }
     val ringColor = orbA.tone(0.45f, Color.White)
     val animatedProgress by animateFloatAsState(
@@ -2387,32 +2447,7 @@ private fun ArtworkOrb(
         val ringSize = artSize + ringGap * 2 + ringStroke
         Box(modifier = Modifier.size(artSize), contentAlignment = Alignment.Center) {
             if (style == com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB) {
-                Box(
-                    modifier = Modifier
-                        .requiredSize(orbSize)
-                        .graphicsLayer {
-                            scaleX = breathe * presence; scaleY = breathe * presence
-                            alpha = presenceAlpha
-                            val rad = Math.toRadians(angleA.toDouble())
-                            translationX = (cos(rad) * 70f).toFloat()
-                            translationY = (sin(rad) * 70f).toFloat()
-                        }
-                        .background(softGradient(orbA.copy(alpha = 1f)), CircleShape)
-                        .blur(46.dp, BlurredEdgeTreatment.Unbounded)
-                )
-                Box(
-                    modifier = Modifier
-                        .requiredSize(orbSize * 0.85f)
-                        .graphicsLayer {
-                            scaleX = breathe * presence; scaleY = breathe * presence
-                            alpha = presenceAlpha
-                            val rad = Math.toRadians(angleB.toDouble())
-                            translationX = (cos(rad) * 65f).toFloat()
-                            translationY = (sin(rad) * 65f).toFloat()
-                        }
-                        .background(softGradient(orbB.copy(alpha = 1f)), CircleShape)
-                        .blur(46.dp, BlurredEdgeTreatment.Unbounded)
-                )
+                OrbGlow(glowColor = glowColor, isPlaying = isPlaying, orbSize = orbSize)
             } else if (style == com.savoo.scclient.data.repository.PlayerBackgroundStyle.BLURRED_ARTWORK) {
                 // Deliberately bounded (not requiredSize + Unbounded like the orb glow above): an
                 // overflowing blurred layer here would transiently clip on every recomposition that

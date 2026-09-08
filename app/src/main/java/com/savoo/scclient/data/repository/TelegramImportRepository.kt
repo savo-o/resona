@@ -2,9 +2,11 @@ package com.savoo.scclient.data.repository
 
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.TelegramImportDao
+import com.savoo.scclient.data.local.UnavailableTrackDao
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.TelegramImportRecord
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.telegram.Id3Reader
 import com.savoo.scclient.telegram.ImportItemResult
@@ -39,6 +41,7 @@ class TelegramImportRepository @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val offlineTrackManager: OfflineTrackManager,
     private val telegramImportDao: TelegramImportDao,
+    private val unavailableTrackDao: UnavailableTrackDao,
 ) {
     /** Synthetic ids for offline-only imports live in a negative namespace - real SoundCloud ids are always positive. */
     private fun syntheticTrackId(chatId: Long, messageId: Long): Long =
@@ -46,7 +49,19 @@ class TelegramImportRepository @Inject constructor(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun importChat(chatId: Long): Flow<ImportProgress> = flow {
-        val alreadyImported = telegramImportDao.importedMessageIds(chatId).toHashSet()
+        val alreadyImported = hashSetOf<Long>()
+        val stale = mutableListOf<Long>()
+        telegramImportDao.recordsFor(chatId).forEach { record ->
+            val id = record.matchedTrackId
+            val stillThere = when (record.status) {
+                ImportItemStatus.DOWNLOADED_OFFLINE.name -> id != null && offlineTrackManager.isOfflineTrackSync(id)
+                ImportItemStatus.MATCHED.name -> id != null && favoritesDao.isTrackFavoriteSync(id)
+                ImportItemStatus.SKIPPED_DUPLICATE.name -> true
+                else -> false
+            }
+            if (stillThere) alreadyImported.add(record.messageId) else stale.add(record.messageId)
+        }
+        if (stale.isNotEmpty()) telegramImportDao.deleteRecords(chatId, stale)
         var matched = 0
         var downloaded = 0
         var failed = 0
@@ -172,9 +187,11 @@ class TelegramImportRepository @Inject constructor(
         val query = listOfNotNull(performer, title).joinToString(" ")
         val candidates = runCatching { trackRepository.searchTracks(query) }.getOrElse { emptyList() }
         return candidates
+            .filter { it.restrictionReason() == null }
             .map { it to matchScore(it, title, performer, durationSec) }
             .filter { it.second >= MATCH_THRESHOLD }
-            .maxByOrNull { it.second }
+            .sortedByDescending { it.second }
+            .firstOrNull { unavailableTrackDao.get(it.first.id) == null }
             ?.first
     }
 

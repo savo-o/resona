@@ -115,6 +115,9 @@ class PlayerController @Inject constructor(
     val unavailableReasons: StateFlow<Map<Long, UnavailableReason>> = unavailableTrackDao.observeAll()
         .map { list -> list.associate { it.trackId to it.reason } }
         .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+    private val offlineTrackIds: StateFlow<Set<Long>> = offlineTrackManager.getAllOfflineTracks()
+        .map { list -> list.map { it.trackId }.toSet() }
+        .stateIn(scope, SharingStarted.Eagerly, emptySet())
     private val _queueEntries = MutableStateFlow<List<QueueEntry>>(emptyList())
     val queueEntries = _queueEntries.asStateFlow()
     private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
@@ -387,8 +390,13 @@ class PlayerController @Inject constructor(
 
     private data class ResolvedTrack(val track: Track, val url: String, val needsCaching: Boolean, val isHls: Boolean = false)
 
-    private fun knownReason(track: Track): UnavailableReason? =
-        unavailableReasons.value[track.id] ?: track.restrictionReason()
+    private fun hasLocalCopy(trackId: Long): Boolean =
+        trackId in offlineTrackIds.value || trackCache.getCachedFilePath(trackId) != null
+
+    private fun knownReason(track: Track): UnavailableReason? {
+        if (hasLocalCopy(track.id)) return null
+        return unavailableReasons.value[track.id] ?: track.restrictionReason()
+    }
 
     private suspend fun persistUnavailable(trackId: Long, reason: UnavailableReason) {
         withContext(Dispatchers.IO) {
@@ -420,6 +428,7 @@ class PlayerController @Inject constructor(
             evictFromQueue(track.id)
             return null
         }
+
 
         val effectiveAttempts = if (ConnectivityEventBus.isUnreachable.value) 1 else attempts
         try {

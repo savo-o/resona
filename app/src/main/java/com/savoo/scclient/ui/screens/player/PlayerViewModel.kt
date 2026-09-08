@@ -73,6 +73,9 @@ class PlayerViewModel @Inject constructor(
     val playerHintShown = settingsRepository.settings.map { it.playerHintShown }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val pixelGlowEnabled = settingsRepository.settings.map { it.pixelGlowEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     fun dismissPlayerHint() {
         viewModelScope.launch { settingsRepository.setPlayerHintShown(true) }
     }

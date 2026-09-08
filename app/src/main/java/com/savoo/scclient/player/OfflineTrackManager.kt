@@ -8,19 +8,25 @@ import android.provider.DocumentsContract
 import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.di.PlainHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -39,6 +45,9 @@ class OfflineTrackManager @Inject constructor(
     private val localFolderPrefs = context.getSharedPreferences("offline_local_folders", Context.MODE_PRIVATE)
     private val watchedFolderUrisKey = "watched_folder_uris"
 
+    private val artworkRepairDone = AtomicBoolean(false)
+    private val repairScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val _downloadingTrackIds = MutableStateFlow<Set<Long>>(emptySet())
     val downloadingTrackIds = _downloadingTrackIds.asStateFlow()
 
@@ -49,6 +58,7 @@ class OfflineTrackManager @Inject constructor(
     suspend fun getOfflineTrack(trackId: Long): OfflineTrack? = offlineDao.getOfflineTrack(trackId)
 
     fun getAllOfflineTracks(): Flow<List<OfflineTrack>> = offlineDao.getAllOfflineTracks()
+        .onStart { if (artworkRepairDone.compareAndSet(false, true)) repairScope.launch { repairArtwork() } }
 
     suspend fun getTotalSize(): Long = offlineDao.getTotalSize() ?: 0L
 
@@ -59,12 +69,15 @@ class OfflineTrackManager @Inject constructor(
         try {
             val audioFile = File(offlineDir, "${track.id}.mp3")
             if (audioFile.exists() && audioFile.length() > 0 && looksLikeAudioFile(audioFile)) {
+                val artwork = offlineArtworkUri(track.id)
+                    ?: downloadArtwork(track.id, track.artworkUrl)
+                    ?: extractEmbeddedArtwork(track.id, audioFile)
                 offlineDao.saveTrack(
                     OfflineTrack(
                         trackId = track.id,
                         title = track.title,
                         username = track.user.username,
-                        artworkUrl = track.artworkUrl,
+                        artworkUrl = artwork ?: track.artworkUrl,
                         durationMs = track.durationMs,
                         permalinkUrl = track.permalinkUrl,
                         userId = track.user.id,
@@ -81,6 +94,11 @@ class OfflineTrackManager @Inject constructor(
             val fullTrack = if (track.media == null) {
                 runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
             } else track
+
+            fullTrack.restrictionReason()?.let { reason ->
+                DebugLog.log("OfflineTrack", "Refusing to save ${track.title}: restricted ($reason)")
+                return@withContext Result.failure(Exception("Track is restricted by SoundCloud ($reason)"))
+            }
 
             val stream = trackRepository.resolvePlayableStream(fullTrack)
                 ?: return@withContext Result.failure(Exception("Cannot resolve track URL"))
@@ -103,28 +121,15 @@ class OfflineTrackManager @Inject constructor(
                 return@withContext Result.failure(Exception("Downloaded file is empty or invalid"))
             }
 
-            val artworkFile = File(offlineDir, "${track.id}.jpg")
-            track.artworkUrl?.replace("-large", "-t500x500")?.let { artUrl ->
-                try {
-                    val artRequest = Request.Builder().url(artUrl).build()
-                    httpClient.newCall(artRequest).execute().use { response ->
-                        if (response.isSuccessful) {
-                            response.body?.byteStream()?.use { input ->
-                                artworkFile.outputStream().use { output ->
-                                    input.copyTo(output)
-                                }
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }
+            val artwork = downloadArtwork(track.id, track.artworkUrl)
+                ?: extractEmbeddedArtwork(track.id, audioFile)
 
             offlineDao.saveTrack(
                 OfflineTrack(
                     trackId = track.id,
                     title = track.title,
                     username = track.user.username,
-                    artworkUrl = track.artworkUrl,
+                    artworkUrl = artwork ?: track.artworkUrl,
                     durationMs = track.durationMs,
                     permalinkUrl = track.permalinkUrl,
                     userId = track.user.id,
@@ -191,9 +196,58 @@ class OfflineTrackManager @Inject constructor(
         return if (exists && size > 0) file.absolutePath else null
     }
 
-    suspend fun getArtworkPath(trackId: Long): String? {
-        val file = File(offlineDir, "${trackId}.jpg")
-        return if (file.exists() && file.length() > 0) file.absolutePath else null
+    private fun offlineArtworkUri(trackId: Long): String? {
+        val file = File(offlineDir, "$trackId.jpg")
+        return if (file.exists() && file.length() > 0) "file://${file.absolutePath}" else null
+    }
+
+    private fun extractEmbeddedArtwork(trackId: Long, audioFile: File): String? {
+        if (!audioFile.exists() || audioFile.length() <= 0) return null
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(audioFile.absolutePath)
+            val picture = retriever.embeddedPicture ?: return null
+            File(offlineDir, "$trackId.jpg").writeBytes(picture)
+            offlineArtworkUri(trackId)
+        } catch (e: Exception) {
+            DebugLog.log("OfflineTrack", "extractEmbeddedArtwork failed for $trackId: ${e.message}")
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    private fun downloadArtwork(trackId: Long, remoteUrl: String?): String? {
+        val url = remoteUrl?.takeIf { it.startsWith("http") }?.replace("-large", "-t500x500") ?: return null
+        return try {
+            var ok = false
+            httpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                val stream = response.body?.byteStream()
+                if (response.isSuccessful && stream != null) {
+                    File(offlineDir, "$trackId.jpg").outputStream().use { output -> stream.copyTo(output) }
+                    ok = true
+                }
+            }
+            if (ok) offlineArtworkUri(trackId) else null
+        } catch (e: Exception) {
+            DebugLog.log("OfflineTrack", "downloadArtwork failed for $trackId: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun repairArtwork() = withContext(Dispatchers.IO) {
+        offlineDao.getAllOfflineTracksSync().forEach { offline ->
+            val current = offline.artworkUrl
+            val currentFile = current?.takeIf { it.startsWith("file://") }?.let { File(it.removePrefix("file://")) }
+            if (currentFile != null && currentFile.exists() && currentFile.length() > 0) return@forEach
+            val resolved = offlineArtworkUri(offline.trackId)
+                ?: extractEmbeddedArtwork(offline.trackId, File(offline.localPath))
+                ?: downloadArtwork(offline.trackId, current)
+            DebugLog.log("OfflineArt", "id=${offline.trackId} artwork ${if (resolved != null) "restored" else "not found"}")
+            if (resolved != null && resolved != current) {
+                offlineDao.saveTrack(offline.copy(artworkUrl = resolved))
+            }
+        }
     }
 
     /**
@@ -221,7 +275,7 @@ class OfflineTrackManager @Inject constructor(
                     trackId = trackId,
                     title = title,
                     username = username,
-                    artworkUrl = null,
+                    artworkUrl = extractEmbeddedArtwork(trackId, audioFile),
                     durationMs = durationMs,
                     permalinkUrl = null,
                     userId = 0,

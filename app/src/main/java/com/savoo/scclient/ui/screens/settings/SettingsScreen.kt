@@ -174,6 +174,7 @@ class SettingsViewModel @Inject constructor(
     fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
     fun setPlayerStyle(style: PlayerStyle) = viewModelScope.launch { repository.setPlayerStyle(style) }
     fun setBackgroundMode(mode: AppBackgroundMode) = viewModelScope.launch { repository.setBackgroundMode(mode) }
+    fun setPixelGlowEnabled(value: Boolean) = viewModelScope.launch { repository.setPixelGlowEnabled(value) }
     fun setBackgroundCustomColor(color: Color) = viewModelScope.launch { repository.setBackgroundCustomColor(color) }
 
     fun checkForUpdates() {
