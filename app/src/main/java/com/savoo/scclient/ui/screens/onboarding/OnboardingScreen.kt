@@ -15,6 +15,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -106,6 +109,8 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 
         Column(
             modifier = Modifier
+                .align(Alignment.Center)
+                .widthIn(max = 720.dp)
                 .fillMaxSize()
                 .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars)
                 .graphicsLayer { alpha = contentAlpha },
@@ -195,6 +200,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

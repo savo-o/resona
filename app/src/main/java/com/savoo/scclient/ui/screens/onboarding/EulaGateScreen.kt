@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,71 +43,73 @@ fun EulaGateScreen(
     val haptic = rememberHapticTick()
     var checked by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars)
-            .padding(horizontal = 24.dp),
-    ) {
-        Spacer(Modifier.height(24.dp))
-
-        Text(
-            text = stringResource(R.string.eula_title),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-
-        Spacer(Modifier.height(20.dp))
-
-        Text(
-            text = stringResource(R.string.eula_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-        )
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { haptic(); checked = !checked },
-            verticalAlignment = Alignment.CenterVertically,
+                .widthIn(max = 840.dp)
+                .fillMaxSize()
+                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.systemBars)
+                .padding(horizontal = 24.dp),
         ) {
-            Checkbox(checked = checked, onCheckedChange = { haptic(); checked = it })
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.height(24.dp))
+
             Text(
-                text = stringResource(R.string.eula_gate_checkbox),
-                style = MaterialTheme.typography.bodyMedium,
+                text = stringResource(R.string.eula_title),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-        }
 
-        Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            OutlinedButton(
-                onClick = { haptic(); onDecline() },
-                modifier = Modifier.weight(1f),
+            Text(
+                text = stringResource(R.string.eula_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { haptic(); checked = !checked },
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(stringResource(R.string.eula_decline))
+                Checkbox(checked = checked, onCheckedChange = { haptic(); checked = it })
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.eula_gate_checkbox),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
             }
-            Button(
-                onClick = { haptic(); onAccept() },
-                enabled = checked,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.eula_agree))
-            }
-        }
 
-        Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { haptic(); onDecline() },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.eula_decline))
+                }
+                Button(
+                    onClick = { haptic(); onAccept() },
+                    enabled = checked,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.eula_agree))
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }

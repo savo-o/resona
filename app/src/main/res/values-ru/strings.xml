@@ -173,6 +173,9 @@
     <string name="player_collapse">Свернуть</string>
     <string name="player_favorite">В избранное</string>
     <string name="player_play">Воспроизвести</string>
+    <string name="player_pause">Пауза</string>
+    <string name="player_previous">Предыдущий трек</string>
+    <string name="player_next">Следующий трек</string>
     <string name="player_share">Поделиться</string>
     <string name="player_save_offline">Сохранить офлайн</string>
     <string name="player_saved_offline">Сохранено офлайн</string>
@@ -511,4 +514,5 @@
     <string name="theme_ocean">Океанский</string>
     <string name="theme_system">Системная (Material You)</string>
     <string name="theme_from_track">Из обложки трека</string>
+    <string name="player_close_lyrics">Закрыть текст песни</string>
 </resources>

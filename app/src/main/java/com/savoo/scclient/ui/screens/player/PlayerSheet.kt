@@ -38,6 +38,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -58,6 +61,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MoreVert
@@ -93,6 +97,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -101,6 +106,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
@@ -171,6 +179,7 @@ import kotlin.math.sin
 fun PlayerSheet(
     onArtistClick: (Long) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel(),
+    showDockBar: Boolean = true,
     dockBar: @Composable () -> Unit,
 ) {
     val state by viewModel.controller.state.collectAsState()
@@ -231,7 +240,7 @@ fun PlayerSheet(
                 )
             }
         }
-        Surface(
+        if (track != null || showDockBar) Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(28.dp),
         modifier = Modifier
@@ -256,14 +265,14 @@ fun PlayerSheet(
                     onNext = { viewModel.controller.skipToNext() },
                     onPrev = { viewModel.controller.skipToPrevious() },
                 )
-                Spacer(Modifier.height(6.dp))
-                androidx.compose.material3.HorizontalDivider(
+                if (showDockBar) Spacer(Modifier.height(6.dp))
+                if (showDockBar) androidx.compose.material3.HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 18.dp),
                     thickness = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                 )
             }
-            dockBar()
+            if (showDockBar) dockBar()
         }
     }
     }
@@ -307,6 +316,7 @@ fun PlayerSheet(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun FullPlayerSheet(
     controller: PlayerController,
@@ -350,6 +360,7 @@ private fun FullPlayerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        sheetMaxWidth = Dp.Unspecified,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = if (isPixel) pixelPalette.background else classicPalette.bg,
         dragHandle = null,
@@ -657,84 +668,83 @@ private fun MiniPlayerRow(
             .scale(pressScale)
             .clickable(interactionSource = interactionSource, indication = null) { haptic(); onExpand() },
     ) {
-        Row(
-            modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            TrackArtwork(
-                artworkUrl = track.artworkUrl,
-                contentDescription = null,
-                shape = CircleShape,
-                modifier = Modifier.size(40.dp),
-            )
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                Text(
-                    track.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface,
+        BoxWithConstraints {
+            val showFavorite = maxWidth >= 480.dp
+            Row(
+                modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                TrackArtwork(
+                    artworkUrl = track.artworkUrl,
+                    contentDescription = null,
+                    shape = CircleShape,
+                    modifier = Modifier.size(40.dp),
                 )
-                Text(
-                    if (state.isRetryingNetwork) stringResource(R.string.network_retrying) else track.user.username,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (state.isRetryingNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (state.hasPrev) {
-                IconButton(onClick = { haptic(); onPrev() }, modifier = Modifier.size(32.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                    Text(
+                        track.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        if (state.isRetryingNetwork) stringResource(R.string.network_retrying) else track.user.username,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (state.isRetryingNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(onClick = { haptic(); onPrev() }, modifier = Modifier.size(48.dp), enabled = state.hasPrev || state.positionMs > 0L) {
                     Icon(
                         Icons.Filled.SkipPrevious,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        contentDescription = stringResource(R.string.player_previous),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (state.hasPrev || state.positionMs > 0L) 1f else 0.38f),
                         modifier = Modifier.size(20.dp),
                     )
                 }
-            }
-            Surface(
-                onClick = { haptics.click(); onTogglePlay() },
-                interactionSource = playInteractionSource,
-                shape = PlayButtonShape,
-                color = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .padding(horizontal = 4.dp)
-                    .size(42.dp)
-                    .scale(playScale),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (state.isBuffering) {
-                        LoadingIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    } else {
-                        Icon(
-                            if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
-                        )
+                Surface(
+                    onClick = { haptics.click(); onTogglePlay() },
+                    interactionSource = playInteractionSource,
+                    shape = PlayButtonShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .size(48.dp)
+                        .scale(playScale),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (state.isBuffering) {
+                            LoadingIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                        } else {
+                            Icon(
+                                if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                contentDescription = stringResource(if (state.isPlaying) R.string.player_pause else R.string.player_play),
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
                     }
                 }
-            }
-            if (state.hasNext) {
-                IconButton(onClick = { haptic(); onNext() }, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = { haptic(); onNext() }, modifier = Modifier.size(48.dp), enabled = state.hasNext) {
                     Icon(
                         Icons.Filled.SkipNext,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        contentDescription = stringResource(R.string.player_next),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (state.hasNext) 1f else 0.38f),
                         modifier = Modifier.size(20.dp),
                     )
                 }
-            }
-            IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(32.dp)) {
-                Icon(
-                    if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = null,
-                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.scale(heartScale).size(20.dp),
-                )
+                if (showFavorite) IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = stringResource(R.string.player_favorite),
+                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.scale(heartScale).size(20.dp),
+                    )
+                }
             }
         }
         Box(
@@ -757,6 +767,7 @@ private fun MiniPlayerRow(
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun PixelPlayerContent(
     controller: PlayerController,
@@ -844,12 +855,25 @@ private fun PixelPlayerContent(
             .fillMaxHeight(0.92f)
             .navigationBarsPadding(),
     ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp)
-            .padding(top = 18.dp, bottom = 12.dp)
-    ) {
+    AdaptivePlayerLayout(
+        showLyrics = showLyrics,
+        modifier = Modifier.fillMaxSize(),
+        lyrics = {
+            PlayerLyricsScreen(
+                backgroundColor = palette.background,
+                onClose = { showLyrics = false },
+                result = lyrics,
+                activeIndex = activeLyricsLine,
+                onSeek = onSeek,
+                offsetMs = lyricsOffsetMs,
+                onAdjustOffset = onAdjustLyricsOffset,
+                accent = palette.accent,
+                onColor = palette.onBackground,
+                mutedColor = palette.onBackgroundMuted,
+                surfaceColor = palette.surface,
+            )
+        },
+        header = { compact, _ ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -897,7 +921,7 @@ private fun PixelPlayerContent(
         }
 
         AnimatedVisibility(
-            visible = showCustomizeHint,
+            visible = showCustomizeHint && !compact,
             enter = fadeIn(spring(stiffness = Spring.StiffnessMedium)),
             exit = fadeOut(spring(stiffness = Spring.StiffnessMedium)),
         ) {
@@ -934,29 +958,8 @@ private fun PixelPlayerContent(
             }
         }
 
-        Crossfade(
-            targetState = showLyrics,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            label = "playerMiddle",
-        ) { lyricsMode ->
-            if (lyricsMode) {
-                LyricsView(
-                    result = lyrics,
-                    activeIndex = activeLyricsLine,
-                    onSeek = onSeek,
-                    offsetMs = lyricsOffsetMs,
-                    onAdjustOffset = onAdjustLyricsOffset,
-                    accent = palette.accent,
-                    onColor = palette.onBackground,
-                    mutedColor = palette.onBackgroundMuted,
-                    surfaceColor = palette.surface,
-                    offsetControlTopPadding = 4.dp,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 14.dp)
-                        .nestedScroll(sheetDragGuard),
-                )
-            } else {
+        },
+        middle = { compact, _ ->
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -965,9 +968,9 @@ private fun PixelPlayerContent(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(bottom = 34.dp),
+                            .padding(bottom = if (compact) 4.dp else 34.dp),
                     ) {
-                        val artSize = (minOf(maxWidth, maxHeight) - 20.dp).coerceAtLeast(120.dp)
+                        val artSize = (minOf(maxWidth, maxHeight) - 20.dp).coerceAtLeast(0.dp)
                         PixelArtwork(
                             artworkUrl = state.currentTrack?.artworkUrl,
                             progress = if (state.durationMs > 0) {
@@ -984,9 +987,9 @@ private fun PixelPlayerContent(
                         )
                     }
 
-                    Spacer(Modifier.height(22.dp))
+                    Spacer(Modifier.height(if (compact) 4.dp else 22.dp))
 
-                    state.currentTrack?.let { track ->
+                    if (!compact || isMixPlaying) state.currentTrack?.let { track ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1043,20 +1046,20 @@ private fun PixelPlayerContent(
                             ) {
                                 Text(
                                     track.title,
-                                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                    maxLines = 2,
+                                    style = (if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium).copy(fontWeight = FontWeight.ExtraBold),
+                                    maxLines = if (compact) 1 else 2,
                                     overflow = TextOverflow.Ellipsis,
                                     textAlign = TextAlign.Center,
                                     color = palette.onBackground,
                                 )
                                 Text(
                                     track.user.username,
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.titleMedium,
                                     color = palette.onBackgroundMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier
-                                        .padding(top = 7.dp)
+                                        .padding(top = if (compact) 4.dp else 7.dp)
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
@@ -1066,10 +1069,13 @@ private fun PixelPlayerContent(
                         }
                     }
                 }
-            }
-        }
-
-        Column {
+        },
+        controls = { compact, horizontal ->
+        AdaptivePlayerControls(
+            horizontal = horizontal,
+            seekSpacing = if (compact) 8.dp else 18.dp,
+            actionSpacing = if (compact) 8.dp else 14.dp,
+            seek = {
             val seekValue = if (isDragging) dragPosition else state.positionMs.toFloat()
             val onSeekValueChange: (Float) -> Unit = { value ->
                 val second = (value / 1000L).toLong()
@@ -1097,6 +1103,12 @@ private fun PixelPlayerContent(
                 inactiveTrackColor = palette.onBackgroundMuted.copy(alpha = 0.25f),
             )
 
+            AdaptivePlayerSeek(
+                horizontal = horizontal,
+                elapsed = formatTime(if (isDragging) dragPosition.toLong() else state.positionMs),
+                duration = formatTime(state.durationMs),
+                color = palette.onBackgroundMuted,
+            ) {
             if (seekBarStyle == SeekBarStyle.WAVY) {
                 Slider(
                     value = seekValue,
@@ -1135,23 +1147,10 @@ private fun PixelPlayerContent(
                     colors = seekColors,
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    formatTime(if (isDragging) dragPosition.toLong() else state.positionMs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = palette.onBackgroundMuted,
-                )
-                Text(
-                    formatTime(state.durationMs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = palette.onBackgroundMuted,
-                )
             }
 
-            Spacer(Modifier.height(18.dp))
+            },
+            primary = {
 
             val prevSource = remember { MutableInteractionSource() }
             val playSource = remember { MutableInteractionSource() }
@@ -1179,36 +1178,40 @@ private fun PixelPlayerContent(
             ) {
                 PixelPillButton(
                     icon = Icons.Filled.SkipPrevious,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.player_previous),
                     onClick = { haptic(); onPrev() },
                     background = palette.surface,
                     tint = palette.onBackground,
                     interactionSource = prevSource,
+                    height = if (compact) 48.dp else 72.dp,
                     modifier = Modifier.weight(prevWeight),
                 )
                 PixelPillButton(
                     icon = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = null,
+                    contentDescription = stringResource(if (state.isPlaying) R.string.player_pause else R.string.player_play),
                     onClick = { haptics.click(); onTogglePlay() },
                     background = accent,
                     tint = palette.accentInk,
                     iconSize = 32.dp,
                     isLoading = state.isBuffering || state.loadingTrackId != null,
                     interactionSource = playSource,
+                    height = if (compact) 48.dp else 72.dp,
                     modifier = Modifier.weight(playWeight),
                 )
                 PixelPillButton(
                     icon = Icons.Filled.SkipNext,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.player_next),
                     onClick = { haptic(); onNext() },
                     background = palette.surface,
                     tint = palette.onBackground,
                     interactionSource = nextSource,
+                    height = if (compact) 48.dp else 72.dp,
                     modifier = Modifier.weight(nextWeight),
                 )
             }
 
-            Spacer(Modifier.height(14.dp))
+            },
+            secondary = {
 
             Surface(
                 shape = RoundedCornerShape(50),
@@ -1218,7 +1221,7 @@ private fun PixelPlayerContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = if (compact) 2.dp else 6.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1242,7 +1245,7 @@ private fun PixelPlayerContent(
                     )
                     PixelIconButton(
                         icon = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = null,
+                        contentDescription = stringResource(R.string.player_favorite),
                         onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() },
                         tint = if (isFavorite) accent else palette.onBackgroundMuted,
                         background = Color.Transparent,
@@ -1252,8 +1255,10 @@ private fun PixelPlayerContent(
                     )
                 }
             }
-        }
-    }
+        },
+        )
+        },
+    )
 
         // Deliberately not a DropdownMenu: that opens its own popup window, and every open/close of
         // one inside a ModalBottomSheet makes the sheet re-settle - spamming the button had the whole
@@ -1581,6 +1586,7 @@ private fun PixelPillButton(
     tint: Color,
     interactionSource: MutableInteractionSource,
     modifier: Modifier = Modifier,
+    height: Dp = 72.dp,
     iconSize: Dp = 26.dp,
     isLoading: Boolean = false,
 ) {
@@ -1590,13 +1596,59 @@ private fun PixelPillButton(
         shape = PixelPillShape,
         color = background,
         contentColor = tint,
-        modifier = modifier.height(72.dp),
+        modifier = modifier.height(height),
     ) {
         Box(contentAlignment = Alignment.Center) {
             if (isLoading) {
                 LoadingIndicator(modifier = Modifier.size(iconSize), color = tint)
             } else {
                 Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(iconSize))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerLyricsScreen(
+    onClose: () -> Unit,
+    backgroundColor: Color,
+    result: LyricsResult?,
+    activeIndex: Int,
+    onSeek: (Long) -> Unit,
+    offsetMs: Long,
+    onAdjustOffset: (Long) -> Unit,
+    accent: Color,
+    onColor: Color,
+    mutedColor: Color,
+    surfaceColor: Color,
+) {
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        Surface(Modifier.fillMaxSize(), color = backgroundColor) {
+            Column(Modifier.fillMaxSize().padding(WindowInsets.safeDrawing.asPaddingValues())) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.player_close_lyrics), tint = onColor)
+                    }
+                }
+                LyricsView(
+                    result = result,
+                    activeIndex = activeIndex,
+                    onSeek = onSeek,
+                    offsetMs = offsetMs,
+                    onAdjustOffset = onAdjustOffset,
+                    accent = accent,
+                    onColor = onColor,
+                    mutedColor = mutedColor,
+                    surfaceColor = surfaceColor,
+                    centered = true,
+                    modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(sheetDragGuard),
+                )
             }
         }
     }
@@ -1615,7 +1667,8 @@ private fun LyricsView(
     mutedColor: Color,
     surfaceColor: Color,
     modifier: Modifier = Modifier,
-    offsetControlTopPadding: Dp = 20.dp,
+    offsetControlTopPadding: Dp = 4.dp,
+    centered: Boolean = false,
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (result) {
@@ -1647,46 +1700,7 @@ private fun LyricsView(
             }
             is LyricsResult.Synced -> {
                 val lines = result.lines
-                BoxWithConstraints(Modifier.fillMaxSize()) {
-                    val listState = rememberLazyListState()
-                    val viewportPx = with(LocalDensity.current) { maxHeight.toPx() }
-
-                    // Jump straight to wherever playback already is when a new track's lyrics arrive - the player
-                    // screen can stay open across track changes and lyrics can be opened mid-song, and without this
-                    // the list either kept the previous track's scroll offset or sat at the top until the next line.
-                    LaunchedEffect(lines) {
-                        listState.scrollToItem(
-                            index = activeIndex.coerceAtLeast(0),
-                            scrollOffset = -(viewportPx * 0.4f).toInt(),
-                        )
-                    }
-
-                    LaunchedEffect(activeIndex, lines) {
-                        if (activeIndex >= 0) {
-                            listState.animateScrollToItem(
-                                index = activeIndex,
-                                scrollOffset = -(viewportPx * 0.4f).toInt(),
-                            )
-                        }
-                    }
-
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = maxHeight * 0.4f, horizontal = 8.dp),
-                    ) {
-                        itemsIndexed(lines) { index, line ->
-                            LyricsLineItem(
-                                text = line.text,
-                                isActive = index == activeIndex,
-                                isPast = index < activeIndex,
-                                onColor = onColor,
-                                mutedColor = mutedColor,
-                                onClick = { onSeek(line.timeMs) },
-                            )
-                        }
-                    }
-
+                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                     // Community-sourced lyrics timing can be off by a fixed amount for a given track; this lets the
                     // user nudge it back in sync instead of just living with words landing early or late.
                     LyricsOffsetControl(
@@ -1694,12 +1708,53 @@ private fun LyricsView(
                         onAdjustOffset = onAdjustOffset,
                         mutedColor = mutedColor,
                         surfaceColor = surfaceColor,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = offsetControlTopPadding),
+                        modifier = Modifier.padding(top = offsetControlTopPadding, bottom = 4.dp),
                     )
+                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                        val listState = rememberLazyListState()
+                        val lineHeights = remember(lines) { mutableStateMapOf<Int, Int>() }
+                        var previousIndex by remember(lines) { mutableStateOf(-1) }
+                        val viewportPx = with(LocalDensity.current) { maxHeight.toPx() }
+                        val targetIndex = activeIndex.coerceIn(0, lines.lastIndex.coerceAtLeast(0))
+                        val lineHeightPx = lineHeights[targetIndex] ?: 0
+
+                        // Jump straight to wherever playback already is when a new track's lyrics arrive - the player
+                        // screen can stay open across track changes and lyrics can be opened mid-song, and without this
+                        // the list either kept the previous track's scroll offset or sat at the top until the next line.
+                        LaunchedEffect(targetIndex, lines, viewportPx, lineHeightPx) {
+                            if (lines.isEmpty()) return@LaunchedEffect
+                            val targetTop = ((viewportPx - lineHeightPx) / 2f).coerceAtLeast(0f)
+                            val scrollOffset = (viewportPx * 0.5f - targetTop).roundToInt()
+                            if (previousIndex == -1 || previousIndex == targetIndex) {
+                                listState.scrollToItem(targetIndex, scrollOffset)
+                            } else {
+                                listState.animateScrollToItem(targetIndex, scrollOffset)
+                            }
+                            previousIndex = targetIndex
+                        }
+
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(vertical = maxHeight * 0.5f, horizontal = 8.dp),
+                        ) {
+                            itemsIndexed(lines) { index, line ->
+                                LyricsLineItem(
+                                    centered = centered,
+                                    text = line.text,
+                                    isActive = index == activeIndex,
+                                    isPast = index < activeIndex,
+                                    onColor = onColor,
+                                    mutedColor = mutedColor,
+                                    onClick = { onSeek(line.timeMs) },
+                                    onHeightChanged = { lineHeights[index] = it },
+                                )
+                            }
+                        }
+                    }
                 }
             }
+
         }
     }
 }
@@ -1748,11 +1803,13 @@ private fun LyricsOffsetControl(
 @Composable
 private fun LyricsLineItem(
     text: String,
+    centered: Boolean,
     isActive: Boolean,
     isPast: Boolean,
     onColor: Color,
     mutedColor: Color,
     onClick: () -> Unit,
+    onHeightChanged: (Int) -> Unit,
 ) {
     val haptic = rememberHapticTick()
     val scale by animateFloatAsState(
@@ -1773,17 +1830,19 @@ private fun LyricsLineItem(
         text,
         style = MaterialTheme.typography.headlineSmall,
         color = color,
+        textAlign = if (centered) TextAlign.Center else TextAlign.Start,
         modifier = Modifier
             .fillMaxWidth()
+            .onSizeChanged { onHeightChanged(it.height) }
             .graphicsLayer {
                 scaleX = scale; scaleY = scale
-                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (centered) 0.5f else 0f, 0.5f)
             }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
             ) { haptic(); onClick() }
-            .padding(vertical = 10.dp),
+            .padding(vertical = if (centered) 4.dp else 10.dp),
     )
 }
 
@@ -1808,6 +1867,7 @@ private fun formatTime(ms: Long): String {
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun ClassicPlayerContent(
     controller: PlayerController,
@@ -1892,14 +1952,64 @@ private fun ClassicPlayerContent(
             }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.92f)
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp)
-            .padding(top = 24.dp, bottom = 12.dp)
-    ) {
+    val libraryActions: @Composable () -> Unit = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }) {
+                Icon(
+                    if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = stringResource(R.string.player_favorite),
+                    tint = if (isFavorite) accent else palette.onMuted,
+                    modifier = Modifier.scale(heartScale),
+                )
+            }
+            if (isSavingOffline) {
+                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    LoadingIndicator(
+                        modifier = Modifier.size(22.dp),
+                        color = accent,
+                    )
+                }
+            } else if (isOffline) {
+                IconButton(onClick = { haptic(); onRemoveFromOffline() }) {
+                    Icon(
+                        Icons.Filled.CloudDone,
+                        contentDescription = stringResource(R.string.player_saved_offline),
+                        tint = accent,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            } else {
+                IconButton(onClick = { haptic(); onSaveForOffline() }) {
+                    Icon(
+                        Icons.Filled.CloudDownload,
+                        contentDescription = stringResource(R.string.player_save_offline),
+                        tint = palette.onMuted,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    AdaptivePlayerLayout(
+        showLyrics = showLyrics,
+        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f).navigationBarsPadding(),
+        lyrics = {
+            PlayerLyricsScreen(
+                backgroundColor = palette.bg,
+                onClose = { showLyrics = false },
+                result = lyrics,
+                activeIndex = activeLyricsLine,
+                onSeek = onSeek,
+                offsetMs = lyricsOffsetMs,
+                onAdjustOffset = onAdjustLyricsOffset,
+                accent = accent,
+                onColor = palette.on,
+                mutedColor = palette.onMuted,
+                surfaceColor = palette.card,
+            )
+        },
+        header = { _, mini ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1913,7 +2023,8 @@ private fun ClassicPlayerContent(
                     tint = palette.on,
                 )
             }
-            Row {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (mini) libraryActions()
                 IconButton(onClick = { haptic(); showLyrics = !showLyrics }) {
                     Icon(
                         Icons.Filled.Lyrics,
@@ -1974,27 +2085,8 @@ private fun ClassicPlayerContent(
             }
         }
 
-        Crossfade(
-            targetState = showLyrics,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            label = "playerMiddle",
-        ) { lyricsMode ->
-            if (lyricsMode) {
-                LyricsView(
-                    result = lyrics,
-                    activeIndex = activeLyricsLine,
-                    onSeek = onSeek,
-                    offsetMs = lyricsOffsetMs,
-                    onAdjustOffset = onAdjustLyricsOffset,
-                    accent = accent,
-                    onColor = palette.on,
-                    mutedColor = palette.onMuted,
-                    surfaceColor = palette.card,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .nestedScroll(sheetDragGuard),
-                )
-            } else {
+        },
+        middle = { compact, _ ->
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -2003,9 +2095,9 @@ private fun ClassicPlayerContent(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(bottom = 20.dp),
+                            .padding(bottom = if (compact) 4.dp else 20.dp),
                     ) {
-                        val artSize = minOf(maxWidth * 0.92f, maxHeight).coerceAtLeast(120.dp)
+                        val artSize = minOf(maxWidth * 0.92f, maxHeight).coerceAtLeast(0.dp)
                         ArtworkOrb(
                             artworkUrl = state.currentTrack?.artworkUrl,
                             glowColor = glowColor,
@@ -2021,9 +2113,9 @@ private fun ClassicPlayerContent(
                         )
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(if (compact) 4.dp else 16.dp))
 
-                    state.currentTrack?.let { track ->
+                    if (!compact || isMixPlaying) state.currentTrack?.let { track ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -2080,15 +2172,15 @@ private fun ClassicPlayerContent(
                             ) {
                                 Text(
                                     track.title,
-                                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
-                                    maxLines = 2,
+                                    style = (if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineMedium).copy(fontWeight = FontWeight.ExtraBold),
+                                    maxLines = if (compact) 1 else 2,
                                     overflow = TextOverflow.Ellipsis,
                                     textAlign = TextAlign.Center,
                                     color = palette.on,
                                 )
                                 Text(
                                     track.user.username,
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.titleMedium,
                                     color = palette.onMuted,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -2103,49 +2195,17 @@ private fun ClassicPlayerContent(
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(if (compact) 4.dp else 8.dp))
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }) {
-                            Icon(
-                                if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                contentDescription = null,
-                                tint = if (isFavorite) accent else palette.onMuted,
-                                modifier = Modifier.scale(heartScale),
-                            )
-                        }
-                        if (isSavingOffline) {
-                            Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                                LoadingIndicator(
-                                    modifier = Modifier.size(22.dp),
-                                    color = accent,
-                                )
-                            }
-                        } else if (isOffline) {
-                            IconButton(onClick = { haptic(); onRemoveFromOffline() }) {
-                                Icon(
-                                    Icons.Filled.CloudDone,
-                                    contentDescription = stringResource(R.string.player_saved_offline),
-                                    tint = accent,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                        } else {
-                            IconButton(onClick = { haptic(); onSaveForOffline() }) {
-                                Icon(
-                                    Icons.Filled.CloudDownload,
-                                    contentDescription = stringResource(R.string.player_save_offline),
-                                    tint = palette.onMuted,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                        }
-                    }
+                    libraryActions()
                 }
-            }
-        }
-
-        Column {
+        },
+        controls = { compact, horizontal ->
+        AdaptivePlayerControls(
+            horizontal = horizontal,
+            seekSpacing = if (compact) 8.dp else 16.dp,
+            actionSpacing = if (compact) 8.dp else 14.dp,
+            seek = {
             val seekValue = if (isDragging) dragPosition else state.positionMs.toFloat()
             val onSeekValueChange: (Float) -> Unit = { value ->
                 val second = (value / 1000L).toLong()
@@ -2173,6 +2233,12 @@ private fun ClassicPlayerContent(
                 inactiveTrackColor = palette.onMuted.copy(alpha = 0.25f),
             )
 
+            AdaptivePlayerSeek(
+                horizontal = horizontal,
+                elapsed = formatTime(if (isDragging) dragPosition.toLong() else state.positionMs),
+                duration = formatTime(state.durationMs),
+                color = palette.onMuted,
+            ) {
             if (seekBarStyle == SeekBarStyle.WAVY) {
                 Slider(
                     value = seekValue,
@@ -2211,29 +2277,16 @@ private fun ClassicPlayerContent(
                     colors = seekColors,
                 )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    formatTime(if (isDragging) dragPosition.toLong() else state.positionMs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = palette.onMuted,
-                )
-                Text(
-                    formatTime(state.durationMs),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = palette.onMuted,
-                )
             }
 
-            Spacer(Modifier.height(16.dp))
+            },
+            primary = {
 
             Surface(
                 onClick = { haptics.click(); onTogglePlay() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
+                    .height(if (compact) 48.dp else 64.dp)
                     .graphicsLayer { scaleX = playScale; scaleY = playScale },
                 shape = RoundedCornerShape(50),
                 color = accent,
@@ -2248,14 +2301,15 @@ private fun ClassicPlayerContent(
                     } else {
                         Icon(
                             if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = null,
+                            contentDescription = stringResource(if (state.isPlaying) R.string.player_pause else R.string.player_play),
                             modifier = Modifier.size(32.dp),
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            },
+            secondary = {
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -2263,32 +2317,38 @@ private fun ClassicPlayerContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PlayerCircleIconButton(
+                    size = if (compact) 48.dp else 52.dp,
                     icon = Icons.Filled.Shuffle,
                     contentDescription = stringResource(R.string.player_shuffle),
                     onClick = onToggleShuffle,
                     tint = if (state.shuffleEnabled) accent else palette.onMuted,
                 )
                 PlayerCircleIconButton(
+                    size = if (compact) 48.dp else 52.dp,
                     icon = Icons.Filled.SkipPrevious,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.player_previous),
                     onClick = onPrev,
                     tint = palette.on,
                 )
                 PlayerCircleIconButton(
+                    size = if (compact) 48.dp else 52.dp,
                     icon = Icons.Filled.SkipNext,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.player_next),
                     onClick = onNext,
                     tint = palette.on,
                 )
                 PlayerCircleIconButton(
+                    size = if (compact) 48.dp else 52.dp,
                     icon = if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                     contentDescription = stringResource(R.string.player_repeat),
                     onClick = onCycleRepeat,
                     tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else palette.onMuted,
                 )
             }
-        }
-    }
+        },
+        )
+        },
+    )
 
     if (showSleepTimer) {
         SleepTimerSheet(controller = controller, onDismiss = { showSleepTimer = false })

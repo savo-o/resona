@@ -1144,17 +1144,34 @@ class PlayerController @Inject constructor(
                 }
                 queueIndex = queueIdx.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
             }
+            if (queue.getOrNull(queueIndex)?.track?.id != track.id) {
+                queueIndex = queue.indexOfFirst { it.track.id == track.id }
+                if (queueIndex < 0) {
+                    queue.add(wrap(track))
+                    queueIndex = queue.lastIndex
+                }
+            }
+            val requestId = ++playRequestId
             updateQueueState()
             scope.launch {
                 val resolved = resolveTrack(track) ?: return@launch
+                if (requestId != playRequestId) return@launch
                 val (fullTrack, url, needsCaching, isHls) = resolved
-                beginListenSegment(fullTrack)
-                _state.update { it.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null) }
-                extractSeedColor(fullTrack.artworkUrl)
-                controller?.apply {
-                    setMediaItem(buildMediaItem(fullTrack, url, isHls))
-                    prepare()
-                    if (position > 0) seekTo(position)
+                playerCommandMutex.withLock {
+                    if (requestId != playRequestId) return@withLock
+                    val items = queue.mapIndexed { index, entry ->
+                        if (index == queueIndex) buildMediaItem(fullTrack, url, isHls)
+                        else buildPendingMediaItem(entry.track)
+                    }
+                    beginListenSegment(fullTrack)
+                    _state.update { it.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null) }
+                    extractSeedColor(fullTrack.artworkUrl)
+                    controller?.apply {
+                        setMediaItems(items, queueIndex, position.coerceAtLeast(0L))
+                        prepare()
+                    }
+                    updateQueueState()
+                    preloadAdjacent()
                 }
                 if (needsCaching) {
                     trackCache.cacheAudioFile(fullTrack, url)

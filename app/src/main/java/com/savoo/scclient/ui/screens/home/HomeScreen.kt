@@ -20,6 +20,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -89,6 +91,7 @@ private val BlobShape = RoundedCornerShape(
     bottomEndPercent = 52,
 )
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 fun HomeScreen(
     onAccount: () -> Unit = {},
@@ -137,6 +140,17 @@ fun HomeScreen(
             onRefresh = { haptics.tick(); viewModel.refresh() },
             modifier = Modifier.fillMaxSize().padding(padding),
         ) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val hasSections = homeSections.any { config ->
+            config.visible && when (config.section) {
+                com.savoo.scclient.data.repository.HomeSection.JUMP_BACK_IN -> recentTracks.isNotEmpty()
+                com.savoo.scclient.data.repository.HomeSection.FAVORITES -> favoriteTracks.isNotEmpty()
+                com.savoo.scclient.data.repository.HomeSection.OFFLINE -> offlineTracks.isNotEmpty()
+                com.savoo.scclient.data.repository.HomeSection.ARTISTS -> favoriteArtists.isNotEmpty()
+                com.savoo.scclient.data.repository.HomeSection.PLAYLISTS -> favoritePlaylists.isNotEmpty()
+            }
+        }
+        val useColumns = maxWidth >= 840.dp && hasSections
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -150,99 +164,113 @@ fun HomeScreen(
                 onSettings = onSettings,
             )
 
-            val isMixQueueActive = playerState.queueTag == HomeViewModel.MIX_QUEUE_TAG
-            HomeHero(
-                visible = titleVisible,
-                heroVisible = heroVisible,
-                mixTracks = mixTracks,
-                mixDataLoading = mixDataLoading,
-                isMixPlaying = playerState.isPlaying && isMixQueueActive,
-                isPlaybackBuffering = playerState.loadingTrackId != null && isMixQueueActive,
-                onPlayToggle = {
-                    haptics.click()
-                    android.util.Log.d("HomeScreen", "onPlayToggle: isMixQueueActive=$isMixQueueActive queueTag=${playerState.queueTag} currentTrack=${playerState.currentTrack?.id} mixTracks.size=${mixTracks.size}")
-                    if (isMixQueueActive) {
-                        viewModel.playerController.togglePlayPause()
-                    } else {
-                        viewModel.playMix(mixTracks)
-                    }
-                },
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            AnimatedSections(visible = sectionsVisible) {
-                homeSections.filter { it.visible }.forEach { config ->
-                    when (config.section) {
-                        com.savoo.scclient.data.repository.HomeSection.JUMP_BACK_IN -> if (recentTracks.isNotEmpty()) {
-                            TrackSection(
-                                title = stringResource(R.string.home_section_jump_back_in),
-                                tracks = recentTracks.take(10),
-                                playerState = playerState,
-                                onTrackClick = { track ->
-                                    if (playerState.currentTrack?.id == track.id) {
-                                        viewModel.playerController.togglePlayPause()
-                                    } else {
-                                        viewModel.playFrom(recentTracks, track.id, tag = "recent")
-                                    }
-                                },
-                            )
+            val hero: @Composable () -> Unit = {
+                val isMixQueueActive = playerState.queueTag == HomeViewModel.MIX_QUEUE_TAG
+                HomeHero(
+                    visible = titleVisible,
+                    heroVisible = heroVisible,
+                    mixTracks = mixTracks,
+                    mixDataLoading = mixDataLoading,
+                    isMixPlaying = playerState.isPlaying && isMixQueueActive,
+                    isPlaybackBuffering = playerState.loadingTrackId != null && isMixQueueActive,
+                    onPlayToggle = {
+                        haptics.click()
+                        android.util.Log.d("HomeScreen", "onPlayToggle: isMixQueueActive=$isMixQueueActive queueTag=${playerState.queueTag} currentTrack=${playerState.currentTrack?.id} mixTracks.size=${mixTracks.size}")
+                        if (isMixQueueActive) {
+                            viewModel.playerController.togglePlayPause()
+                        } else {
+                            viewModel.playMix(mixTracks)
                         }
+                    },
+                )
+            }
+            val sections: @Composable () -> Unit = {
+                AnimatedSections(visible = sectionsVisible) {
+                    homeSections.filter { it.visible }.forEach { config ->
+                        when (config.section) {
+                            com.savoo.scclient.data.repository.HomeSection.JUMP_BACK_IN -> if (recentTracks.isNotEmpty()) {
+                                TrackSection(
+                                    title = stringResource(R.string.home_section_jump_back_in),
+                                    tracks = recentTracks.take(10),
+                                    playerState = playerState,
+                                    onTrackClick = { track ->
+                                        if (playerState.currentTrack?.id == track.id) {
+                                            viewModel.playerController.togglePlayPause()
+                                        } else {
+                                            viewModel.playFrom(recentTracks, track.id, tag = "recent")
+                                        }
+                                    },
+                                )
+                            }
 
-                        com.savoo.scclient.data.repository.HomeSection.FAVORITES -> if (favoriteTracks.isNotEmpty()) {
-                            TrackSection(
-                                title = stringResource(R.string.home_section_favorites),
-                                tracks = favoriteTracks.take(10),
-                                playerState = playerState,
-                                onSeeAll = onFavorites,
-                                onTrackClick = { track ->
-                                    if (playerState.currentTrack?.id == track.id) {
-                                        viewModel.playerController.togglePlayPause()
-                                    } else {
-                                        viewModel.playFrom(favoriteTracks, track.id, tag = "favorites")
-                                    }
-                                },
-                            )
-                        }
+                            com.savoo.scclient.data.repository.HomeSection.FAVORITES -> if (favoriteTracks.isNotEmpty()) {
+                                TrackSection(
+                                    title = stringResource(R.string.home_section_favorites),
+                                    tracks = favoriteTracks.take(10),
+                                    playerState = playerState,
+                                    onSeeAll = onFavorites,
+                                    onTrackClick = { track ->
+                                        if (playerState.currentTrack?.id == track.id) {
+                                            viewModel.playerController.togglePlayPause()
+                                        } else {
+                                            viewModel.playFrom(favoriteTracks, track.id, tag = "favorites")
+                                        }
+                                    },
+                                )
+                            }
 
-                        com.savoo.scclient.data.repository.HomeSection.OFFLINE -> if (offlineTracks.isNotEmpty()) {
-                            TrackSection(
-                                title = stringResource(R.string.home_section_offline),
-                                tracks = offlineTracks.take(10),
-                                playerState = playerState,
-                                onSeeAll = onOfflineTracks,
-                                onTrackClick = { track ->
-                                    if (playerState.currentTrack?.id == track.id) {
-                                        viewModel.playerController.togglePlayPause()
-                                    } else {
-                                        viewModel.playFrom(offlineTracks, track.id, tag = "offline")
-                                    }
-                                },
-                            )
-                        }
+                            com.savoo.scclient.data.repository.HomeSection.OFFLINE -> if (offlineTracks.isNotEmpty()) {
+                                TrackSection(
+                                    title = stringResource(R.string.home_section_offline),
+                                    tracks = offlineTracks.take(10),
+                                    playerState = playerState,
+                                    onSeeAll = onOfflineTracks,
+                                    onTrackClick = { track ->
+                                        if (playerState.currentTrack?.id == track.id) {
+                                            viewModel.playerController.togglePlayPause()
+                                        } else {
+                                            viewModel.playFrom(offlineTracks, track.id, tag = "offline")
+                                        }
+                                    },
+                                )
+                            }
 
-                        com.savoo.scclient.data.repository.HomeSection.ARTISTS -> if (favoriteArtists.isNotEmpty()) {
-                            ArtistSection(
-                                title = stringResource(R.string.home_section_artists),
-                                artists = favoriteArtists.take(10),
-                                onArtistClick = onArtistClick,
-                                onSeeAll = onFavoriteArtists,
-                            )
-                        }
+                            com.savoo.scclient.data.repository.HomeSection.ARTISTS -> if (favoriteArtists.isNotEmpty()) {
+                                ArtistSection(
+                                    title = stringResource(R.string.home_section_artists),
+                                    artists = favoriteArtists.take(10),
+                                    onArtistClick = onArtistClick,
+                                    onSeeAll = onFavoriteArtists,
+                                )
+                            }
 
-                        com.savoo.scclient.data.repository.HomeSection.PLAYLISTS -> if (favoritePlaylists.isNotEmpty()) {
-                            PlaylistSection(
-                                title = stringResource(R.string.home_section_playlists),
-                                playlists = favoritePlaylists.take(10),
-                                onPlaylistClick = onPlaylistClick,
-                                onSeeAll = onFavoritePlaylists,
-                            )
+                            com.savoo.scclient.data.repository.HomeSection.PLAYLISTS -> if (favoritePlaylists.isNotEmpty()) {
+                                PlaylistSection(
+                                    title = stringResource(R.string.home_section_playlists),
+                                    playlists = favoritePlaylists.take(10),
+                                    onPlaylistClick = onPlaylistClick,
+                                    onSeeAll = onFavoritePlaylists,
+                                )
+                            }
                         }
                     }
                 }
-            }
 
+            }
+            if (useColumns) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    Box(Modifier.weight(0.42f)) { hero() }
+                    Box(Modifier.weight(0.58f)) { sections() }
+                }
+            } else {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    Box(Modifier.widthIn(max = 720.dp)) { hero() }
+                }
+                Spacer(Modifier.height(32.dp))
+                sections()
+            }
             Spacer(Modifier.height(24.dp))
+        }
         }
         }
     }
@@ -486,6 +514,7 @@ private fun MixBlob(visible: Boolean, mixTracks: List<Track>, onClick: () -> Uni
             shape = BlobShape,
             modifier = Modifier
                 .align(Alignment.Center)
+                .widthIn(max = 400.dp)
                 .fillMaxWidth(0.7f)
                 .fillMaxHeight(0.92f)
                 .graphicsLayer {
