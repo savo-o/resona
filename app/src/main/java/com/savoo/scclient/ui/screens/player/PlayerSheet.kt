@@ -870,6 +870,23 @@ private fun PixelPlayerContent(
                 surfaceColor = palette.surface,
             )
         },
+        lyricsInline = {
+            LyricsView(
+                result = lyrics,
+                activeIndex = activeLyricsLine,
+                onSeek = onSeek,
+                offsetMs = lyricsOffsetMs,
+                onAdjustOffset = onAdjustLyricsOffset,
+                accent = palette.accent,
+                onColor = palette.onBackground,
+                mutedColor = palette.onBackgroundMuted,
+                surfaceColor = palette.surface,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 14.dp)
+                    .nestedScroll(sheetDragGuard),
+            )
+        },
         header = { compact, _ ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2004,6 +2021,22 @@ private fun ClassicPlayerContent(
                 onColor = palette.on,
                 mutedColor = palette.onMuted,
                 surfaceColor = palette.card,
+            )
+        },
+        lyricsInline = {
+            LyricsView(
+                result = lyrics,
+                activeIndex = activeLyricsLine,
+                onSeek = onSeek,
+                offsetMs = lyricsOffsetMs,
+                onAdjustOffset = onAdjustLyricsOffset,
+                accent = accent,
+                onColor = palette.on,
+                mutedColor = palette.onMuted,
+                surfaceColor = palette.card,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(sheetDragGuard),
             )
         },
         header = { _, mini ->

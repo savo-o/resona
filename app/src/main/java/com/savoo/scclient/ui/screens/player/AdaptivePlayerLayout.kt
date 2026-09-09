@@ -1,5 +1,6 @@
 package com.savoo.scclient.ui.screens.player
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,14 +32,15 @@ internal fun AdaptivePlayerLayout(
     showLyrics: Boolean = false,
     header: @Composable ColumnScope.(Boolean, Boolean) -> Unit,
     lyrics: @Composable () -> Unit,
+    lyricsInline: @Composable () -> Unit,
     middle: @Composable (Boolean, Boolean) -> Unit,
     controls: @Composable (Boolean, Boolean) -> Unit,
 ) {
     BoxWithConstraints(modifier) {
-        if (showLyrics) {
+        val landscape = maxWidth >= maxHeight
+        if (showLyrics && landscape) {
             lyrics()
         }
-        val landscape = maxWidth >= maxHeight
         val twoColumns = landscape
         val compact = maxHeight / LocalDensity.current.fontScale.coerceAtLeast(1f) < 480.dp
         val mini = landscape && compact
@@ -75,7 +77,11 @@ internal fun AdaptivePlayerLayout(
                         }
                     }
                 } else {
-                    Box(Modifier.weight(1f).fillMaxWidth()) { middle(compact, landscape) }
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        Crossfade(targetState = showLyrics, label = "playerMiddle") { lyricsMode ->
+                            if (lyricsMode) lyricsInline() else middle(compact, landscape)
+                        }
+                    }
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Column(Modifier.widthIn(max = if (landscape) 1040.dp else 720.dp).fillMaxWidth()) {
                             controls(compact, false)
