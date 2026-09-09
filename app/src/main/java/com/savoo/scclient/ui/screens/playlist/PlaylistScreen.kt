@@ -124,13 +124,15 @@ class PlaylistViewModel @Inject constructor(
     }
 
     private suspend fun resolveTracks(rawTracks: List<Track>) {
-        val resolved = mutableListOf<Track>()
-        for (t in rawTracks) {
-            val full = if (t.title.isBlank()) {
-                runCatching { repository.getTrack(t.id) }.getOrNull() ?: t
-            } else t
-            resolved.add(full)
-            _uiState.value = _uiState.value.copy(tracks = resolved.toList())
+        val resolved = rawTracks.toMutableList()
+        for ((index, t) in rawTracks.withIndex()) {
+            if (t.title.isBlank()) {
+                val full = runCatching { repository.getTrack(t.id) }.getOrNull()
+                if (full != null) {
+                    resolved[index] = full
+                    _uiState.value = _uiState.value.copy(tracks = resolved.toList())
+                }
+            }
         }
         _uiState.value = _uiState.value.copy(isResolvingTracks = false)
     }
