@@ -130,6 +130,10 @@
     <string name="search_error">Error: %s</string>
     <string name="search_nothing_found">Nothing found</string>
     <string name="search_empty">let\'s go search something…</string>
+    <string name="search_empty_title">Search all of SoundCloud</string>
+    <string name="search_empty_desc">This searches everything on SoundCloud, not only your library.</string>
+    <string name="search_empty_hint_tabs">Tracks, artists and albums. Switch between them with the tabs above.</string>
+    <string name="search_empty_hint_history">Your recent searches will show up here.</string>
     <string name="search_clear">Clear</string>
     <string name="search_history">Recent searches</string>
     <string name="search_clear_history">Clear</string>
@@ -148,7 +152,7 @@
     <string name="track_skipped_message">Couldn\'t load \"%1$s\", skipped</string>
     <string name="track_skipped_deleted">\"%1$s\" was deleted by its uploader</string>
     <string name="track_skipped_drm">\"%1$s\" needs a paid SoundCloud plan</string>
-    <string name="track_skipped_preview">SoundCloud only serves a 30-second preview of \"%1$s\" - the full track needs SoundCloud Go+</string>
+    <string name="track_skipped_preview">SoundCloud only serves a 30-second preview of \"%1$s\". The full track needs a SoundCloud Go+ subscription</string>
     <string name="track_unavailable_message">\"%1$s\" is unavailable</string>
     <string name="track_unavailable">Unavailable</string>
     <string name="track_skipped_retry">Retry</string>
@@ -259,7 +263,7 @@
     <string name="settings_app_background_player_only_desc">Only the player follows the cover, the rest of the app stays plain</string>
     <string name="settings_player_style">Player style</string>
     <string name="settings_pixel_glow">Glow behind the artwork</string>
-    <string name="settings_pixel_glow_desc">A soft radial gradient in the current track colour - the same one the Legacy Orb player uses</string>
+    <string name="settings_pixel_glow_desc">A soft radial gradient in the current track colour, the same one the Legacy Orb player uses</string>
     <string name="settings_player_style_pixel">Pixel</string>
     <string name="settings_player_style_legacy">Legacy</string>
     <string name="settings_player_background">Player background</string>

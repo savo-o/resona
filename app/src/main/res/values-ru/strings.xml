@@ -130,6 +130,10 @@
     <string name="search_error">Ошибка: %s</string>
     <string name="search_nothing_found">Ничего не найдено</string>
     <string name="search_empty">тут будут результаты :)</string>
+    <string name="search_empty_title">Поиск по всему SoundCloud</string>
+    <string name="search_empty_desc">Ищет по всему каталогу SoundCloud, а не только по вашей библиотеке.</string>
+    <string name="search_empty_hint_tabs">Треки, исполнители и альбомы. Переключайте вкладками сверху.</string>
+    <string name="search_empty_hint_history">Недавние запросы будут появляться здесь.</string>
     <string name="search_clear">Очистить</string>
     <string name="search_history">Недавние запросы</string>
     <string name="search_clear_history">Очистить</string>
@@ -148,7 +152,7 @@
     <string name="track_skipped_message">Не удалось загрузить «%1$s», трек пропущен</string>
     <string name="track_skipped_deleted">«%1$s» удалён автором</string>
     <string name="track_skipped_drm">«%1$s» доступен только с платной подпиской SoundCloud</string>
-    <string name="track_skipped_preview">SoundCloud отдаёт только 30-секундный отрывок «%1$s» — целиком трек доступен с SoundCloud Go+</string>
+    <string name="track_skipped_preview">SoundCloud отдаёт только 30-секундный отрывок «%1$s». Целиком трек доступен по подписке SoundCloud Go+</string>
     <string name="track_unavailable_message">«%1$s» недоступен</string>
     <string name="track_unavailable">Недоступен</string>
     <string name="track_skipped_retry">Повторить</string>
@@ -259,7 +263,7 @@
     <string name="settings_app_background_player_only_desc">От обложки красится только плеер, остальное приложение остаётся обычным</string>
     <string name="settings_player_style">Стиль плеера</string>
     <string name="settings_pixel_glow">Свечение за обложкой</string>
-    <string name="settings_pixel_glow_desc">Мягкий круговой градиент в цвет текущего трека — тот же, что в Legacy Orb</string>
+    <string name="settings_pixel_glow_desc">Мягкий круговой градиент в цвет текущего трека, тот же, что в Legacy Orb</string>
     <string name="settings_player_style_pixel">Pixel</string>
     <string name="settings_player_style_legacy">Legacy</string>
     <string name="settings_player_background">Фон плеера</string>
