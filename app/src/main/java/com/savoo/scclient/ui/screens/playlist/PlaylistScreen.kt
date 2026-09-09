@@ -72,10 +72,15 @@ import com.savoo.scclient.ui.components.TrackSortButton
 import com.savoo.scclient.ui.components.applySortOption
 import com.savoo.scclient.ui.components.rememberTrackSelection
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val TRACK_RESOLVE_CONCURRENCY = 8
 
 data class PlaylistUiState(
     val playlist: Playlist? = null,
@@ -125,14 +130,17 @@ class PlaylistViewModel @Inject constructor(
 
     private suspend fun resolveTracks(rawTracks: List<Track>) {
         val resolved = rawTracks.toMutableList()
-        for ((index, t) in rawTracks.withIndex()) {
-            if (t.title.isBlank()) {
-                val full = runCatching { repository.getTrack(t.id) }.getOrNull()
-                if (full != null) {
-                    resolved[index] = full
-                    _uiState.value = _uiState.value.copy(tracks = resolved.toList())
-                }
+        val pending = rawTracks.withIndex().filter { it.value.title.isBlank() }
+        pending.chunked(TRACK_RESOLVE_CONCURRENCY).forEach { chunk ->
+            coroutineScope {
+                chunk.map { (index, t) ->
+                    async {
+                        val full = runCatching { repository.getTrack(t.id) }.getOrNull()
+                        if (full != null) resolved[index] = full
+                    }
+                }.awaitAll()
             }
+            _uiState.value = _uiState.value.copy(tracks = resolved.toList())
         }
         _uiState.value = _uiState.value.copy(isResolvingTracks = false)
     }
