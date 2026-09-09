@@ -2,6 +2,8 @@ package com.savoo.scclient
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.os.Bundle
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
@@ -64,8 +66,23 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(updatedContext)
     }
 
+    private fun applyOrientationLock() {
+        requestedOrientation = if (resources.getBoolean(R.bool.lock_portrait)) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyOrientationLock()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        applyOrientationLock()
 
         apiWebView = WebView(this).apply {
             // Must be attached to a real window (not just held in a field) - Android throttles

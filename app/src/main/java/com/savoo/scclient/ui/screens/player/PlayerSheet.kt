@@ -668,83 +668,80 @@ private fun MiniPlayerRow(
             .scale(pressScale)
             .clickable(interactionSource = interactionSource, indication = null) { haptic(); onExpand() },
     ) {
-        BoxWithConstraints {
-            val showFavorite = maxWidth >= 480.dp
-            Row(
-                modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                TrackArtwork(
-                    artworkUrl = track.artworkUrl,
-                    contentDescription = null,
-                    shape = CircleShape,
-                    modifier = Modifier.size(40.dp),
+        Row(
+            modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            TrackArtwork(
+                artworkUrl = track.artworkUrl,
+                contentDescription = null,
+                shape = CircleShape,
+                modifier = Modifier.size(40.dp),
+            )
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                Text(
+                    track.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
-                Column(modifier = Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                    Text(
-                        track.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Text(
-                        if (state.isRetryingNetwork) stringResource(R.string.network_retrying) else track.user.username,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (state.isRetryingNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                IconButton(onClick = { haptic(); onPrev() }, modifier = Modifier.size(48.dp), enabled = state.hasPrev || state.positionMs > 0L) {
-                    Icon(
-                        Icons.Filled.SkipPrevious,
-                        contentDescription = stringResource(R.string.player_previous),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (state.hasPrev || state.positionMs > 0L) 1f else 0.38f),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Surface(
-                    onClick = { haptics.click(); onTogglePlay() },
-                    interactionSource = playInteractionSource,
-                    shape = PlayButtonShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp)
-                        .size(48.dp)
-                        .scale(playScale),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        if (state.isBuffering) {
-                            LoadingIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                        } else {
-                            Icon(
-                                if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = stringResource(if (state.isPlaying) R.string.player_pause else R.string.player_play),
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
+                Text(
+                    if (state.isRetryingNetwork) stringResource(R.string.network_retrying) else track.user.username,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (state.isRetryingNetwork) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = { haptic(); onPrev() }, modifier = Modifier.size(48.dp), enabled = state.hasPrev || state.positionMs > 0L) {
+                Icon(
+                    Icons.Filled.SkipPrevious,
+                    contentDescription = stringResource(R.string.player_previous),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (state.hasPrev || state.positionMs > 0L) 1f else 0.38f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Surface(
+                onClick = { haptics.click(); onTogglePlay() },
+                interactionSource = playInteractionSource,
+                shape = PlayButtonShape,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .size(48.dp)
+                    .scale(playScale),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (state.isBuffering) {
+                        LoadingIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        Icon(
+                            if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = stringResource(if (state.isPlaying) R.string.player_pause else R.string.player_play),
+                            modifier = Modifier.size(24.dp),
+                        )
                     }
                 }
-                IconButton(onClick = { haptic(); onNext() }, modifier = Modifier.size(48.dp), enabled = state.hasNext) {
-                    Icon(
-                        Icons.Filled.SkipNext,
-                        contentDescription = stringResource(R.string.player_next),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (state.hasNext) 1f else 0.38f),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                if (showFavorite) IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(48.dp)) {
-                    Icon(
-                        if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = stringResource(R.string.player_favorite),
-                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.scale(heartScale).size(20.dp),
-                    )
-                }
+            }
+            IconButton(onClick = { haptic(); onNext() }, modifier = Modifier.size(48.dp), enabled = state.hasNext) {
+                Icon(
+                    Icons.Filled.SkipNext,
+                    contentDescription = stringResource(R.string.player_next),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (state.hasNext) 1f else 0.38f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            IconButton(onClick = { haptics.like(); heartAnimating = true; onToggleFavorite() }, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = stringResource(R.string.player_favorite),
+                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.scale(heartScale).size(20.dp),
+                )
             }
         }
         Box(

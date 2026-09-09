@@ -32,6 +32,7 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|density"
             android:theme="@style/Theme.Resona.Splash">
 
             <!-- OAuth redirect: resona://oauth/callback -->
