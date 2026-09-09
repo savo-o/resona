@@ -11,6 +11,20 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.systemBars
@@ -156,10 +170,39 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
     UpdateCheckHost()
     CrashReportHost()
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val useRail = maxWidth >= 600.dp
+        val selectDestination: (Screen) -> Unit = { screen ->
+            navController.navigate(screen.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+        Row(Modifier.fillMaxSize()) {
+        if (useRail) {
+            NavigationRail(modifier = Modifier.fillMaxHeight().verticalScroll(rememberScrollState())) {
+                listOf(
+                    Triple(Screen.Home, Icons.Filled.Home, R.string.nav_home),
+                    Triple(Screen.Search, Icons.Filled.Search, R.string.nav_search),
+                    Triple(Screen.Favorites, Icons.Filled.Favorite, R.string.nav_favorites),
+                    Triple(Screen.OfflineTracks, Icons.Filled.CloudDownload, R.string.shortcut_offline_short),
+                    Triple(Screen.Settings, Icons.Filled.Settings, R.string.nav_settings),
+                ).forEach { (screen, icon, label) ->
+                    NavigationRailItem(
+                        selected = currentRoute == screen.route,
+                        onClick = { selectDestination(screen) },
+                        icon = { Icon(icon, contentDescription = stringResource(label)) },
+                        label = { Text(stringResource(label)) },
+                    )
+                }
+            }
+        }
         Scaffold(
+            modifier = Modifier.weight(1f),
             bottomBar = {
                 PlayerSheet(
+                    showDockBar = !useRail,
                     onArtistClick = { userId -> navController.navigate(Screen.Artist.createRoute(userId)) },
                     dockBar = {
                         ResonaDockBar(
@@ -182,7 +225,11 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                 NavHost(
                     navController = navController,
                     startDestination = Screen.Home.route,
-                    modifier = Modifier.padding(bottom = padding.calculateBottomPadding()),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .then(if (useRail && currentRoute != Screen.Home.route) Modifier.widthIn(max = 1040.dp) else Modifier)
+                        .fillMaxSize()
+                        .padding(bottom = padding.calculateBottomPadding()),
                     enterTransition = {
                         val from = initialState.destination.route ?: return@NavHost fadeIn(spring())
                         val to = targetState.destination.route ?: return@NavHost fadeIn(spring())
@@ -379,6 +426,7 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     }
                 }
             }
+        }
         }
         ConnectivityBanner(modifier = Modifier.align(Alignment.TopCenter))
     }
