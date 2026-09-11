@@ -15,7 +15,12 @@ import com.savoo.scclient.di.PlainHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,6 +35,19 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
+
+private const val BULK_DONE_VISIBLE_MS = 3000L
+
+data class BulkDownloadProgress(
+    val total: Int,
+    val completed: Int = 0,
+    val failed: Int = 0,
+    val currentTitle: String? = null,
+    val currentFraction: Float = 0f,
+) {
+    val isFinished: Boolean get() = completed >= total
+    val fraction: Float get() = if (total <= 0) 1f else ((completed + currentFraction) / total).coerceIn(0f, 1f)
+}
 
 @Singleton
 class OfflineTrackManager @Inject constructor(
@@ -51,6 +69,76 @@ class OfflineTrackManager @Inject constructor(
     private val _downloadingTrackIds = MutableStateFlow<Set<Long>>(emptySet())
     val downloadingTrackIds = _downloadingTrackIds.asStateFlow()
 
+    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val bulkLock = Any()
+    private val bulkQueue = ArrayDeque<Track>()
+    private var bulkWorkerRunning = false
+    private var bulkJob: Job? = null
+
+    private val _bulkDownload = MutableStateFlow<BulkDownloadProgress?>(null)
+    val bulkDownload = _bulkDownload.asStateFlow()
+
+    fun enqueueDownloads(tracks: List<Track>) {
+        synchronized(bulkLock) {
+            val known = bulkQueue.mapTo(HashSet()) { it.id } + _downloadingTrackIds.value
+            val fresh = tracks.distinctBy { it.id }.filter { it.id !in known }
+            if (fresh.isEmpty()) return
+            bulkQueue.addAll(fresh)
+            if (bulkWorkerRunning) {
+                _bulkDownload.update { it?.copy(total = it.total + fresh.size) }
+            } else {
+                bulkJob?.cancel()
+                _bulkDownload.value = BulkDownloadProgress(total = fresh.size)
+                bulkWorkerRunning = true
+                bulkJob = downloadScope.launch { runBulkQueue() }
+            }
+        }
+    }
+
+    fun cancelBulkDownloads() {
+        synchronized(bulkLock) {
+            bulkQueue.clear()
+            bulkJob?.cancel()
+            bulkJob = null
+            bulkWorkerRunning = false
+            _bulkDownload.value = null
+        }
+    }
+
+    private suspend fun runBulkQueue() {
+        val job = currentCoroutineContext().job
+        while (true) {
+            val next = synchronized(bulkLock) {
+                if (!job.isActive) return
+                val track = bulkQueue.removeFirstOrNull()
+                if (track == null) {
+                    bulkWorkerRunning = false
+                } else {
+                    _bulkDownload.update { it?.copy(currentTitle = track.title, currentFraction = 0f) }
+                }
+                track
+            } ?: break
+            val result = saveForOffline(next) { fraction ->
+                if (job.isActive) _bulkDownload.update { it?.copy(currentFraction = fraction) }
+            }
+            synchronized(bulkLock) {
+                if (job.isActive) {
+                    _bulkDownload.update {
+                        it?.copy(
+                            completed = it.completed + 1,
+                            failed = it.failed + if (result.isFailure) 1 else 0,
+                            currentFraction = 0f,
+                        )
+                    }
+                }
+            }
+        }
+        delay(BULK_DONE_VISIBLE_MS)
+        synchronized(bulkLock) {
+            if (!bulkWorkerRunning && job.isActive) _bulkDownload.value = null
+        }
+    }
+
     fun isOfflineTrack(trackId: Long): Flow<Boolean> = offlineDao.isOfflineTrack(trackId)
 
     suspend fun isOfflineTrackSync(trackId: Long): Boolean = offlineDao.isOfflineTrackSync(trackId)
@@ -64,7 +152,7 @@ class OfflineTrackManager @Inject constructor(
 
     suspend fun getTrackCount(): Int = offlineDao.getTrackCount()
 
-    suspend fun saveForOffline(track: Track): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun saveForOffline(track: Track, onProgress: ((Float) -> Unit)? = null): Result<Unit> = withContext(Dispatchers.IO) {
         _downloadingTrackIds.update { it + track.id }
         try {
             val audioFile = File(offlineDir, "${track.id}.mp3")
@@ -110,9 +198,28 @@ class OfflineTrackManager @Inject constructor(
                 if (!response.isSuccessful) {
                     return@withContext Result.failure(Exception("Download failed: ${response.code}"))
                 }
-                response.body?.byteStream()?.use { input ->
-                    tmpAudioFile.outputStream().use { output ->
-                        input.copyTo(output)
+                response.body?.let { body ->
+                    val totalBytes = body.contentLength()
+                    body.byteStream().use { input ->
+                        tmpAudioFile.outputStream().use { output ->
+                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                            var copied = 0L
+                            var lastPercent = -1
+                            while (true) {
+                                ensureActive()
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                output.write(buffer, 0, read)
+                                copied += read
+                                if (onProgress != null && totalBytes > 0) {
+                                    val percent = (copied * 100 / totalBytes).toInt()
+                                    if (percent != lastPercent) {
+                                        lastPercent = percent
+                                        onProgress(percent / 100f)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -143,6 +250,7 @@ class OfflineTrackManager @Inject constructor(
             Result.success(Unit)
         } catch (e: Exception) {
             DebugLog.log("OfflineTrack", "Failed to save: ${e.message}")
+            File(offlineDir, "${track.id}.mp3.tmp").delete()
             Result.failure(e)
         } finally {
             _downloadingTrackIds.update { it - track.id }

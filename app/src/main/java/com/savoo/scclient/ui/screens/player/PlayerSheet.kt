@@ -158,6 +158,7 @@ import com.savoo.scclient.data.repository.AppBackgroundMode
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
 import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
+import com.savoo.scclient.player.BulkDownloadProgress
 import com.savoo.scclient.player.PlaybackState
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.haptics.rememberHapticTick
@@ -165,6 +166,10 @@ import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.theme.buildPixelScheme
 import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.components.TrackSkippedBanner
+import com.savoo.scclient.ui.components.AppDivider
+import com.savoo.scclient.ui.components.BulkDownloadBanner
+import com.savoo.scclient.ui.components.UndoAction
+import com.savoo.scclient.ui.components.UndoBanner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -190,6 +195,8 @@ fun PlayerSheet(
     val track = state.currentTrack
     val haptics = rememberHaptics()
     var skippedTrack by remember { mutableStateOf<com.savoo.scclient.player.SkippedTrack?>(null) }
+    val undoAction by viewModel.undoController.current.collectAsState()
+    val bulkDownload by viewModel.bulkDownload.collectAsState()
 
     BackHandler(enabled = showFullPlayer) { showFullPlayer = false }
 
@@ -202,6 +209,12 @@ fun PlayerSheet(
         if (offlineSaveResult != null) viewModel.consumeOfflineSaveResult()
     }
 
+    LaunchedEffect(undoAction) {
+        val action = undoAction ?: return@LaunchedEffect
+        delay(4000)
+        viewModel.undoController.dismiss(action)
+    }
+
     LaunchedEffect(Unit) {
         viewModel.controller.skippedTrackEvents.collect { skipped ->
             skippedTrack = skipped
@@ -211,20 +224,35 @@ fun PlayerSheet(
     }
 
     Column {
+        val bannerEnter = fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+            slideInVertically(
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+                initialOffsetY = { -it / 2 },
+            )
+        val bannerExit = fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
+            slideOutVertically(
+                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                targetOffsetY = { -it / 2 },
+            )
+        var lastBulkDownload by remember { mutableStateOf<BulkDownloadProgress?>(null) }
+        bulkDownload?.let { lastBulkDownload = it }
+        AnimatedVisibility(visible = bulkDownload != null, enter = bannerEnter, exit = bannerExit) {
+            lastBulkDownload?.let { progress ->
+                BulkDownloadBanner(
+                    progress = progress,
+                    onCancel = { haptics.click(); viewModel.cancelBulkDownloads() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
         var lastSkippedTrack by remember { mutableStateOf<com.savoo.scclient.player.SkippedTrack?>(null) }
         skippedTrack?.let { lastSkippedTrack = it }
         AnimatedVisibility(
             visible = skippedTrack != null,
-            enter = fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
-                slideInVertically(
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
-                    initialOffsetY = { -it / 2 },
-                ),
-            exit = fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
-                slideOutVertically(
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
-                    targetOffsetY = { -it / 2 },
-                ),
+            enter = bannerEnter,
+            exit = bannerExit,
         ) {
             lastSkippedTrack?.let { skipped ->
                 TrackSkippedBanner(
@@ -235,6 +263,21 @@ fun PlayerSheet(
                         viewModel.controller.retryTrack(skipped.track)
                     },
                     onDismiss = { skippedTrack = null },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+        var lastUndoAction by remember { mutableStateOf<UndoAction?>(null) }
+        undoAction?.let { lastUndoAction = it }
+        AnimatedVisibility(visible = undoAction != null, enter = bannerEnter, exit = bannerExit) {
+            lastUndoAction?.let { action ->
+                UndoBanner(
+                    message = stringResource(action.messageRes, *action.messageArgs.toTypedArray()),
+                    icon = action.icon,
+                    onUndo = { haptics.click(); viewModel.undoController.undo(action) },
+                    onDismiss = { viewModel.undoController.dismiss(action) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -262,15 +305,14 @@ fun PlayerSheet(
                     isFavorite = viewModel.isFavorite.collectAsState().value,
                     onExpand = { showFullPlayer = true },
                     onTogglePlay = { viewModel.controller.togglePlayPause() },
-                    onToggleFavorite = { viewModel.toggleFavorite() },
+                    onToggleFavorite = { viewModel.toggleFavoriteWithUndo() },
                     onNext = { viewModel.controller.skipToNext() },
                     onPrev = { viewModel.controller.skipToPrevious() },
                 )
                 if (showDockBar) Spacer(Modifier.height(6.dp))
-                if (showDockBar) androidx.compose.material3.HorizontalDivider(
+                if (showDockBar) AppDivider(
                     modifier = Modifier.padding(horizontal = 18.dp),
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                    alpha = 0.3f,
                 )
             }
             if (showDockBar) dockBar()

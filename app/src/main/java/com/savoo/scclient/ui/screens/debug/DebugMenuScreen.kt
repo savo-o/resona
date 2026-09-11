@@ -29,7 +29,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import com.savoo.scclient.ui.components.AppDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -329,7 +329,7 @@ fun DebugMenuScreen(
                 Text(stringResource(R.string.debug_menu_favorite_artists, favoriteArtists), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.debug_menu_favorite_playlists, favoritePlaylists), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.debug_menu_offline_tracks, offlineTracks), style = MaterialTheme.typography.bodyMedium)
-                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                AppDivider(modifier = Modifier.padding(vertical = 14.dp))
                 Text(stringResource(R.string.debug_menu_reset_database), style = MaterialTheme.typography.bodyLarge)
                 Text(
                     stringResource(R.string.debug_menu_reset_database_desc),
@@ -391,7 +391,7 @@ fun DebugMenuScreen(
                         Text(stringResource(R.string.debug_menu_copy))
                     }
                 }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                AppDivider(modifier = Modifier.padding(vertical = 14.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,

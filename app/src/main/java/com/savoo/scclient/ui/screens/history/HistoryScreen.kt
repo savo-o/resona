@@ -29,17 +29,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +62,8 @@ import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.components.EmptyState
+import com.savoo.scclient.ui.components.UndoAction
+import com.savoo.scclient.ui.components.UndoController
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,6 +103,7 @@ class HistoryViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
     private val offlineTrackManager: OfflineTrackManager,
     val playerController: PlayerController,
+    private val undoController: UndoController,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
@@ -114,10 +111,6 @@ class HistoryViewModel @Inject constructor(
 
     private val _resolvingTrackId = MutableStateFlow<Long?>(null)
     val resolvingTrackId = _resolvingTrackId.asStateFlow()
-
-    private val _undoRemovedCount = MutableStateFlow(0)
-    val undoRemovedCount = _undoRemovedCount.asStateFlow()
-    private var removedEvents: List<PlayEvent> = emptyList()
 
     private val events = playHistoryDao.observeRecentEvents(HISTORY_EVENT_LIMIT)
 
@@ -164,26 +157,21 @@ class HistoryViewModel @Inject constructor(
 
     fun remove(entry: HistoryEntry) {
         viewModelScope.launch {
-            removedEvents = playHistoryDao.eventsByIds(entry.eventIds)
-            entry.eventIds.forEach { playHistoryDao.deleteEvent(it) }
-            _undoRemovedCount.value = removedEvents.size
+            val dao = playHistoryDao
+            val removed = dao.eventsByIds(entry.eventIds)
+            entry.eventIds.forEach { dao.deleteEvent(it) }
+            if (removed.isEmpty()) return@launch
+            undoController.show(
+                UndoAction(
+                    messageRes = R.string.history_entry_removed,
+                    icon = Icons.Filled.History,
+                    onUndo = { runCatching { dao.insertAll(removed) } },
+                )
+            )
         }
     }
 
-    fun clearUndo() {
-        removedEvents = emptyList()
-        _undoRemovedCount.value = 0
-    }
-
-    fun restoreRemoved() {
-        val restore = removedEvents
-        clearUndo()
-        if (restore.isEmpty()) return
-        viewModelScope.launch { runCatching { playHistoryDao.insertAll(restore) } }
-    }
-
     fun clearAll() {
-        clearUndo()
         viewModelScope.launch { playHistoryDao.clearHistory() }
     }
 }
@@ -245,19 +233,7 @@ fun HistoryScreen(
     val query by viewModel.query.collectAsState()
     val isEmpty by viewModel.isEmpty.collectAsState()
     val resolvingTrackId by viewModel.resolvingTrackId.collectAsState()
-    val undoRemovedCount by viewModel.undoRemovedCount.collectAsState()
-    val context = LocalContext.current
-    val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(undoRemovedCount) {
-        if (undoRemovedCount == 0) return@LaunchedEffect
-        val result = snackbarHostState.showSnackbar(
-            message = context.getString(R.string.history_entry_removed),
-            actionLabel = context.getString(R.string.undo),
-            duration = SnackbarDuration.Short,
-        )
-        if (result == SnackbarResult.ActionPerformed) viewModel.restoreRemoved() else viewModel.clearUndo()
-    }
     val playerState by viewModel.playerController.state.collectAsState()
     var showClearDialog by remember { mutableStateOf(false) }
 
@@ -279,7 +255,6 @@ fun HistoryScreen(
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
             if (!isEmpty) {

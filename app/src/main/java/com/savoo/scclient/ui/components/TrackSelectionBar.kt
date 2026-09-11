@@ -11,7 +11,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,7 +31,6 @@ import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -60,7 +58,6 @@ fun TrackSelectionBar(
     selectedCount: Int,
     onClear: () -> Unit,
     modifier: Modifier = Modifier,
-    downloadingCount: Int = 0,
     onSelectAll: (() -> Unit)? = null,
     onFavoriteAll: (() -> Unit)? = null,
     onDownloadAll: (() -> Unit)? = null,
@@ -116,8 +113,7 @@ fun TrackSelectionBar(
                     finishedListener = { pulse = false },
                 )
                 Text(
-                    text = if (downloadingCount > 0) stringResource(R.string.selection_downloading, downloadingCount)
-                        else stringResource(R.string.selection_count, selectedCount),
+                    text = stringResource(R.string.selection_count, selectedCount),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier
                         .weight(1f)
@@ -158,7 +154,6 @@ fun TrackSelectionBar(
                             SelectionActionSpec(
                                 icon = Icons.Filled.CloudDownload,
                                 label = stringResource(R.string.selection_download_all),
-                                busy = downloadingCount > 0,
                                 onClick = { haptics.click(); onDownloadAll() },
                             )
                         )
@@ -178,7 +173,6 @@ fun TrackSelectionBar(
                                 index == actions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                             },
-                            busy = action.busy,
                             onClick = action.onClick,
                         )
                     }
@@ -192,7 +186,6 @@ private data class SelectionActionSpec(
     val icon: ImageVector,
     val label: String,
     val onClick: () -> Unit,
-    val busy: Boolean = false,
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -202,20 +195,13 @@ private fun SelectionAction(
     label: String,
     shapes: ToggleButtonShapes,
     onClick: () -> Unit,
-    busy: Boolean = false,
 ) {
     ToggleButton(
-        checked = busy,
-        onCheckedChange = { if (!busy) onClick() },
+        checked = false,
+        onCheckedChange = { onClick() },
         shapes = shapes,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(ToggleButtonDefaults.IconSize)) {
-            if (busy) {
-                LoadingIndicator(color = MaterialTheme.colorScheme.onPrimary)
-            } else {
-                Icon(icon, contentDescription = label, modifier = Modifier.size(ToggleButtonDefaults.IconSize))
-            }
-        }
+        Icon(icon, contentDescription = label, modifier = Modifier.size(ToggleButtonDefaults.IconSize))
     }
 }

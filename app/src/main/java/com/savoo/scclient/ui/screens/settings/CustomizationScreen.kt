@@ -57,6 +57,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.repository.AppBackgroundMode
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.DarkModeOption
+import com.savoo.scclient.data.repository.DividerStyle
 import com.savoo.scclient.data.repository.HomeSection
 import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
@@ -410,6 +411,46 @@ fun CustomizationScreen(
                             color = settings.backgroundCustomColor,
                             onColorChange = { viewModel.setBackgroundCustomColor(it) },
                         )
+                    }
+                    SettingsDivider()
+                    Text(
+                        stringResource(R.string.settings_dividers),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                    )
+                    Text(
+                        stringResource(R.string.settings_dividers_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
+                    )
+                    val dividerStyles = DividerStyle.entries
+                    val dividerLabelResIds = listOf(
+                        R.string.settings_dividers_hidden,
+                        R.string.settings_dividers_subtle,
+                        R.string.settings_dividers_bright,
+                    )
+                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        dividerStyles.forEachIndexed { index, style ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                dividerStyles.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.dividerStyle == style,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setDividerStyle(style) } },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(
+                                    stringResource(dividerLabelResIds[index]),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
                     }
                 }
             }

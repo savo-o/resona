@@ -44,6 +44,7 @@ data class SearchUiState(
     val nextTracksHref: String? = null,
     val nextArtistsHref: String? = null,
     val nextAlbumsHref: String? = null,
+    val resultsQuery: String? = null,
 )
 
 sealed class SearchNavEvent {
@@ -81,6 +82,7 @@ class SearchViewModel @Inject constructor(
     val history = searchHistory.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val queryFlow = MutableStateFlow("")
+    private var pendingHistoryQuery: String? = null
     private var loadMoreJob: kotlinx.coroutines.Job? = null
 
     init {
@@ -163,8 +165,12 @@ class SearchViewModel @Inject constructor(
             nextTracksHref = null,
             nextArtistsHref = null,
             nextAlbumsHref = null,
+            resultsQuery = null,
+            isLoading = false,
         )
     }
+
+    private fun isStale(query: String): Boolean = normalizeQuery(_uiState.value.query) != query
 
     fun loadMore() {
         val state = _uiState.value
@@ -239,17 +245,27 @@ class SearchViewModel @Inject constructor(
                 val albums = repository.searchPlaylists(query)
                 Triple(tracks, artists, albums)
             }.onSuccess { (tracks, artists, albums) ->
+                if (pendingHistoryQuery == query) {
+                    pendingHistoryQuery = null
+                    if (tracks.items.isNotEmpty() || artists.items.isNotEmpty() || albums.items.isNotEmpty()) {
+                        searchHistory.add(query)
+                    }
+                }
+                if (isStale(query)) return@onSuccess
                 _uiState.value = _uiState.value.copy(
                     tracks = tracks.items,
                     artists = artists.items,
                     albums = albums.items,
                     isLoading = false,
                     isLoadingMore = false,
+                    resultsQuery = query,
                     nextTracksHref = tracks.nextHref,
                     nextArtistsHref = artists.nextHref,
                     nextAlbumsHref = albums.nextHref,
                 )
             }.onFailure { e ->
+                if (pendingHistoryQuery == query) pendingHistoryQuery = null
+                if (isStale(query)) return@onFailure
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.toSearchError())
             }
         }
@@ -268,16 +284,19 @@ class SearchViewModel @Inject constructor(
                 val albums = repository.searchPlaylists(query)
                 Triple(tracks, artists, albums)
             }.onSuccess { (tracks, artists, albums) ->
+                if (isStale(query)) return@onSuccess
                 _uiState.value = _uiState.value.copy(
                     tracks = tracks.items,
                     artists = artists.items,
                     albums = albums.items,
                     error = null,
+                    resultsQuery = query,
                     nextTracksHref = tracks.nextHref,
                     nextArtistsHref = artists.nextHref,
                     nextAlbumsHref = albums.nextHref,
                 )
             }.onFailure { e ->
+                if (isStale(query)) return@onFailure
                 _uiState.value = _uiState.value.copy(error = e.toSearchError())
             }
             _isRefreshing.value = false
@@ -286,6 +305,19 @@ class SearchViewModel @Inject constructor(
 
     fun selectFromHistory(query: String) {
         onQueryChange(query)
+    }
+
+    fun commitQueryToHistory() {
+        val state = _uiState.value
+        val query = normalizeQuery(state.query)
+        if (query.isBlank() || isSoundCloudUrl(query)) return
+        if (state.resultsQuery == query && !state.isLoading) {
+            if (state.tracks.isNotEmpty() || state.artists.isNotEmpty() || state.albums.isNotEmpty()) {
+                viewModelScope.launch { searchHistory.add(query) }
+            }
+        } else {
+            pendingHistoryQuery = query
+        }
     }
 
     fun removeHistoryItem(query: String) {
@@ -297,6 +329,7 @@ class SearchViewModel @Inject constructor(
     }
 
     fun playTrack(track: Track) {
+        commitQueryToHistory()
         val tracks = _uiState.value.tracks
         val idx = tracks.indexOfFirst { it.id == track.id }
         playerController.playQueue(tracks, idx.coerceAtLeast(0), tag = "search")
@@ -305,6 +338,7 @@ class SearchViewModel @Inject constructor(
     fun isFavoriteFlow(trackId: Long) = favoritesDao.isTrackFavorite(trackId)
 
     fun toggleFavorite(track: Track) {
+        commitQueryToHistory()
         viewModelScope.launch {
             favoritesRepository.toggleTrackFavorite(track)
         }

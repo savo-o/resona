@@ -118,6 +118,10 @@ fun SearchScreen(
         }
     }
 
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { viewModel.commitQueryToHistory() }
+    }
+
     Scaffold { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             Column(Modifier.fillMaxSize()) {
@@ -147,7 +151,7 @@ fun SearchScreen(
                             label = "searchIconRotation",
                         )
                         IconButton(
-                            onClick = { if (hasQuery) { haptic(); viewModel.onQueryChange("") } },
+                            onClick = { if (hasQuery) { haptic(); viewModel.commitQueryToHistory(); viewModel.onQueryChange("") } },
                             enabled = hasQuery,
                         ) {
                             Icon(
@@ -286,7 +290,7 @@ fun SearchScreen(
                                             else viewModel.playTrack(track)
                                         },
                                         unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
-                                        onLongPress = { actionsTrack = track },
+                                        onLongPress = { viewModel.commitQueryToHistory(); actionsTrack = track },
                                         modifier = Modifier.animateItem(),
                                     )
                                 }
@@ -306,7 +310,7 @@ fun SearchScreen(
                                     items(state.artists, key = { it.id }) { user ->
                                         ArtistRow(
                                             user = user,
-                                            onClick = { onArtistClick(user.id) },
+                                            onClick = { viewModel.commitQueryToHistory(); onArtistClick(user.id) },
                                             modifier = Modifier.animateItem(),
                                         )
                                     }
@@ -326,7 +330,7 @@ fun SearchScreen(
                                     items(state.albums, key = { it.id }) { playlist ->
                                         AlbumRow(
                                             playlist = playlist,
-                                            onClick = { onPlaylistClick(playlist.id) },
+                                            onClick = { viewModel.commitQueryToHistory(); onPlaylistClick(playlist.id) },
                                             modifier = Modifier.animateItem(),
                                         )
                                     }

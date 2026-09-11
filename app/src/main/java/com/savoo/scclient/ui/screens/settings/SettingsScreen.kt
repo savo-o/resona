@@ -42,7 +42,7 @@ import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -92,7 +92,9 @@ import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.LyricsProvider
+import com.savoo.scclient.data.repository.DividerStyle
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
+import com.savoo.scclient.ui.components.AppDivider
 import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.data.repository.SettingsRepository
@@ -179,6 +181,7 @@ class SettingsViewModel @Inject constructor(
     fun setCustomSeedColor(color: Color) = viewModelScope.launch { repository.setCustomSeedColor(color) }
     fun setHomeSections(sections: List<HomeSectionConfig>) = viewModelScope.launch { repository.setHomeSections(sections) }
     fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
+    fun setDividerStyle(style: DividerStyle) = viewModelScope.launch { repository.setDividerStyle(style) }
     fun setPlayerStyle(style: PlayerStyle) = viewModelScope.launch { repository.setPlayerStyle(style) }
     fun setBackgroundMode(mode: AppBackgroundMode) = viewModelScope.launch { repository.setBackgroundMode(mode) }
     fun setPixelGlowEnabled(value: Boolean) = viewModelScope.launch { repository.setPixelGlowEnabled(value) }
@@ -286,10 +289,7 @@ class SettingsViewModel @Inject constructor(
 
 @Composable
 internal fun SettingsDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-    )
+    AppDivider(modifier = Modifier.padding(horizontal = 16.dp))
 }
 
 @Composable
@@ -709,8 +709,14 @@ fun SettingsScreen(
                             onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setCacheLimitMb(limitMb) } },
                             modifier = Modifier.weight(1f),
                             shapes = shapes,
+                            contentPadding = PaddingValues(horizontal = 6.dp),
                         ) {
-                            Text(cacheLimitLabel(limitMb), style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                cacheLimitLabel(limitMb),
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                softWrap = false,
+                            )
                         }
                     }
                 }

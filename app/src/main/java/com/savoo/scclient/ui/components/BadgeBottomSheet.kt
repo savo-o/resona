@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -93,7 +92,7 @@ fun BadgeBottomSheet(
             Spacer(Modifier.height(24.dp))
 
             info.howToGetUrl?.let { url ->
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                AppDivider()
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

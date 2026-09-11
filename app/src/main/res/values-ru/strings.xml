@@ -490,7 +490,10 @@
     <string name="about_github">GitHub</string>
     <string name="about_version">Версия %1$s (%2$d)</string>
     <string name="about_build_canary">Canary-build</string>
-    <string name="easter_egg_caption">слушай внимательнее</string>
+    <string name="easter_egg_caption">Всё это ничего не делает</string>
+    <string name="easter_egg_press_me">Нажмите на меня</string>
+    <string name="easter_egg_launch">Запуск</string>
+    <string name="easter_egg_gravity">Гравитация</string>
 
     <!-- Badges -->
     <string name="badge_developer">Значок разработчика</string>
@@ -527,7 +530,6 @@
     <string name="selection_favorite_all">В избранное</string>
     <string name="selection_download_all">Скачать</string>
     <string name="selection_select_all">Выделить всё</string>
-    <string name="selection_downloading">Загрузка: %1$d…</string>
 
     <!-- Theme names -->
     <string name="theme_sc_orange">Оранжевый SoundCloud</string>
@@ -569,4 +571,15 @@
     <string name="favorites_removed_count">Убрано из избранного: %d</string>
     <string name="undo">Отменить</string>
     <string name="history_entry_removed">Запись удалена из истории</string>
+    <string name="favorite_added">Добавлено в избранное</string>
+    <string name="favorite_removed">Убрано из избранного</string>
+    <string name="bulk_download_progress">Скачивание: %1$d из %2$d</string>
+    <string name="bulk_download_done">Скачано: %1$d из %2$d</string>
+    <string name="bulk_download_failed">Не удалось скачать: %1$d</string>
+    <string name="bulk_download_cancel">Отменить скачивание</string>
+    <string name="settings_dividers">Разделители</string>
+    <string name="settings_dividers_desc">Линии между пунктами в настройках, меню и мини-плеере</string>
+    <string name="settings_dividers_hidden">Нет</string>
+    <string name="settings_dividers_subtle">Мягкие</string>
+    <string name="settings_dividers_bright">Яркие</string>
 </resources>

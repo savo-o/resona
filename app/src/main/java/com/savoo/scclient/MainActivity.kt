@@ -184,6 +184,7 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.savoo.scclient.ui.haptics.LocalHapticsEnabled provides settings.hapticsEnabled,
                     com.savoo.scclient.ui.haptics.LocalHapticsIntensity provides settings.hapticsIntensity,
+                    com.savoo.scclient.ui.components.LocalDividerStyle provides settings.dividerStyle,
                 ) {
                     var eulaDismissed by androidx.compose.runtime.remember { mutableStateOf(false) }
                     var onboardingDismissed by androidx.compose.runtime.remember { mutableStateOf(false) }

@@ -223,7 +223,7 @@ class PlaylistViewModel @Inject constructor(
             if (allOffline) {
                 ids.forEach { offlineTrackManager.removeFromOffline(it) }
             } else {
-                selectedTracks.filter { it.id !in currentlyOffline }.forEach { offlineTrackManager.saveForOffline(it) }
+                offlineTrackManager.enqueueDownloads(selectedTracks.filter { it.id !in currentlyOffline })
             }
         }
     }
@@ -291,7 +291,6 @@ fun PlaylistScreen(
                     viewModel.playerController.addToQueue(sortedTracks.filter { it.id in selection.selectedIds })
                     selection.clear()
                 },
-                downloadingCount = sortedTracks.count { it.id in downloadingIds },
                 onSelectAll = { selection.selectAll(sortedTracks.map { it.id }) },
                 onFavoriteAll = {
                     viewModel.toggleFavoriteForSelected(selection.selectedIds)

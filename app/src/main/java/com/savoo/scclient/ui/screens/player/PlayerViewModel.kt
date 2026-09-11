@@ -3,6 +3,10 @@ package com.savoo.scclient.ui.screens.player
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import com.savoo.scclient.R
 import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.ExcludedMixArtist
@@ -13,6 +17,8 @@ import com.savoo.scclient.data.repository.SeekBarStyle
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.components.UndoAction
+import com.savoo.scclient.ui.components.UndoController
 import com.savoo.scclient.ui.screens.home.HomeViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -35,6 +41,7 @@ class PlayerViewModel @Inject constructor(
     private val lyricsRepository: LyricsRepository,
     private val settingsRepository: SettingsRepository,
     private val excludedArtistDao: ExcludedArtistDao,
+    val undoController: UndoController,
 ) : ViewModel() {
 
     val isFavorite = controller.state.map { it.currentTrack?.id ?: 0L }
@@ -114,6 +121,26 @@ class PlayerViewModel @Inject constructor(
             favoritesRepository.toggleTrackFavorite(track)
         }
     }
+
+    fun toggleFavoriteWithUndo() {
+        val track = controller.state.value.currentTrack ?: return
+        viewModelScope.launch {
+            val repository = favoritesRepository
+            val previous = repository.getTrackFavorite(track.id)
+            undoController.show(
+                UndoAction(
+                    messageRes = if (previous == null) R.string.favorite_added else R.string.favorite_removed,
+                    icon = if (previous == null) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    onUndo = { repository.restoreTrackFavorite(track, previous) },
+                )
+            )
+            repository.toggleTrackFavorite(track)
+        }
+    }
+
+    val bulkDownload = offlineTrackManager.bulkDownload
+
+    fun cancelBulkDownloads() = offlineTrackManager.cancelBulkDownloads()
 
     fun saveForOffline() {
         val track = controller.state.value.currentTrack ?: return

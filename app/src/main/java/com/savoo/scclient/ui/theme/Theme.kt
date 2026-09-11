@@ -106,7 +106,7 @@ fun buildPixelScheme(rawSeed: Color): androidx.compose.material3.ColorScheme {
         surfaceVariant = seed.tone(0.45f, Color.Black),
         onSurfaceVariant = onSurface.copy(alpha = 0.72f),
         outline = onSurface.copy(alpha = 0.4f),
-        outlineVariant = onSurface.copy(alpha = 0.22f),
+        outlineVariant = lerp(seed.tone(0.4f, Color.Black), onSurface, 0.2f),
     )
 }
 
@@ -136,7 +136,7 @@ private fun buildCustomBackgroundScheme(background: Color, accentSeed: Color): a
         surfaceVariant = background.tone(0.12f, away),
         onSurfaceVariant = on.copy(alpha = 0.72f),
         outline = on.copy(alpha = 0.4f),
-        outlineVariant = on.copy(alpha = 0.22f),
+        outlineVariant = lerp(background.tone(0.14f, away), on, 0.2f),
     )
 }
 
@@ -223,6 +223,7 @@ fun ResonaTheme(
         surfaceContainer = animateColorAsState(targetScheme.surfaceContainer, animationSpec = animSpec).value,
         surfaceContainerHigh = animateColorAsState(targetScheme.surfaceContainerHigh, animationSpec = animSpec).value,
         surfaceContainerHighest = animateColorAsState(targetScheme.surfaceContainerHighest, animationSpec = animSpec).value,
+        outlineVariant = animateColorAsState(targetScheme.outlineVariant, animationSpec = animSpec).value,
     )
 
     MaterialExpressiveTheme(

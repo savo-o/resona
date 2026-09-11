@@ -40,7 +40,7 @@ import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
+import com.savoo.scclient.ui.components.AppDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -473,10 +473,7 @@ private fun ImportExportSectionCard(content: @Composable ColumnScope.() -> Unit)
 
 @Composable
 private fun ImportExportDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(horizontal = 20.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-    )
+    AppDivider(modifier = Modifier.padding(horizontal = 20.dp))
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

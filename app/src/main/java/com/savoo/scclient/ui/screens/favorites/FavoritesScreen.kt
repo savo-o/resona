@@ -20,10 +20,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBarDefaults
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -34,7 +32,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import android.content.Context
@@ -60,6 +57,8 @@ import com.savoo.scclient.ui.components.TrackRow
 import com.savoo.scclient.ui.components.TrackSelectionBar
 import com.savoo.scclient.ui.components.TrackSort
 import com.savoo.scclient.ui.components.TrackSortButton
+import com.savoo.scclient.ui.components.UndoAction
+import com.savoo.scclient.ui.components.UndoController
 import com.savoo.scclient.ui.components.applySortOption
 import com.savoo.scclient.ui.components.rememberTrackSelection
 import com.savoo.scclient.ui.haptics.rememberHapticTick
@@ -86,6 +85,7 @@ class FavoritesViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     val playerController: PlayerController,
     val offlineTrackManager: OfflineTrackManager,
+    private val undoController: UndoController,
 ) : ViewModel() {
 
     // Online likes are reconciled into this same Room table (see FavoritesRepository), so this
@@ -118,10 +118,6 @@ class FavoritesViewModel @Inject constructor(
 
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
-
-    private val _undoRemovedCount = MutableStateFlow(0)
-    val undoRemovedCount = _undoRemovedCount.asStateFlow()
-    private var removedTracks: List<Track> = emptyList()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing = _isRefreshing.asStateFlow()
@@ -160,10 +156,7 @@ class FavoritesViewModel @Inject constructor(
      * always means "remove", from whichever source(s) it's currently in. */
     fun toggleFavorite(trackId: Long) {
         val removed = tracks.value.filter { it.id == trackId }
-        viewModelScope.launch {
-            removeFavorite(trackId)
-            if (removed.isNotEmpty()) rememberUndo(removed)
-        }
+        viewModelScope.launch { removeWithUndo(removed) }
     }
 
     private suspend fun removeFavorite(trackId: Long) {
@@ -174,23 +167,23 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
-    private fun rememberUndo(removed: List<Track>) {
-        removedTracks = removed
-        _undoRemovedCount.value = removed.size
-    }
-
-    fun clearUndo() {
-        removedTracks = emptyList()
-        _undoRemovedCount.value = 0
-    }
-
-    fun restoreRemoved() {
-        val restore = removedTracks
-        clearUndo()
-        if (restore.isEmpty()) return
-        viewModelScope.launch {
-            restore.forEach { favoritesRepository.toggleTrackFavorite(it) }
-        }
+    private suspend fun removeWithUndo(removed: List<Track>) {
+        if (removed.isEmpty()) return
+        val repository = favoritesRepository
+        val previous = removed.associate { it.id to repository.getTrackFavorite(it.id) }
+        removed.forEach { removeFavorite(it.id) }
+        undoController.show(
+            UndoAction(
+                messageRes = if (removed.size == 1) R.string.favorite_removed else R.string.favorites_removed_count,
+                messageArgs = if (removed.size == 1) emptyList() else listOf(removed.size),
+                icon = Icons.Filled.FavoriteBorder,
+                onUndo = {
+                    removed.forEach { track ->
+                        previous[track.id]?.let { repository.restoreTrackFavorite(track, it) }
+                    }
+                },
+            )
+        )
     }
 
     fun clearMessage() {
@@ -209,10 +202,7 @@ class FavoritesViewModel @Inject constructor(
 
     fun removeSelectedFromFavorites(ids: Set<Long>) {
         val removed = tracks.value.filter { it.id in ids }
-        viewModelScope.launch {
-            ids.forEach { removeFavorite(it) }
-            if (removed.isNotEmpty()) rememberUndo(removed)
-        }
+        viewModelScope.launch { removeWithUndo(removed) }
     }
 
     fun toggleDownloadForSelected(ids: Set<Long>) {
@@ -223,7 +213,7 @@ class FavoritesViewModel @Inject constructor(
             if (allOffline) {
                 ids.forEach { offlineTrackManager.removeFromOffline(it) }
             } else {
-                selectedTracks.filter { it.id !in currentlyOffline }.forEach { offlineTrackManager.saveForOffline(it) }
+                offlineTrackManager.enqueueDownloads(selectedTracks.filter { it.id !in currentlyOffline })
             }
         }
     }
@@ -244,8 +234,6 @@ fun FavoritesScreen(
     val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     val message by viewModel.message.collectAsState()
-    val undoRemovedCount by viewModel.undoRemovedCount.collectAsState()
-    val context = LocalContext.current
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var searchQuery by remember { mutableStateOf("") }
@@ -267,16 +255,6 @@ fun FavoritesScreen(
             it.title.contains(searchQuery, ignoreCase = true) ||
             it.user.username.contains(searchQuery, ignoreCase = true)
         }).applySortOption(sort)
-
-    LaunchedEffect(undoRemovedCount) {
-        if (undoRemovedCount == 0) return@LaunchedEffect
-        val result = snackbarHostState.showSnackbar(
-            message = context.getString(R.string.favorites_removed_count, undoRemovedCount),
-            actionLabel = context.getString(R.string.undo),
-            duration = SnackbarDuration.Short,
-        )
-        if (result == SnackbarResult.ActionPerformed) viewModel.restoreRemoved() else viewModel.clearUndo()
-    }
 
     message?.let { msg ->
         LaunchedEffect(msg) {
@@ -309,7 +287,6 @@ fun FavoritesScreen(
                     viewModel.playerController.addToQueue(filteredTracks.filter { it.id in selection.selectedIds })
                     selection.clear()
                 },
-                downloadingCount = filteredTracks.count { it.id in downloadingIds },
                 onSelectAll = { selection.selectAll(filteredTracks.map { it.id }) },
                 onFavoriteAll = {
                     viewModel.removeSelectedFromFavorites(selection.selectedIds)

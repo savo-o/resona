@@ -32,7 +32,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import com.savoo.scclient.ui.components.AppDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -361,7 +361,7 @@ private fun LoggedInContent(
                     onCheckedChange = onOnlineFavoritesChange,
                 )
                 if (onlineFavoritesEnabled) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    AppDivider()
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

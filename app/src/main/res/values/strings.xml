@@ -490,7 +490,10 @@
     <string name="about_github">GitHub</string>
     <string name="about_version">Version %1$s (%2$d)</string>
     <string name="about_build_canary">Canary-build</string>
-    <string name="easter_egg_caption">listen closely</string>
+    <string name="easter_egg_caption">None of this does anything</string>
+    <string name="easter_egg_press_me">Press me</string>
+    <string name="easter_egg_launch">Launch</string>
+    <string name="easter_egg_gravity">Gravity</string>
 
     <!-- Badges -->
     <string name="badge_developer">Developer Badge</string>
@@ -527,7 +530,6 @@
     <string name="selection_favorite_all">Toggle favorite</string>
     <string name="selection_download_all">Toggle download</string>
     <string name="selection_select_all">Select all</string>
-    <string name="selection_downloading">Downloading %1$d…</string>
 
     <!-- Theme names -->
     <string name="theme_sc_orange">SoundCloud Orange</string>
@@ -569,4 +571,15 @@
     <string name="favorites_removed_count">Removed from favorites: %d</string>
     <string name="undo">Undo</string>
     <string name="history_entry_removed">Removed from history</string>
+    <string name="favorite_added">Added to favorites</string>
+    <string name="favorite_removed">Removed from favorites</string>
+    <string name="bulk_download_progress">Downloading %1$d of %2$d</string>
+    <string name="bulk_download_done">Downloaded %1$d of %2$d</string>
+    <string name="bulk_download_failed">Failed: %1$d</string>
+    <string name="bulk_download_cancel">Cancel downloads</string>
+    <string name="settings_dividers">Dividers</string>
+    <string name="settings_dividers_desc">Lines between items in settings, menus and the mini player</string>
+    <string name="settings_dividers_hidden">Off</string>
+    <string name="settings_dividers_subtle">Subtle</string>
+    <string name="settings_dividers_bright">Bright</string>
 </resources>

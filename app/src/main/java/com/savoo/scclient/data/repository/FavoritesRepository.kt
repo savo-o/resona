@@ -46,6 +46,16 @@ class FavoritesRepository @Inject constructor(
         }
     }
 
+    suspend fun getTrackFavorite(trackId: Long): FavoriteTrack? = favoritesDao.getTrackSync(trackId)
+
+    suspend fun restoreTrackFavorite(track: Track, previous: FavoriteTrack?) {
+        val isFavoriteNow = favoritesDao.isTrackFavoriteSync(track.id)
+        when {
+            previous != null && !isFavoriteNow -> addTrackFavorite(previous)
+            previous == null && isFavoriteNow -> toggleTrackFavorite(track)
+        }
+    }
+
     /** Adds a track as a local favorite, also pushing it to the user's real SoundCloud likes when
      * Online favorites is on. Used both by the heart button (via [toggleTrackFavorite]) and by
      * bulk-import flows (Telegram import, SoundCloud "import from profile", the JSON

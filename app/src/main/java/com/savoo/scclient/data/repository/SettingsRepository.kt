@@ -47,6 +47,8 @@ enum class PlayerStyle { CLASSIC, PIXEL }
 
 enum class AppBackgroundMode { DYNAMIC, DEFAULT, CUSTOM, PLAYER_ONLY }
 
+enum class DividerStyle { HIDDEN, SUBTLE, BRIGHT }
+
 enum class HomeSection { JUMP_BACK_IN, FAVORITES, OFFLINE, ARTISTS, PLAYLISTS }
 
 val CacheLimitOptionsMb = listOf(256, 512, 1024, 2048)
@@ -102,12 +104,13 @@ data class AppSettings(
     val homeSections: List<HomeSectionConfig> = DefaultHomeSections,
     val playerBackgroundStyle: PlayerBackgroundStyle = PlayerBackgroundStyle.ORB,
     val playerStyle: PlayerStyle = PlayerStyle.PIXEL,
-    val backgroundMode: AppBackgroundMode = AppBackgroundMode.PLAYER_ONLY,
+    val backgroundMode: AppBackgroundMode = AppBackgroundMode.DYNAMIC,
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
     val playerHintShown: Boolean = false,
     val pixelGlowEnabled: Boolean = true,
     val cacheLimitMb: Int = DefaultCacheLimitMb,
     val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
+    val dividerStyle: DividerStyle = DividerStyle.SUBTLE,
 )
 
 @Singleton
@@ -145,6 +148,7 @@ class SettingsRepository @Inject constructor(
         val PIXEL_GLOW_ENABLED = booleanPreferencesKey("pixel_glow_enabled")
         val CACHE_LIMIT_MB = intPreferencesKey("cache_limit_mb")
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
+        val DIVIDER_STYLE = stringPreferencesKey("divider_style")
     }
 
     private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
@@ -201,13 +205,16 @@ class SettingsRepository @Inject constructor(
             } ?: PlayerStyle.PIXEL,
             backgroundMode = prefs[Keys.BACKGROUND_MODE]?.let {
                 runCatching { AppBackgroundMode.valueOf(it) }.getOrNull()
-            } ?: AppBackgroundMode.PLAYER_ONLY,
+            } ?: AppBackgroundMode.DYNAMIC,
             backgroundCustomColor = prefs[Keys.BACKGROUND_CUSTOM_COLOR]?.let { Color(it) } ?: Color(0xFF1B1B1F),
             playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
             pixelGlowEnabled = prefs[Keys.PIXEL_GLOW_ENABLED] ?: true,
             cacheLimitMb = prefs[Keys.CACHE_LIMIT_MB] ?: DefaultCacheLimitMb,
             crossfadeSeconds = (prefs[Keys.CROSSFADE_SECONDS] ?: DefaultCrossfadeSeconds)
                 .coerceIn(MinCrossfadeSeconds, MaxCrossfadeSeconds),
+            dividerStyle = prefs[Keys.DIVIDER_STYLE]?.let {
+                runCatching { DividerStyle.valueOf(it) }.getOrNull()
+            } ?: DividerStyle.SUBTLE,
         )
     }
 
@@ -333,5 +340,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setPixelGlowEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.PIXEL_GLOW_ENABLED] = value }
+    }
+
+    suspend fun setDividerStyle(style: DividerStyle) {
+        context.dataStore.edit { it[Keys.DIVIDER_STYLE] = style.name }
     }
 }

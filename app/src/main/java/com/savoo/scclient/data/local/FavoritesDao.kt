@@ -26,6 +26,9 @@ interface FavoritesDao {
     @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE trackId = :trackId)")
     suspend fun isTrackFavoriteSync(trackId: Long): Boolean
 
+    @Query("SELECT * FROM favorites WHERE trackId = :trackId LIMIT 1")
+    suspend fun getTrackSync(trackId: Long): FavoriteTrack?
+
     @Query("UPDATE favorites SET source = :source WHERE trackId = :trackId")
     suspend fun updateTrackSource(trackId: Long, source: String)
 

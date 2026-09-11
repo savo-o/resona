@@ -18,7 +18,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -41,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.savoo.scclient.BuildConfig
 import com.savoo.scclient.R
+import com.savoo.scclient.ui.components.AppDivider
 
 private const val EASTER_EGG_TAP_THRESHOLD = 7
 
@@ -76,7 +76,7 @@ fun AboutBottomSheet(
     }
 
     if (showEasterEgg) {
-        SpectrumEasterEggDialog(
+        ZeroGravityEasterEggDialog(
             onDismiss = { showEasterEgg = false },
         )
     }
@@ -133,9 +133,7 @@ fun AboutBottomSheet(
 
             Spacer(Modifier.height(20.dp))
 
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-            )
+            AppDivider()
 
             aboutLinks.forEach { link ->
                 Row(
@@ -167,9 +165,7 @@ fun AboutBottomSheet(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     )
                 }
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                )
+                AppDivider(alpha = 0.3f)
             }
 
             Spacer(Modifier.height(16.dp))
