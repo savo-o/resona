@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -59,6 +60,7 @@ import coil.compose.AsyncImage
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.Playlist
+import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.repository.TrackRepository
@@ -257,7 +259,7 @@ fun PlaylistScreen(
                 title = { Text(state.playlist?.title ?: "") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
@@ -272,7 +274,7 @@ fun PlaylistScreen(
                             }
                             context.startActivity(Intent.createChooser(intent, null))
                         }) {
-                            Icon(Icons.Filled.Share, contentDescription = "Share")
+                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share))
                         }
                     }
                 },
@@ -285,6 +287,10 @@ fun PlaylistScreen(
             TrackSelectionBar(
                 selectedCount = selection.count,
                 onClear = { selection.clear() },
+                onQueueAll = {
+                    viewModel.playerController.addToQueue(sortedTracks.filter { it.id in selection.selectedIds })
+                    selection.clear()
+                },
                 downloadingCount = sortedTracks.count { it.id in downloadingIds },
                 onSelectAll = { selection.selectAll(sortedTracks.map { it.id }) },
                 onFavoriteAll = {
@@ -441,7 +447,7 @@ private fun PlaylistHeader(
             IconButton(onClick = onToggleFavorite) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = "Favorite",
+                    contentDescription = stringResource(R.string.action_favorite),
                     tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

@@ -47,6 +47,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -83,6 +84,9 @@ import com.savoo.scclient.data.repository.AppIconManager
 import com.savoo.scclient.data.repository.AppBackgroundMode
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.AppSettings
+import com.savoo.scclient.data.repository.CacheLimitOptionsMb
+import com.savoo.scclient.data.repository.MaxCrossfadeSeconds
+import com.savoo.scclient.data.repository.MinCrossfadeSeconds
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.HomeSectionConfig
@@ -95,11 +99,13 @@ import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.UpdateCheckResult
 import com.savoo.scclient.data.repository.UpdateRepository
 import com.savoo.scclient.player.OfflineTrackManager
+import com.savoo.scclient.player.TrackCache
 import com.savoo.scclient.ui.components.SwitchItem
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.BuildConfig
+import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.SystemUpdate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -127,6 +133,7 @@ class SettingsViewModel @Inject constructor(
     private val updateRepository: UpdateRepository,
     private val offlineTrackManager: OfflineTrackManager,
     private val clientIdProvider: ClientIdProvider,
+    private val trackCache: TrackCache,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
     val settings = repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
@@ -135,10 +142,10 @@ class SettingsViewModel @Inject constructor(
     private val _updateCheckState = MutableStateFlow<UpdateCheckUiState>(UpdateCheckUiState.Idle)
     val updateCheckState = _updateCheckState.asStateFlow()
 
-    private val _cacheSize = MutableStateFlow("Calculating...")
+    private val _cacheSize = MutableStateFlow(context.getString(R.string.calculating))
     val cacheSize = _cacheSize.asStateFlow()
 
-    private val _offlineSize = MutableStateFlow("Calculating...")
+    private val _offlineSize = MutableStateFlow(context.getString(R.string.calculating))
     val offlineSize = _offlineSize.asStateFlow()
 
     private val _offlineCount = MutableStateFlow(0)
@@ -175,6 +182,8 @@ class SettingsViewModel @Inject constructor(
     fun setPlayerStyle(style: PlayerStyle) = viewModelScope.launch { repository.setPlayerStyle(style) }
     fun setBackgroundMode(mode: AppBackgroundMode) = viewModelScope.launch { repository.setBackgroundMode(mode) }
     fun setPixelGlowEnabled(value: Boolean) = viewModelScope.launch { repository.setPixelGlowEnabled(value) }
+    fun setCacheLimitMb(limitMb: Int) = viewModelScope.launch { repository.setCacheLimitMb(limitMb) }
+    fun setCrossfadeSeconds(seconds: Int) = viewModelScope.launch { repository.setCrossfadeSeconds(seconds) }
     fun setBackgroundCustomColor(color: Color) = viewModelScope.launch { repository.setBackgroundCustomColor(color) }
 
     fun checkForUpdates() {
@@ -212,6 +221,7 @@ class SettingsViewModel @Inject constructor(
 
     fun clearCache(onDone: () -> Unit) {
         viewModelScope.launch {
+            trackCache.clearCache()
             withContext(Dispatchers.IO) {
                 deleteDir(context.cacheDir)
                 deleteDir(context.codeCacheDir)
@@ -281,6 +291,11 @@ internal fun SettingsDivider() {
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
     )
 }
+
+@Composable
+private fun cacheLimitLabel(limitMb: Int): String =
+    if (limitMb >= 1024) stringResource(R.string.settings_cache_limit_gb, limitMb / 1024)
+    else stringResource(R.string.settings_cache_limit_mb, limitMb)
 
 @Composable
 internal fun SettingsSectionCard(
@@ -360,7 +375,7 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -477,6 +492,32 @@ fun SettingsScreen(
                     checked = settings.crossfadeEnabled,
                     onCheckedChange = { viewModel.setCrossfadeEnabled(it) }
                 )
+                if (settings.crossfadeEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.settings_crossfade_duration),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            stringResource(R.string.settings_crossfade_duration_format, settings.crossfadeSeconds),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Slider(
+                        value = settings.crossfadeSeconds.toFloat(),
+                        onValueChange = { viewModel.setCrossfadeSeconds(it.roundToInt()) },
+                        onValueChangeFinished = { haptic() },
+                        valueRange = MinCrossfadeSeconds.toFloat()..MaxCrossfadeSeconds.toFloat(),
+                        steps = MaxCrossfadeSeconds - MinCrossfadeSeconds - 1,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    )
+                }
                 SettingsDivider()
                 Text(
                     stringResource(R.string.settings_lyrics_provider),
@@ -641,6 +682,36 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
+                    }
+                }
+
+                Text(
+                    stringResource(R.string.settings_cache_limit),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp),
+                )
+                Text(
+                    stringResource(R.string.settings_cache_limit_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
+                )
+                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    CacheLimitOptionsMb.forEachIndexed { index, limitMb ->
+                        val shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            CacheLimitOptionsMb.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                        ToggleButton(
+                            checked = settings.cacheLimitMb == limitMb,
+                            onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setCacheLimitMb(limitMb) } },
+                            modifier = Modifier.weight(1f),
+                            shapes = shapes,
+                        ) {
+                            Text(cacheLimitLabel(limitMb), style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
 

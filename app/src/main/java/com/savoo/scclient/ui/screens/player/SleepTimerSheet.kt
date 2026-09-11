@@ -48,6 +48,7 @@ fun SleepTimerContent(
 ) {
     val haptic = rememberHapticTick()
     val remainingMs by controller.sleepTimerRemainingMs.collectAsState()
+    val afterCurrentTrack by controller.sleepAfterCurrentTrack.collectAsState()
 
     Column(modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp)) {
         Text(
@@ -58,7 +59,20 @@ fun SleepTimerContent(
         Spacer(Modifier.height(16.dp))
 
         val remaining = remainingMs
-        if (remaining != null) {
+        if (afterCurrentTrack) {
+            Text(
+                stringResource(R.string.player_sleep_timer_after_track_active),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = { haptic(); controller.cancelSleepTimer() },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.player_sleep_timer_cancel))
+            }
+        } else if (remaining != null) {
             Text(
                 stringResource(R.string.player_sleep_timer_active_format, formatRemaining(remaining)),
                 style = MaterialTheme.typography.bodyLarge,
@@ -78,6 +92,13 @@ fun SleepTimerContent(
                         selected = false,
                         onClick = { haptic(); controller.startSleepTimer(minutes); onDismiss() },
                         label = { Text(stringResource(R.string.player_sleep_timer_minutes_format, minutes)) },
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = false,
+                        onClick = { haptic(); controller.startSleepTimerAfterCurrentTrack(); onDismiss() },
+                        label = { Text(stringResource(R.string.player_sleep_timer_after_track)) },
                     )
                 }
             }

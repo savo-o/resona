@@ -2,6 +2,7 @@ package com.savoo.scclient.data.repository
 
 import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.model.Playlist
+import com.savoo.scclient.data.model.SearchResponse
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.SoundCloudApi
@@ -10,6 +11,11 @@ import com.savoo.scclient.debug.DebugLog
 import javax.inject.Inject
 import javax.inject.Singleton
 import retrofit2.HttpException
+
+data class SearchPage<T>(val items: List<T>, val nextHref: String?)
+
+private fun <T> SearchResponse<T>.toPage(): SearchPage<T> =
+    SearchPage(collection, nextHref?.takeIf { it.isNotBlank() })
 
 @Singleton
 class TrackRepository @Inject constructor(
@@ -27,11 +33,11 @@ class TrackRepository @Inject constructor(
         return id
     }
 
-    suspend fun searchTracks(query: String): List<Track> =
-        api.searchTracks(query = query).collection
+    suspend fun searchTracks(query: String, limit: Int = SEARCH_PAGE_SIZE): SearchPage<Track> =
+        api.searchTracks(query = query, limit = limit).toPage()
 
-    suspend fun searchUsers(query: String): List<User> =
-        api.searchUsers(query = query).collection
+    suspend fun searchUsers(query: String, limit: Int = SEARCH_PAGE_SIZE): SearchPage<User> =
+        api.searchUsers(query = query, limit = limit).toPage()
 
     suspend fun getMe(): User = api.getMe()
 
@@ -80,8 +86,15 @@ class TrackRepository @Inject constructor(
         if (code !in 200..299 && code != 404) error("unlikeTrack failed via WebView: HTTP $code")
     }
 
-    suspend fun searchPlaylists(query: String): List<Playlist> =
-        api.searchPlaylists(query = query).collection
+    suspend fun searchPlaylists(query: String, limit: Int = SEARCH_PAGE_SIZE): SearchPage<Playlist> =
+        api.searchPlaylists(query = query, limit = limit).toPage()
+
+    suspend fun searchTracksPage(nextHref: String): SearchPage<Track> = api.getNextPage(nextHref).toPage()
+
+    suspend fun searchUsersPage(nextHref: String): SearchPage<User> = api.getNextUsersPage(nextHref).toPage()
+
+    suspend fun searchPlaylistsPage(nextHref: String): SearchPage<Playlist> =
+        api.getNextPlaylistsPage(nextHref).toPage()
 
     suspend fun getUser(id: Long): User = api.getUser(id)
 
@@ -126,5 +139,9 @@ class TrackRepository @Inject constructor(
         }
         lastNotFound?.let { throw it }
         return null
+    }
+
+    companion object {
+        const val SEARCH_PAGE_SIZE = 25
     }
 }

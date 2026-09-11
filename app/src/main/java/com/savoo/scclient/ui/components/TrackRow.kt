@@ -264,7 +264,7 @@ fun TrackRow(
                         } else {
                             Icon(
                                 imageVector = if (isDownloaded) Icons.Filled.CloudDone else Icons.Filled.CloudDownload,
-                                contentDescription = "Download",
+                                contentDescription = stringResource(R.string.action_download),
                                 tint = if (isDownloaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -278,7 +278,7 @@ fun TrackRow(
                     }) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = "Favorite",
+                            contentDescription = stringResource(R.string.action_favorite),
                             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.scale(heartScale)
                         )

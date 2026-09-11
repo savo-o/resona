@@ -104,6 +104,7 @@ fun HomeScreen(
     onPlaylistClick: (Long) -> Unit = {},
     onOfflineTracks: () -> Unit = {},
     onStatistics: () -> Unit = {},
+    onHistory: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val user by viewModel.user.collectAsState()
@@ -118,10 +119,7 @@ fun HomeScreen(
     val homeSections by viewModel.homeSections.collectAsState()
     val haptics = rememberHaptics()
 
-    var recentTracks by remember { mutableStateOf(viewModel.playerController.getRecentTracks()) }
-    LaunchedEffect(playerState.currentTrack?.id) {
-        recentTracks = viewModel.playerController.getRecentTracks()
-    }
+    val recentTracks by viewModel.recentTracks.collectAsState()
 
     var titleVisible by remember { mutableStateOf(false) }
     var heroVisible by remember { mutableStateOf(false) }
@@ -193,6 +191,7 @@ fun HomeScreen(
                                     title = stringResource(R.string.home_section_jump_back_in),
                                     tracks = recentTracks.take(10),
                                     playerState = playerState,
+                                    onSeeAll = onHistory,
                                     onTrackClick = { track ->
                                         if (playerState.currentTrack?.id == track.id) {
                                             viewModel.playerController.togglePlayPause()

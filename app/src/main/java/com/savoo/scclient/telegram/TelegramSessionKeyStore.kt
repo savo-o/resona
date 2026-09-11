@@ -3,8 +3,7 @@ package com.savoo.scclient.telegram
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Base64
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import com.savoo.scclient.data.local.createSecurePrefs
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.SecureRandom
 import javax.inject.Inject
@@ -20,17 +19,7 @@ import javax.inject.Singleton
 class TelegramSessionKeyStore @Inject constructor(
     @ApplicationContext context: Context,
 ) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
-    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
-        "telegram_import_secure_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs: SharedPreferences = createSecurePrefs(context, "telegram_import_secure_prefs")
 
     /** Returns the existing key, generating and persisting a fresh 32-byte one on first use. */
     fun getOrCreateDatabaseEncryptionKey(): ByteArray {

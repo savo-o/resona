@@ -257,6 +257,10 @@ fun OfflineTracksScreen(
             TrackSelectionBar(
                 selectedCount = selection.count,
                 onClear = { selection.clear() },
+                onQueueAll = {
+                    viewModel.playerController.addToQueue(filteredTracks.filter { it.id in selection.selectedIds })
+                    selection.clear()
+                },
                 onSelectAll = { selection.selectAll(filteredTracks.map { it.id }) },
                 onFavoriteAll = {
                     viewModel.toggleFavoriteForSelected(selection.selectedIds)

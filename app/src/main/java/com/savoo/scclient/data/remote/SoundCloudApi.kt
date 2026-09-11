@@ -21,20 +21,21 @@ interface SoundCloudApi {
     suspend fun searchTracks(
         @Query("q") query: String,
         @Query("limit") limit: Int = 25,
-        @Query("offset") offset: Int = 0,
+        @Query("linked_partitioning") linkedPartitioning: Boolean = true,
     ): SearchResponse<Track>
 
     @GET("search/users")
     suspend fun searchUsers(
         @Query("q") query: String,
         @Query("limit") limit: Int = 10,
+        @Query("linked_partitioning") linkedPartitioning: Boolean = true,
     ): SearchResponse<User>
 
     @GET("search/playlists")
     suspend fun searchPlaylists(
         @Query("q") query: String,
         @Query("limit") limit: Int = 10,
-        @Query("offset") offset: Int = 0,
+        @Query("linked_partitioning") linkedPartitioning: Boolean = true,
     ): SearchResponse<Playlist>
 
     @GET("me")
@@ -61,6 +62,12 @@ interface SoundCloudApi {
 
     @GET
     suspend fun getNextPage(@Url url: String): SearchResponse<Track>
+
+    @GET
+    suspend fun getNextUsersPage(@Url url: String): SearchResponse<User>
+
+    @GET
+    suspend fun getNextPlaylistsPage(@Url url: String): SearchResponse<Playlist>
 
     @GET
     suspend fun resolveStreamUrl(@Url transcodingUrl: String): StreamUrlResponse

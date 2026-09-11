@@ -49,6 +49,13 @@ enum class AppBackgroundMode { DYNAMIC, DEFAULT, CUSTOM, PLAYER_ONLY }
 
 enum class HomeSection { JUMP_BACK_IN, FAVORITES, OFFLINE, ARTISTS, PLAYLISTS }
 
+val CacheLimitOptionsMb = listOf(256, 512, 1024, 2048)
+const val DefaultCacheLimitMb = 512
+
+const val DefaultCrossfadeSeconds = 2
+const val MinCrossfadeSeconds = 1
+const val MaxCrossfadeSeconds = 12
+
 data class HomeSectionConfig(val section: HomeSection, val visible: Boolean = true)
 
 val DefaultHomeSections = HomeSection.entries.map { HomeSectionConfig(it) }
@@ -99,6 +106,8 @@ data class AppSettings(
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
     val playerHintShown: Boolean = false,
     val pixelGlowEnabled: Boolean = true,
+    val cacheLimitMb: Int = DefaultCacheLimitMb,
+    val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
 )
 
 @Singleton
@@ -134,6 +143,8 @@ class SettingsRepository @Inject constructor(
         val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
         val PLAYER_HINT_SHOWN = booleanPreferencesKey("player_hint_shown")
         val PIXEL_GLOW_ENABLED = booleanPreferencesKey("pixel_glow_enabled")
+        val CACHE_LIMIT_MB = intPreferencesKey("cache_limit_mb")
+        val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
     }
 
     private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
@@ -194,10 +205,23 @@ class SettingsRepository @Inject constructor(
             backgroundCustomColor = prefs[Keys.BACKGROUND_CUSTOM_COLOR]?.let { Color(it) } ?: Color(0xFF1B1B1F),
             playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
             pixelGlowEnabled = prefs[Keys.PIXEL_GLOW_ENABLED] ?: true,
+            cacheLimitMb = prefs[Keys.CACHE_LIMIT_MB] ?: DefaultCacheLimitMb,
+            crossfadeSeconds = (prefs[Keys.CROSSFADE_SECONDS] ?: DefaultCrossfadeSeconds)
+                .coerceIn(MinCrossfadeSeconds, MaxCrossfadeSeconds),
         )
     }
 
     val autoplayNext = context.dataStore.data.map { it[Keys.AUTOPLAY_NEXT] ?: true }
+
+    suspend fun setCrossfadeSeconds(seconds: Int) {
+        context.dataStore.edit {
+            it[Keys.CROSSFADE_SECONDS] = seconds.coerceIn(MinCrossfadeSeconds, MaxCrossfadeSeconds)
+        }
+    }
+
+    suspend fun setCacheLimitMb(limitMb: Int) {
+        context.dataStore.edit { it[Keys.CACHE_LIMIT_MB] = limitMb }
+    }
 
     suspend fun setColorTheme(theme: AppColorTheme) {
         context.dataStore.edit { it[Keys.COLOR_THEME] = theme.name }

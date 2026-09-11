@@ -60,6 +60,7 @@ import com.savoo.scclient.ui.screens.disliked.DislikedArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoriteArtistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritePlaylistsScreen
 import com.savoo.scclient.ui.screens.favorites.FavoritesScreen
+import com.savoo.scclient.ui.screens.history.HistoryScreen
 import com.savoo.scclient.ui.screens.home.HomeScreen
 import com.savoo.scclient.ui.screens.importexport.ImportExportScreen
 import com.savoo.scclient.ui.screens.offline.OfflineTracksScreen
@@ -275,6 +276,7 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                             onPlaylistClick = { playlistId -> navController.navigate(Screen.Playlist.createRoute(playlistId)) },
                             onOfflineTracks = { navController.navigate(Screen.OfflineTracks.route) },
                             onStatistics = { navController.navigate(Screen.Statistics.route) },
+                            onHistory = { navController.navigate(Screen.History.route) },
                         )
                     }
                     composable(Screen.Search.route) {
@@ -300,6 +302,9 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                     }
                     composable(Screen.Statistics.route) {
                         StatisticsScreen(onBack = { navController.popBackStack() })
+                    }
+                    composable(Screen.History.route) {
+                        HistoryScreen(onBack = { navController.popBackStack() })
                     }
                     composable(Screen.Account.route) {
                         AccountScreen(onOpenSettings = { navController.navigate(Screen.Settings.route) })

@@ -185,7 +185,7 @@ class TelegramImportRepository @Inject constructor(
 
     private suspend fun findBestMatch(title: String, performer: String?, durationSec: Int): Track? {
         val query = listOfNotNull(performer, title).joinToString(" ")
-        val candidates = runCatching { trackRepository.searchTracks(query) }.getOrElse { emptyList() }
+        val candidates = runCatching { trackRepository.searchTracks(query).items }.getOrElse { emptyList() }
         return candidates
             .filter { it.restrictionReason() == null }
             .map { it to matchScore(it, title, performer, durationSec) }

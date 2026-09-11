@@ -38,8 +38,12 @@ data class SearchUiState(
     val artists: List<User> = emptyList(),
     val albums: List<Playlist> = emptyList(),
     val isLoading: Boolean = false,
+    val isLoadingMore: Boolean = false,
     val isResolvingLink: Boolean = false,
-    val error: String? = null,
+    val error: SearchError? = null,
+    val nextTracksHref: String? = null,
+    val nextArtistsHref: String? = null,
+    val nextAlbumsHref: String? = null,
 )
 
 sealed class SearchNavEvent {
@@ -48,6 +52,9 @@ sealed class SearchNavEvent {
 }
 
 private val SOUNDCLOUD_URL_REGEX = Regex("""^https?://(www\.|m\.|on\.)?soundcloud\.com/\S+""", RegexOption.IGNORE_CASE)
+private val WHITESPACE_RUN = Regex("""\s+""")
+
+private fun normalizeQuery(query: String): String = query.trim().replace(WHITESPACE_RUN, " ")
 
 @OptIn(FlowPreview::class)
 @UnstableApi
@@ -74,6 +81,7 @@ class SearchViewModel @Inject constructor(
     val history = searchHistory.history.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val queryFlow = MutableStateFlow("")
+    private var loadMoreJob: kotlinx.coroutines.Job? = null
 
     init {
         queryFlow
@@ -93,11 +101,11 @@ class SearchViewModel @Inject constructor(
 
     fun onQueryChange(query: String) {
         _uiState.value = _uiState.value.copy(query = query)
-        queryFlow.value = query
+        queryFlow.value = normalizeQuery(query)
     }
 
     fun onQuerySubmit() {
-        val query = _uiState.value.query.trim()
+        val query = normalizeQuery(_uiState.value.query)
         if (query.isBlank()) return
         if (isSoundCloudUrl(query)) {
             resolveLink(query)
@@ -120,7 +128,9 @@ class SearchViewModel @Inject constructor(
                             if (track != null) {
                                 playerController.playQueue(listOf(track), 0)
                             } else {
-                                _uiState.value = _uiState.value.copy(error = "Track not found")
+                                _uiState.value = _uiState.value.copy(
+                                    error = SearchError(SearchErrorKind.TRACK_GONE)
+                                )
                             }
                         }
                     }
@@ -128,7 +138,10 @@ class SearchViewModel @Inject constructor(
                     queryFlow.value = ""
                 }
                 .onFailure { e ->
-                    _uiState.value = _uiState.value.copy(isResolvingLink = false, error = e.message ?: "Could not open link")
+                    _uiState.value = _uiState.value.copy(
+                        isResolvingLink = false,
+                        error = SearchError(SearchErrorKind.LINK, e.message),
+                    )
                 }
         }
     }
@@ -136,13 +149,85 @@ class SearchViewModel @Inject constructor(
     fun onTabChange(tab: SearchTab) {
         onQuerySubmit()
         _uiState.value = _uiState.value.copy(activeTab = tab)
-        if (_uiState.value.query.isNotBlank()) runSearch(_uiState.value.query)
+        val query = normalizeQuery(_uiState.value.query)
+        if (query.isNotBlank()) runSearch(query)
     }
 
     private fun clearResults() {
+        loadMoreJob?.cancel()
         _uiState.value = _uiState.value.copy(
-            tracks = emptyList(), artists = emptyList(), albums = emptyList()
+            tracks = emptyList(),
+            artists = emptyList(),
+            albums = emptyList(),
+            isLoadingMore = false,
+            nextTracksHref = null,
+            nextArtistsHref = null,
+            nextAlbumsHref = null,
         )
+    }
+
+    fun loadMore() {
+        val state = _uiState.value
+        if (state.isLoading || state.isLoadingMore) return
+        val tab = state.activeTab
+        val nextHref = when (tab) {
+            SearchTab.TRACKS -> state.nextTracksHref
+            SearchTab.ARTISTS -> state.nextArtistsHref
+            SearchTab.ALBUMS -> state.nextAlbumsHref
+        } ?: return
+        val query = normalizeQuery(state.query)
+
+        loadMoreJob?.cancel()
+        loadMoreJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoadingMore = true)
+            runCatching {
+                when (tab) {
+                    SearchTab.TRACKS -> repository.searchTracksPage(nextHref)
+                    SearchTab.ARTISTS -> repository.searchUsersPage(nextHref)
+                    SearchTab.ALBUMS -> repository.searchPlaylistsPage(nextHref)
+                }
+            }.onSuccess { page ->
+                val current = _uiState.value
+                if (normalizeQuery(current.query) != query || current.activeTab != tab) {
+                    _uiState.value = current.copy(isLoadingMore = false)
+                    return@onSuccess
+                }
+                _uiState.value = when (tab) {
+                    SearchTab.TRACKS -> {
+                        @Suppress("UNCHECKED_CAST")
+                        val items = page.items as List<Track>
+                        val added = items.filterNot { new -> current.tracks.any { it.id == new.id } }
+                        current.copy(
+                            tracks = current.tracks + added,
+                            isLoadingMore = false,
+                            nextTracksHref = page.nextHref.takeIf { added.isNotEmpty() },
+                        )
+                    }
+                    SearchTab.ARTISTS -> {
+                        @Suppress("UNCHECKED_CAST")
+                        val items = page.items as List<User>
+                        val added = items.filterNot { new -> current.artists.any { it.id == new.id } }
+                        current.copy(
+                            artists = current.artists + added,
+                            isLoadingMore = false,
+                            nextArtistsHref = page.nextHref.takeIf { added.isNotEmpty() },
+                        )
+                    }
+                    SearchTab.ALBUMS -> {
+                        @Suppress("UNCHECKED_CAST")
+                        val items = page.items as List<Playlist>
+                        val added = items.filterNot { new -> current.albums.any { it.id == new.id } }
+                        current.copy(
+                            albums = current.albums + added,
+                            isLoadingMore = false,
+                            nextAlbumsHref = page.nextHref.takeIf { added.isNotEmpty() },
+                        )
+                    }
+                }
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(isLoadingMore = false)
+            }
+        }
     }
 
     private fun runSearch(query: String) {
@@ -155,10 +240,17 @@ class SearchViewModel @Inject constructor(
                 Triple(tracks, artists, albums)
             }.onSuccess { (tracks, artists, albums) ->
                 _uiState.value = _uiState.value.copy(
-                    tracks = tracks, artists = artists, albums = albums, isLoading = false
+                    tracks = tracks.items,
+                    artists = artists.items,
+                    albums = albums.items,
+                    isLoading = false,
+                    isLoadingMore = false,
+                    nextTracksHref = tracks.nextHref,
+                    nextArtistsHref = artists.nextHref,
+                    nextAlbumsHref = albums.nextHref,
                 )
             }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
+                _uiState.value = _uiState.value.copy(isLoading = false, error = e.toSearchError())
             }
         }
     }
@@ -166,7 +258,7 @@ class SearchViewModel @Inject constructor(
     /** Pull-to-refresh: re-runs the current query without touching [SearchUiState.isLoading], so the
      * results stay visible under the refresh indicator instead of being swapped for a full-screen spinner. */
     fun refreshResults() {
-        val query = _uiState.value.query.trim()
+        val query = normalizeQuery(_uiState.value.query)
         if (query.isBlank() || isSoundCloudUrl(query)) return
         viewModelScope.launch {
             _isRefreshing.value = true
@@ -176,7 +268,17 @@ class SearchViewModel @Inject constructor(
                 val albums = repository.searchPlaylists(query)
                 Triple(tracks, artists, albums)
             }.onSuccess { (tracks, artists, albums) ->
-                _uiState.value = _uiState.value.copy(tracks = tracks, artists = artists, albums = albums)
+                _uiState.value = _uiState.value.copy(
+                    tracks = tracks.items,
+                    artists = artists.items,
+                    albums = albums.items,
+                    error = null,
+                    nextTracksHref = tracks.nextHref,
+                    nextArtistsHref = artists.nextHref,
+                    nextAlbumsHref = albums.nextHref,
+                )
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.toSearchError())
             }
             _isRefreshing.value = false
         }

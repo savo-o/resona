@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.SelectAll
@@ -63,6 +64,7 @@ fun TrackSelectionBar(
     onSelectAll: (() -> Unit)? = null,
     onFavoriteAll: (() -> Unit)? = null,
     onDownloadAll: (() -> Unit)? = null,
+    onQueueAll: (() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
 
@@ -123,33 +125,61 @@ fun TrackSelectionBar(
                         .graphicsLayer { scaleX = countScale; scaleY = countScale },
                 )
 
-                ButtonGroup(
-                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-                ) {
+                val actions = buildList {
                     if (onSelectAll != null) {
-                        SelectionAction(
-                            icon = Icons.Filled.SelectAll,
-                            label = stringResource(R.string.selection_select_all),
-                            shapes = ButtonGroupDefaults.connectedLeadingButtonShapes(),
-                            onClick = { haptics.click(); onSelectAll() },
+                        add(
+                            SelectionActionSpec(
+                                icon = Icons.Filled.SelectAll,
+                                label = stringResource(R.string.selection_select_all),
+                                onClick = { haptics.click(); onSelectAll() },
+                            )
+                        )
+                    }
+                    if (onQueueAll != null) {
+                        add(
+                            SelectionActionSpec(
+                                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                                label = stringResource(R.string.selection_queue_all),
+                                onClick = { haptics.click(); onQueueAll() },
+                            )
                         )
                     }
                     if (onFavoriteAll != null) {
-                        SelectionAction(
-                            icon = Icons.Filled.Favorite,
-                            label = stringResource(R.string.selection_favorite_all),
-                            shapes = if (onSelectAll == null) ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                else ButtonGroupDefaults.connectedMiddleButtonShapes(),
-                            onClick = { haptics.like(); onFavoriteAll() },
+                        add(
+                            SelectionActionSpec(
+                                icon = Icons.Filled.Favorite,
+                                label = stringResource(R.string.selection_favorite_all),
+                                onClick = { haptics.like(); onFavoriteAll() },
+                            )
                         )
                     }
                     if (onDownloadAll != null) {
+                        add(
+                            SelectionActionSpec(
+                                icon = Icons.Filled.CloudDownload,
+                                label = stringResource(R.string.selection_download_all),
+                                busy = downloadingCount > 0,
+                                onClick = { haptics.click(); onDownloadAll() },
+                            )
+                        )
+                    }
+                }
+
+                ButtonGroup(
+                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                ) {
+                    actions.forEachIndexed { index, action ->
                         SelectionAction(
-                            icon = Icons.Filled.CloudDownload,
-                            label = stringResource(R.string.selection_download_all),
-                            shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
-                            busy = downloadingCount > 0,
-                            onClick = { haptics.click(); onDownloadAll() },
+                            icon = action.icon,
+                            label = action.label,
+                            shapes = when {
+                                actions.size == 1 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                index == 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                index == actions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            },
+                            busy = action.busy,
+                            onClick = action.onClick,
                         )
                     }
                 }
@@ -157,6 +187,13 @@ fun TrackSelectionBar(
         }
     }
 }
+
+private data class SelectionActionSpec(
+    val icon: ImageVector,
+    val label: String,
+    val onClick: () -> Unit,
+    val busy: Boolean = false,
+)
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable

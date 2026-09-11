@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Close
@@ -808,6 +809,8 @@ private fun PixelPlayerContent(
     panel?.let { lastPanel = it }
     var showOverflowMenu by remember { mutableStateOf(false) }
     val sleepTimerRemainingMs by controller.sleepTimerRemainingMs.collectAsState()
+    val sleepAfterCurrentTrack by controller.sleepAfterCurrentTrack.collectAsState()
+    val sleepTimerActive = sleepTimerRemainingMs != null || sleepAfterCurrentTrack
     var isDragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
     var lastSeekTickSecond by remember { mutableStateOf(-1L) }
@@ -928,7 +931,7 @@ private fun PixelPlayerContent(
                     icon = Icons.Filled.MoreVert,
                     contentDescription = stringResource(R.string.player_more_options),
                     onClick = { haptic(); showOverflowMenu = !showOverflowMenu },
-                    tint = if (sleepTimerRemainingMs != null) accent else palette.onBackground,
+                    tint = if (sleepTimerActive) accent else palette.onBackground,
                     background = palette.surface,
                 )
             }
@@ -1317,7 +1320,7 @@ private fun PixelPlayerContent(
                         icon = Icons.Filled.Bedtime,
                         label = stringResource(R.string.player_sleep_timer),
                         palette = palette,
-                        active = sleepTimerRemainingMs != null,
+                        active = sleepTimerActive,
                         onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.SLEEP_TIMER },
                     )
                     PixelMenuItem(
@@ -1325,6 +1328,13 @@ private fun PixelPlayerContent(
                         label = stringResource(R.string.player_queue),
                         palette = palette,
                         onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.QUEUE },
+                    )
+                    PixelMenuItem(
+                        icon = Icons.Filled.Speed,
+                        label = stringResource(R.string.player_speed),
+                        palette = palette,
+                        active = state.playbackSpeed != 1f,
+                        onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.SPEED },
                     )
                     PixelMenuItem(
                         icon = Icons.Filled.Share,
@@ -1410,6 +1420,7 @@ private fun PixelPlayerContent(
                                 controller = controller,
                                 onDismiss = { panel = null },
                             )
+                            PixelPanel.SPEED -> PlaybackSpeedContent(controller = controller)
                         }
                     }
                 }
@@ -1418,7 +1429,7 @@ private fun PixelPlayerContent(
     }
 }
 
-private enum class PixelPanel { QUEUE, SLEEP_TIMER }
+private enum class PixelPanel { QUEUE, SLEEP_TIMER, SPEED }
 
 
 @Composable
@@ -1919,8 +1930,11 @@ private fun ClassicPlayerContent(
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
+    var showSpeed by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     val sleepTimerRemainingMs by controller.sleepTimerRemainingMs.collectAsState()
+    val sleepAfterCurrentTrack by controller.sleepAfterCurrentTrack.collectAsState()
+    val sleepTimerActive = sleepTimerRemainingMs != null || sleepAfterCurrentTrack
     var isDragging by remember { mutableStateOf(false) }
     var dragPosition by remember { mutableFloatStateOf(0f) }
     var lastSeekTickSecond by remember { mutableStateOf(-1L) }
@@ -2069,7 +2083,7 @@ private fun ClassicPlayerContent(
                             Icons.Filled.MoreVert,
                             contentDescription = stringResource(R.string.player_more_options),
                             modifier = Modifier.size(24.dp),
-                            tint = if (sleepTimerRemainingMs != null) accent else palette.on,
+                            tint = if (sleepTimerActive) accent else palette.on,
                         )
                     }
                     DropdownMenu(
@@ -2086,13 +2100,19 @@ private fun ClassicPlayerContent(
                             ExpressiveMenuItem(
                                 icon = Icons.Filled.Bedtime,
                                 label = stringResource(R.string.player_sleep_timer),
-                                active = sleepTimerRemainingMs != null,
+                                active = sleepTimerActive,
                                 onClick = { haptic(); showOverflowMenu = false; showSleepTimer = true },
                             )
                             ExpressiveMenuItem(
                                 icon = Icons.AutoMirrored.Filled.QueueMusic,
                                 label = stringResource(R.string.player_queue),
                                 onClick = { haptic(); showOverflowMenu = false; showQueue = true },
+                            )
+                            ExpressiveMenuItem(
+                                icon = Icons.Filled.Speed,
+                                label = stringResource(R.string.player_speed),
+                                active = state.playbackSpeed != 1f,
+                                onClick = { haptic(); showOverflowMenu = false; showSpeed = true },
                             )
                             ExpressiveMenuItem(
                                 icon = Icons.Filled.Share,
@@ -2385,6 +2405,9 @@ private fun ClassicPlayerContent(
     }
     if (showQueue) {
         QueueSheet(controller = controller, onDismiss = { showQueue = false })
+    }
+    if (showSpeed) {
+        PlaybackSpeedSheet(controller = controller, onDismiss = { showSpeed = false })
     }
 }
 

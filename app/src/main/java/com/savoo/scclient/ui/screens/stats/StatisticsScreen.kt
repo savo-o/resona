@@ -28,6 +28,9 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,7 +62,11 @@ import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.ArtistListenStat
 import com.savoo.scclient.data.local.TrackListenStat
+import com.savoo.scclient.data.repository.StatsPeriod
 import com.savoo.scclient.data.repository.StatsRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import com.savoo.scclient.ui.components.EmptyState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -68,29 +75,52 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class StatisticsViewModel @Inject constructor(
     statsRepository: StatsRepository,
 ) : ViewModel() {
-    val totalMsListened = statsRepository.totalMsListened
+    private val _period = MutableStateFlow(StatsPeriod.ALL)
+    val period = _period.asStateFlow()
+
+    fun setPeriod(value: StatsPeriod) {
+        _period.value = value
+    }
+
+    val totalMsListened = _period
+        .flatMapLatest { statsRepository.totalMsListened(it.since()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
-    val totalPlays = statsRepository.totalPlays
+    val totalPlays = _period
+        .flatMapLatest { statsRepository.totalPlays(it.since()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val topArtists = statsRepository.topArtists(10)
+    val topArtists = _period
+        .flatMapLatest { statsRepository.topArtists(10, it.since()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val topTracks = statsRepository.topTracks(10)
+    val topTracks = _period
+        .flatMapLatest { statsRepository.topTracks(10, it.since()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val topGenre = statsRepository.topGenre
+    val topGenre = _period
+        .flatMapLatest { statsRepository.topGenre(it.since()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val hasData = combine(totalPlays, topArtists) { plays, artists -> plays > 0 || artists.isNotEmpty() }
+    val hasData = combine(
+        statsRepository.totalPlays(),
+        statsRepository.topArtists(1),
+    ) { plays, artists -> plays > 0 || artists.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+private fun periodLabelRes(period: StatsPeriod): Int = when (period) {
+    StatsPeriod.WEEK -> R.string.statistics_period_week
+    StatsPeriod.MONTH -> R.string.statistics_period_month
+    StatsPeriod.YEAR -> R.string.statistics_period_year
+    StatsPeriod.ALL -> R.string.statistics_period_all
+}
+
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StatisticsScreen(
     onBack: () -> Unit = {},
@@ -102,6 +132,7 @@ fun StatisticsScreen(
     val topTracks by viewModel.topTracks.collectAsState()
     val topGenre by viewModel.topGenre.collectAsState()
     val hasData by viewModel.hasData.collectAsState()
+    val period by viewModel.period.collectAsState()
     var showRankingInfo by remember { mutableStateOf(false) }
     var showWrapped by remember { mutableStateOf(false) }
 
@@ -151,6 +182,30 @@ fun StatisticsScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                item {
+                    ButtonGroup(modifier = Modifier.fillMaxWidth()) {
+                        StatsPeriod.entries.forEachIndexed { index, option ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                StatsPeriod.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = period == option,
+                                onCheckedChange = { checked -> if (checked) viewModel.setPeriod(option) },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            ) {
+                                Text(
+                                    stringResource(periodLabelRes(option)),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                }
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),

@@ -3,11 +3,16 @@ package com.savoo.scclient.player
 import android.content.Context
 import android.content.SharedPreferences
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.repository.DefaultCacheLimitMb
+import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.di.PlainHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -41,14 +46,17 @@ class TrackCache @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trackRepository: TrackRepository,
     @PlainHttpClient private val httpClient: OkHttpClient,
+    private val settingsRepository: SettingsRepository,
 ) {
     companion object {
-        private const val MAX_CACHED = 20
+        private const val MAX_CACHED = 60
         private const val PREFS_NAME = "track_cache"
         private const val KEY_TRACK_ORDER = "track_order"
         private const val KEY_TRACK_INFO_PREFIX = "track_info_"
         private const val KEY_CACHE_FORMAT_VERSION = "cache_format_version"
         private const val CACHE_FORMAT_VERSION = 2
+        private const val BYTES_PER_MB = 1024L * 1024L
+        private const val STALE_TMP_MS = 60L * 60L * 1000L
     }
 
     private val audioDir: File by lazy {
@@ -58,6 +66,11 @@ class TrackCache @Inject constructor(
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
+    private var maxBytes: Long = DefaultCacheLimitMb * BYTES_PER_MB
+
     init {
         // cacheAudioFile() used to write straight to the final path with no locking, so a file that
         // exists and is non-empty wasn't a reliable signal that it's actually complete/uncorrupted -
@@ -66,6 +79,50 @@ class TrackCache @Inject constructor(
         if (prefs.getInt(KEY_CACHE_FORMAT_VERSION, 1) < CACHE_FORMAT_VERSION) {
             audioDir.listFiles()?.forEach { it.delete() }
             prefs.edit().clear().putInt(KEY_CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION).apply()
+        }
+        scope.launch {
+            cleanupStaleFiles()
+            settingsRepository.settings
+                .map { it.cacheLimitMb }
+                .distinctUntilChanged()
+                .collect { limitMb ->
+                    maxBytes = limitMb.toLong() * BYTES_PER_MB
+                    evictOld()
+                }
+        }
+    }
+
+    fun currentSizeBytes(): Long = audioDir.listFiles()?.sumOf { it.length() } ?: 0L
+
+    fun cachedTrackCount(): Int = getTrackOrder().size
+
+    suspend fun clearCache() = withContext(Dispatchers.IO) {
+        audioDir.listFiles()?.forEach { it.delete() }
+        prefs.edit().clear().putInt(KEY_CACHE_FORMAT_VERSION, CACHE_FORMAT_VERSION).apply()
+    }
+
+    private fun cleanupStaleFiles() {
+        val known = getTrackOrder().toHashSet()
+        val now = System.currentTimeMillis()
+        audioDir.listFiles()?.forEach { file ->
+            val name = file.name
+            when {
+                name.endsWith(".mp3.tmp") -> if (now - file.lastModified() > STALE_TMP_MS) file.delete()
+                name.endsWith(".mp3") -> {
+                    val id = name.removeSuffix(".mp3").toLongOrNull()
+                    if (id == null || id !in known) file.delete()
+                }
+                else -> file.delete()
+            }
+        }
+        val missing = known.filterNot { File(audioDir, "$it.mp3").exists() }
+        if (missing.isNotEmpty()) {
+            val order = getTrackOrder().filterNot { it in missing }
+            prefs.edit().apply {
+                missing.forEach { remove("$KEY_TRACK_INFO_PREFIX$it") }
+                putString(KEY_TRACK_ORDER, order.joinToString(","))
+                apply()
+            }
         }
     }
 
@@ -163,10 +220,14 @@ class TrackCache @Inject constructor(
 
     private fun evictOld() {
         val order = getTrackOrder().toMutableList()
-        while (order.size > MAX_CACHED) {
+        var totalBytes = currentSizeBytes()
+        while (order.size > MAX_CACHED || (totalBytes > maxBytes && order.size > 1)) {
             val oldestId = order.removeAt(order.size - 1)
             val file = File(audioDir, "$oldestId.mp3")
-            if (file.exists()) file.delete()
+            if (file.exists()) {
+                totalBytes -= file.length()
+                file.delete()
+            }
             prefs.edit().remove("$KEY_TRACK_INFO_PREFIX$oldestId").apply()
         }
         prefs.edit().putString(KEY_TRACK_ORDER, order.joinToString(",")).apply()

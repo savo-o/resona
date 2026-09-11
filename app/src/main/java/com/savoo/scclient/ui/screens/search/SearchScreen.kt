@@ -33,6 +33,15 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
@@ -52,6 +61,7 @@ import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,9 +76,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.restrictionReason
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.ui.components.AlbumRow
 import com.savoo.scclient.ui.components.ArtistRow
 import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
+import com.savoo.scclient.ui.components.TrackActionsSheet
 import com.savoo.scclient.ui.components.TrackRow
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 
@@ -92,6 +107,7 @@ fun SearchScreen(
     val history by viewModel.history.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val haptic = rememberHapticTick()
+    var actionsTrack by remember { mutableStateOf<Track?>(null) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         viewModel.navEvent.collect { event ->
@@ -225,16 +241,13 @@ fun SearchScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                     when {
-                        state.isLoading || state.isResolvingLink -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        state.isLoading || state.isResolvingLink -> PullableCenteredContent {
                             LoadingIndicator()
                         }
-                        state.error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(stringResource(R.string.search_error, state.error ?: ""))
+                        state.error != null -> PullableCenteredContent {
+                            SearchErrorState(error = state.error!!)
                         }
-                        state.query.isNotBlank() && state.tracks.isEmpty() && state.artists.isEmpty() && state.albums.isEmpty() -> Box(
-                            Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        state.query.isNotBlank() && state.tracks.isEmpty() && state.artists.isEmpty() && state.albums.isEmpty() -> PullableCenteredContent {
                             Text(
                                 stringResource(R.string.search_nothing_found),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -273,7 +286,15 @@ fun SearchScreen(
                                             else viewModel.playTrack(track)
                                         },
                                         unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
+                                        onLongPress = { actionsTrack = track },
                                         modifier = Modifier.animateItem(),
+                                    )
+                                }
+                                item {
+                                    SearchLoadMoreFooter(
+                                        visible = state.nextTracksHref != null,
+                                        loadedCount = state.tracks.size,
+                                        onLoadMore = { viewModel.loadMore() },
                                     )
                                 }
                                 }
@@ -289,6 +310,13 @@ fun SearchScreen(
                                             modifier = Modifier.animateItem(),
                                         )
                                     }
+                                item {
+                                    SearchLoadMoreFooter(
+                                        visible = state.nextArtistsHref != null,
+                                        loadedCount = state.artists.size,
+                                        onLoadMore = { viewModel.loadMore() },
+                                    )
+                                }
                                 }
                                 SearchTab.ALBUMS -> LazyColumn(
                                     modifier = Modifier.fillMaxSize(),
@@ -302,6 +330,13 @@ fun SearchScreen(
                                             modifier = Modifier.animateItem(),
                                         )
                                     }
+                                item {
+                                    SearchLoadMoreFooter(
+                                        visible = state.nextAlbumsHref != null,
+                                        loadedCount = state.albums.size,
+                                        onLoadMore = { viewModel.loadMore() },
+                                    )
+                                }
                                 }
                             }
                         }
@@ -309,6 +344,137 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+    }
+
+    actionsTrack?.let { track ->
+        TrackActionsSheet(
+            track = track,
+            onDismiss = { actionsTrack = null },
+            onPlayNext = { viewModel.playerController.playNext(listOf(track)) },
+            onAddToQueue = { viewModel.playerController.addToQueue(listOf(track)) },
+        )
+    }
+}
+
+// Pull to refresh only reacts to nested scroll, so a plain centered Box would leave these states
+// unrefreshable - the one-item list keeps the centering and makes the gesture work.
+@Composable
+private fun PullableCenteredContent(content: @Composable () -> Unit) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item {
+            Box(
+                modifier = Modifier.fillParentMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchErrorState(error: SearchError, modifier: Modifier = Modifier) {
+    val icon = when (error.kind) {
+        SearchErrorKind.NETWORK -> Icons.Filled.CloudOff
+        SearchErrorKind.AUTH -> Icons.Filled.Key
+        SearchErrorKind.NOT_FOUND, SearchErrorKind.TRACK_GONE -> Icons.Filled.SearchOff
+        SearchErrorKind.SERVER -> Icons.Filled.Dns
+        SearchErrorKind.LINK -> Icons.Filled.LinkOff
+        SearchErrorKind.UNKNOWN -> Icons.Outlined.ErrorOutline
+    }
+    val titleRes = when (error.kind) {
+        SearchErrorKind.NETWORK -> R.string.search_error_network_title
+        SearchErrorKind.AUTH -> R.string.search_error_auth_title
+        SearchErrorKind.NOT_FOUND -> R.string.search_error_not_found_title
+        SearchErrorKind.TRACK_GONE -> R.string.search_error_track_gone_title
+        SearchErrorKind.SERVER -> R.string.search_error_server_title
+        SearchErrorKind.LINK -> R.string.search_error_link_title
+        SearchErrorKind.UNKNOWN -> R.string.search_error_unknown_title
+    }
+    val descRes = when (error.kind) {
+        SearchErrorKind.NETWORK -> R.string.search_error_network_desc
+        SearchErrorKind.AUTH -> R.string.search_error_auth_desc
+        SearchErrorKind.NOT_FOUND -> R.string.search_error_not_found_desc
+        SearchErrorKind.TRACK_GONE -> R.string.search_error_track_gone_desc
+        SearchErrorKind.SERVER -> R.string.search_error_server_desc
+        SearchErrorKind.LINK -> R.string.search_error_link_desc
+        SearchErrorKind.UNKNOWN -> R.string.search_error_unknown_desc
+    }
+    val hints = when (error.kind) {
+        SearchErrorKind.NETWORK -> listOf(
+            Icons.Filled.WifiOff to R.string.search_error_hint_check_connection,
+            Icons.Filled.Refresh to R.string.search_error_hint_pull_to_retry,
+        )
+        SearchErrorKind.AUTH -> listOf(
+            Icons.Filled.Key to R.string.search_error_hint_client_id,
+            Icons.Filled.Refresh to R.string.search_error_hint_pull_to_retry,
+        )
+        SearchErrorKind.SERVER -> listOf(
+            Icons.Filled.Schedule to R.string.search_error_hint_wait,
+            Icons.Filled.Refresh to R.string.search_error_hint_pull_to_retry,
+        )
+        SearchErrorKind.NOT_FOUND -> listOf(
+            Icons.Filled.Tune to R.string.search_error_hint_change_query,
+        )
+        SearchErrorKind.TRACK_GONE -> listOf(
+            Icons.Filled.Tune to R.string.search_error_hint_search_by_name,
+        )
+        SearchErrorKind.LINK -> listOf(
+            Icons.Filled.Tune to R.string.search_error_hint_check_link,
+        )
+        SearchErrorKind.UNKNOWN -> listOf(
+            Icons.Filled.Refresh to R.string.search_error_hint_pull_to_retry,
+        )
+    }
+
+    Column(
+        modifier = modifier.padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.size(72.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            stringResource(titleRes),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            stringResource(descRes),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        val detail = error.detail
+        if (!detail.isNullOrBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                textAlign = TextAlign.Center,
+            )
+        }
+        Spacer(Modifier.height(24.dp))
+        hints.forEachIndexed { index, (hintIcon, hintRes) ->
+            if (index > 0) Spacer(Modifier.height(12.dp))
+            SearchEmptyHint(hintIcon, stringResource(hintRes))
         }
     }
 }
@@ -429,5 +595,22 @@ private fun HistoryRow(
                 )
             }
         }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SearchLoadMoreFooter(
+    visible: Boolean,
+    loadedCount: Int,
+    onLoadMore: () -> Unit,
+) {
+    if (!visible) return
+    LaunchedEffect(loadedCount) { onLoadMore() }
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        LoadingIndicator(modifier = Modifier.size(28.dp), color = MaterialTheme.colorScheme.primary)
     }
 }

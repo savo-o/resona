@@ -79,6 +79,19 @@ class HomeViewModel @Inject constructor(
     private val _user = MutableStateFlow<User?>(null)
     val user = _user.asStateFlow()
 
+    val recentTracks = playHistoryDao.observeRecentTracks(RECENT_TRACKS_LIMIT)
+        .map { list ->
+            list.map {
+                Track(
+                    id = it.trackId,
+                    title = it.title,
+                    artworkUrl = it.artworkUrl,
+                    user = User(id = it.artistId, username = it.artistName),
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val favoriteTracks = favoritesDao.getAllTracks()
         .map { list -> list.map { it.toTrack() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -323,6 +336,7 @@ class HomeViewModel @Inject constructor(
         private const val TAG = "HomeViewModel"
         private const val ARTIST_FETCH_TIMEOUT_MS = 5000L
         private const val AFFINITY_EVENT_LIMIT = 500
+        private const val RECENT_TRACKS_LIMIT = 30
         private const val RECENCY_HALF_LIFE_DAYS = 14.0
         private const val GENRE_WEIGHT = 0.3
         private const val DISCOVERY_ARTIST_SAMPLE = 14

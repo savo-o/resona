@@ -93,7 +93,7 @@ fun OAuthWebViewScreen(
                 },
                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
             ) {
-                Icon(Icons.Filled.Close, contentDescription = "Close")
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
             }
         }
 
@@ -101,7 +101,7 @@ fun OAuthWebViewScreen(
             onClick = onCancel,
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
         ) {
-            Icon(Icons.Filled.Close, contentDescription = "Close")
+            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
         }
 
         ExtendedFloatingActionButton(

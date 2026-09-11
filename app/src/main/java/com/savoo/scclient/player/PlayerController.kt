@@ -28,6 +28,7 @@ import com.savoo.scclient.data.model.UnavailableTrackEntity
 import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.ConnectivityEventBus
+import com.savoo.scclient.data.repository.DefaultCrossfadeSeconds
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
@@ -49,6 +50,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -71,6 +73,7 @@ data class PlaybackState(
     val isRetryingNetwork: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    val playbackSpeed: Float = 1f,
     // Which playQueue() call is currently active, e.g. "home_mix" - lets a caller tell "is MY queue
     // the one playing right now" apart from "does the current track merely also appear in my queue"
     // (the two look the same if you only check track membership, but they're not: e.g. a track played
@@ -122,6 +125,8 @@ class PlayerController @Inject constructor(
     val queueEntries = _queueEntries.asStateFlow()
     private val _sleepTimerRemainingMs = MutableStateFlow<Long?>(null)
     val sleepTimerRemainingMs = _sleepTimerRemainingMs.asStateFlow()
+    private val _sleepAfterCurrentTrack = MutableStateFlow(false)
+    val sleepAfterCurrentTrack = _sleepAfterCurrentTrack.asStateFlow()
     private var sleepTimerJob: kotlinx.coroutines.Job? = null
     private val queue = mutableListOf<QueueEntry>()
     private var nextQueueEntryId = 0L
@@ -134,7 +139,6 @@ class PlayerController @Inject constructor(
     // ExoPlayer's own shuffle order as a side effect, so "previous" could land somewhere unexpected after any
     // background resolve had happened. Keeping native shuffle permanently off avoids that entirely.
     private val originalOrder = mutableListOf<QueueEntry>()
-    private val recentTracks = mutableListOf<Track>()
     private val prefs = context.getSharedPreferences("player_state", Context.MODE_PRIVATE)
     private val errorRetryCount = mutableMapOf<Long, Int>()
     private val resolvingMediaIds = mutableSetOf<Long>()
@@ -149,23 +153,25 @@ class PlayerController @Inject constructor(
     private var fadeJob: kotlinx.coroutines.Job? = null
     private var fadeOutStartedForMediaId: Long? = null
     private var crossfadeEnabled = false
+    @Volatile
+    private var fadeOutLeadMs = DefaultCrossfadeSeconds * 1000L
+    @Volatile
+    private var fadeInMs = DefaultCrossfadeSeconds * 600L
 
     private var listenTrackId: Long? = null
-    private var listenTitle: String = ""
-    private var listenArtistId: Long = 0L
-    private var listenArtistName: String = ""
-    private var listenArtworkUrl: String? = null
-    private var listenGenre: String? = null
     private var listenAccumulatedMs: Long = 0L
+    private var listenEventJob: kotlinx.coroutines.Deferred<Long?>? = null
     private var listenSegmentStartRealtime: Long? = null
     private val minListenMsToRecord = 5_000L
 
-    private companion object {
+    companion object {
+        const val MIN_PLAYBACK_SPEED = 0.5f
+        const val MAX_PLAYBACK_SPEED = 2f
+        val PLAYBACK_SPEED_STEPS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+
         const val TAG = "PlayerController"
         private const val PENDING_SCHEME = "rawresource"
         private const val SCRUB_THROTTLE_MS = 140L
-        private const val FADE_OUT_LEAD_MS = 1500L
-        private const val FADE_IN_MS = 900L
         private const val FADE_STEP_MS = 60L
 
         // Placeholder items point at a real, always-loadable local silent file rather than an invalid URI (which used
@@ -175,6 +181,20 @@ class PlayerController @Inject constructor(
         // many unrelated tracks; the fragment doesn't affect how RawResourceDataSource resolves the resource id.
         fun pendingUriFor(trackId: Long): Uri =
             RawResourceDataSource.buildRawResourceUri(R.raw.silence).buildUpon().fragment(trackId.toString()).build()
+    }
+
+    // A queue entry can start out as a stripped-down Track (Home's recent list, for instance, builds
+    // tracks straight from play history and has no permalink or media), so once a resolve hands back
+    // the full one, the entry is swapped for it - otherwise everything downstream of the queue (sharing,
+    // duration, genre) keeps seeing the stripped version.
+    private fun adoptResolvedTrack(index: Int, resolved: Track) {
+        val entry = queue.getOrNull(index) ?: return
+        if (entry.track.id != resolved.id || entry.track === resolved) return
+        queue[index] = entry.copy(track = resolved)
+        updateQueueState()
+        if (_state.value.currentTrack?.id == resolved.id) {
+            _state.update { it.copy(currentTrack = resolved) }
+        }
     }
 
     private fun isPending(mediaItem: MediaItem?): Boolean =
@@ -195,7 +215,6 @@ class PlayerController @Inject constructor(
     }
 
     init {
-        restoreState()
         scope.launch {
             settingsRepository.settings.map { it.crossfadeEnabled }.distinctUntilChanged().collect { enabled ->
                 crossfadeEnabled = enabled
@@ -206,6 +225,12 @@ class PlayerController @Inject constructor(
                 }
             }
         }
+        scope.launch {
+            settingsRepository.settings.map { it.crossfadeSeconds }.distinctUntilChanged().collect { seconds ->
+                fadeOutLeadMs = seconds * 1000L
+                fadeInMs = seconds * 600L
+            }
+        }
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener({
@@ -213,10 +238,13 @@ class PlayerController @Inject constructor(
             controller?.addListener(playerListener)
             controller?.shuffleModeEnabled = false // shuffling is handled at the queue level, see toggleShuffle()
             controller?.repeatMode = prefs.getInt("repeat_mode", Player.REPEAT_MODE_OFF)
+            val savedSpeed = prefs.getFloat("playback_speed", 1f).coerceIn(MIN_PLAYBACK_SPEED, MAX_PLAYBACK_SPEED)
+            controller?.setPlaybackSpeed(savedSpeed)
             _state.update {
                 it.copy(
                     shuffleEnabled = prefs.getBoolean("shuffle_enabled", false),
                     repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF,
+                    playbackSpeed = savedSpeed,
                 )
             }
             restorePlayLastTrack()
@@ -241,6 +269,7 @@ class PlayerController @Inject constructor(
         override fun onPlaybackStateChanged(playbackState: Int) {
             DebugLog.log(TAG, "onPlaybackStateChanged: $playbackState currentId=${controller?.currentMediaItem?.mediaId} pos=${controller?.currentPosition} dur=${controller?.duration}")
             _state.update { it.copy(isBuffering = playbackState == Player.STATE_BUFFERING) }
+            if (playbackState == Player.STATE_ENDED) _sleepAfterCurrentTrack.value = false
             if (playbackState == Player.STATE_READY) updatePosition()
         }
 
@@ -302,6 +331,10 @@ class PlayerController @Inject constructor(
             }
         }
 
+        override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
+            _state.update { it.copy(playbackSpeed = playbackParameters.speed) }
+        }
+
         override fun onRepeatModeChanged(repeatMode: Int) {
             _state.update { it.copy(repeatMode = repeatMode) }
             updateQueueState()
@@ -330,9 +363,16 @@ class PlayerController @Inject constructor(
                     extractSeedColor(track.artworkUrl)
                     fadeOutStartedForMediaId = null
                     fadeJob?.cancel()
-                    if (crossfadeEnabled) {
+                    val stoppingAfterPreviousTrack = _sleepAfterCurrentTrack.value &&
+                        reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+                    if (stoppingAfterPreviousTrack) {
+                        _sleepAfterCurrentTrack.value = false
+                        controller?.volume = 1f
+                        controller?.pause()
+                        controller?.seekTo(0L)
+                    } else if (crossfadeEnabled) {
                         controller?.volume = 0f
-                        startFade(from = 0f, to = 1f, durationMs = FADE_IN_MS)
+                        startFade(from = 0f, to = 1f, durationMs = fadeInMs)
                     } else {
                         controller?.volume = 1f
                     }
@@ -354,6 +394,7 @@ class PlayerController @Inject constructor(
                             if (i < 0) return@launch
 
                             playerCommandMutex.withLock {
+                                adoptResolvedTrack(i, resolved.track)
                                 controller?.replaceMediaItem(i, buildMediaItem(resolved.track, resolved.url, resolved.isHls))
 
                                 // Only do this if we're still actually the current item - playback may have moved on to a
@@ -584,6 +625,7 @@ class PlayerController @Inject constructor(
                         idx < c.mediaItemCount && runCatching { c.getMediaItemAt(idx).mediaId.toLongOrNull() }.getOrNull() == mediaId
                     } ?: false
                     if (!stillThere) return@withLock
+                    adoptResolvedTrack(idx, resolved.track)
                     controller?.replaceMediaItem(idx, buildMediaItem(resolved.track, resolved.url, resolved.isHls))
 
                     // If this neighbour became the current item while we were resolving it, recover it the same way the
@@ -635,10 +677,10 @@ class PlayerController @Inject constructor(
         if (dur <= 0 || isScrubbing || !crossfadeEnabled) return
         val mediaId = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
         val remaining = dur - pos
-        if (remaining in 0..FADE_OUT_LEAD_MS && fadeOutStartedForMediaId != mediaId) {
+        if (remaining in 0..fadeOutLeadMs && fadeOutStartedForMediaId != mediaId) {
             fadeOutStartedForMediaId = mediaId
             startFade(from = controller?.volume ?: 1f, to = 0f, durationMs = remaining)
-        } else if (remaining > FADE_OUT_LEAD_MS && fadeOutStartedForMediaId == mediaId) {
+        } else if (remaining > fadeOutLeadMs && fadeOutStartedForMediaId == mediaId) {
             fadeOutStartedForMediaId = null
             fadeJob?.cancel()
             controller?.volume = 1f
@@ -648,13 +690,21 @@ class PlayerController @Inject constructor(
     private fun beginListenSegment(track: Track) {
         flushListenSegment()
         listenTrackId = track.id
-        listenTitle = track.title
-        listenArtistId = track.user.id
-        listenArtistName = track.user.username
-        listenArtworkUrl = track.artworkUrl
-        listenGenre = track.genre
         listenAccumulatedMs = 0L
         listenSegmentStartRealtime = if (controller?.isPlaying == true) System.currentTimeMillis() else null
+        val event = PlayEvent(
+            trackId = track.id,
+            title = track.title,
+            artistId = track.user.id,
+            artistName = track.user.username,
+            artworkUrl = track.artworkUrl,
+            msPlayed = 0L,
+            playedAt = System.currentTimeMillis(),
+            genre = track.genre,
+        )
+        listenEventJob = scope.async(Dispatchers.IO) {
+            runCatching { playHistoryDao.insert(event) }.getOrNull()
+        }
     }
 
     private fun resumeListenSegment() {
@@ -673,18 +723,13 @@ class PlayerController @Inject constructor(
         pauseListenSegment()
         val trackId = listenTrackId
         val ms = listenAccumulatedMs
-        if (trackId != null && ms >= minListenMsToRecord) {
-            val event = PlayEvent(
-                trackId = trackId,
-                title = listenTitle,
-                artistId = listenArtistId,
-                artistName = listenArtistName,
-                artworkUrl = listenArtworkUrl,
-                msPlayed = ms,
-                playedAt = System.currentTimeMillis(),
-                genre = listenGenre,
-            )
-            scope.launch(Dispatchers.IO) { runCatching { playHistoryDao.insert(event) } }
+        val eventJob = listenEventJob
+        listenEventJob = null
+        if (trackId != null && eventJob != null) {
+            scope.launch(Dispatchers.IO) {
+                val eventId = eventJob.await() ?: return@launch
+                runCatching { playHistoryDao.updateMsPlayed(eventId, ms) }
+            }
         }
         listenTrackId = null
         listenAccumulatedMs = 0L
@@ -791,6 +836,30 @@ class PlayerController @Inject constructor(
 
     fun skipToNext() {
         controller?.let { if (it.hasNextMediaItem()) it.seekToNext() }
+    }
+
+    fun playNext(tracks: List<Track>) {
+        insertIntoQueue(tracks, atEnd = false)
+    }
+
+    fun addToQueue(tracks: List<Track>) {
+        insertIntoQueue(tracks, atEnd = true)
+    }
+
+    private fun insertIntoQueue(sourceTracks: List<Track>, atEnd: Boolean) {
+        val tracks = sourceTracks.filter { knownReason(it) == null }
+        if (tracks.isEmpty()) return
+        if (queue.isEmpty() || queueIndex !in queue.indices) {
+            playQueue(tracks, 0, tag = currentQueueTag)
+            return
+        }
+        val entries = wrapAll(tracks)
+        val insertIndex = if (atEnd) queue.size else (queueIndex + 1).coerceAtMost(queue.size)
+        queue.addAll(insertIndex, entries)
+        if (originalOrder.isNotEmpty()) originalOrder.addAll(entries)
+        controller?.addMediaItems(insertIndex, entries.map { buildPendingMediaItem(it.track) })
+        updateQueueState()
+        preloadAdjacent()
     }
 
     fun excludeArtistFromQueue(artistId: Long, artistUsername: String) {
@@ -953,6 +1022,13 @@ class PlayerController @Inject constructor(
         preloadAdjacent()
     }
 
+    fun setPlaybackSpeed(speed: Float) {
+        val clamped = speed.coerceIn(MIN_PLAYBACK_SPEED, MAX_PLAYBACK_SPEED)
+        controller?.setPlaybackSpeed(clamped)
+        _state.update { it.copy(playbackSpeed = clamped) }
+        prefs.edit().putFloat("playback_speed", clamped).apply()
+    }
+
     fun cycleRepeatMode() {
         controller?.let {
             val next = when (it.repeatMode) {
@@ -965,8 +1041,16 @@ class PlayerController @Inject constructor(
         }
     }
 
+    fun startSleepTimerAfterCurrentTrack() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        _sleepTimerRemainingMs.value = null
+        _sleepAfterCurrentTrack.value = true
+    }
+
     fun startSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
+        _sleepAfterCurrentTrack.value = false
         sleepTimerJob = scope.launch {
             var remaining = minutes * 60_000L
             _sleepTimerRemainingMs.value = remaining
@@ -984,6 +1068,7 @@ class PlayerController @Inject constructor(
         sleepTimerJob?.cancel()
         sleepTimerJob = null
         _sleepTimerRemainingMs.value = null
+        _sleepAfterCurrentTrack.value = false
     }
 
     private fun updateQueueState() {
@@ -1009,9 +1094,6 @@ class PlayerController @Inject constructor(
             }
             val (fullTrack, url, needsCaching, isHls) = resolved
 
-            recentTracks.removeAll { it.id == fullTrack.id }
-            recentTracks.add(fullTrack)
-            if (recentTracks.size > 20) recentTracks.removeAt(0)
 
             playerCommandMutex.withLock {
                 if (requestId != playRequestId) return@withLock
@@ -1022,6 +1104,7 @@ class PlayerController @Inject constructor(
                 val index = queue.indexOfFirst { it.track.id == fullTrack.id }
                     .takeIf { it >= 0 } ?: requestIndex.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
                 queueIndex = index
+                adoptResolvedTrack(index, fullTrack)
 
                 val allItems = queue.mapIndexed { i, t ->
                     if (i == index) buildMediaItem(fullTrack, url, isHls) else buildPendingMediaItem(t.track)
@@ -1108,23 +1191,7 @@ class PlayerController @Inject constructor(
             queue.forEach { queueJson.put(trackToJson(it.track)) }
             putString("queue", queueJson.toString())
             putInt("queue_index", queueIndex)
-            val recentJson = JSONArray()
-            recentTracks.takeLast(20).forEach { recentJson.put(trackToJson(it)) }
-            putString("recent", recentJson.toString())
             apply()
-        }
-    }
-
-    private fun restoreState() {
-        recentTracks.clear()
-        val recentStr = prefs.getString("recent", null)
-        if (recentStr != null) {
-            try {
-                val arr = JSONArray(recentStr)
-                for (i in 0 until arr.length()) {
-                    recentTracks.add(jsonToTrack(arr.getJSONObject(i)))
-                }
-            } catch (_: Exception) {}
         }
     }
 
@@ -1159,6 +1226,7 @@ class PlayerController @Inject constructor(
                 val (fullTrack, url, needsCaching, isHls) = resolved
                 playerCommandMutex.withLock {
                     if (requestId != playRequestId) return@withLock
+                    adoptResolvedTrack(queueIndex, fullTrack)
                     val items = queue.mapIndexed { index, entry ->
                         if (index == queueIndex) buildMediaItem(fullTrack, url, isHls)
                         else buildPendingMediaItem(entry.track)
@@ -1179,8 +1247,6 @@ class PlayerController @Inject constructor(
             }
         } catch (_: Exception) {}
     }
-
-    fun getRecentTracks(): List<Track> = recentTracks.toList().reversed()
 
     private fun trackToJson(track: Track): JSONObject = JSONObject().apply {
         put("id", track.id)

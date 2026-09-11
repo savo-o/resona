@@ -75,7 +75,7 @@ fun FavoritePlaylistsScreen(
             title = { Text(stringResource(R.string.favorite_playlists_title)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             }
         )

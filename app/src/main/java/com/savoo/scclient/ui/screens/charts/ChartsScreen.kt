@@ -36,6 +36,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -48,6 +51,7 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.ui.components.EmptyState
 import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
+import com.savoo.scclient.ui.components.TrackActionsSheet
 import com.savoo.scclient.ui.components.TrackRow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +66,7 @@ fun ChartsScreen(
     val hasError by viewModel.hasError.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
+    var actionsTrack by remember { mutableStateOf<Track?>(null) }
 
     Scaffold(topBar = {
         TopAppBar(
@@ -137,6 +142,7 @@ fun ChartsScreen(
                                 onClick = {
                                     if (isCurrent) viewModel.playerController.togglePlayPause() else viewModel.playFrom(track.id)
                                 },
+                                onLongPress = { actionsTrack = track },
                                 modifier = Modifier.animateItem(),
                             )
                         }
@@ -146,12 +152,22 @@ fun ChartsScreen(
             }
         }
     }
+
+    actionsTrack?.let { track ->
+        TrackActionsSheet(
+            track = track,
+            onDismiss = { actionsTrack = null },
+            onPlayNext = { viewModel.playerController.playNext(listOf(track)) },
+            onAddToQueue = { viewModel.playerController.addToQueue(listOf(track)) },
+        )
+    }
 }
 
 @Composable
 private fun ChartTrackRow(
     rank: Int,
     track: Track,
+    onLongPress: () -> Unit,
     isPlaying: Boolean,
     isLoading: Boolean,
     unavailableReason: com.savoo.scclient.data.model.UnavailableReason?,
@@ -180,6 +196,7 @@ private fun ChartTrackRow(
             isLoading = isLoading,
             onTogglePlayPause = onClick,
             unavailableReason = unavailableReason,
+            onLongPress = onLongPress,
             modifier = Modifier.weight(1f),
         )
     }
