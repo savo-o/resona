@@ -49,6 +49,8 @@ enum class AppBackgroundMode { DYNAMIC, DEFAULT, CUSTOM, PLAYER_ONLY }
 
 enum class DividerStyle { HIDDEN, SUBTLE, BRIGHT }
 
+enum class DrmTrackHiding { FULL, PARTIAL, OFF }
+
 enum class HomeSection { JUMP_BACK_IN, FAVORITES, OFFLINE, ARTISTS, PLAYLISTS }
 
 val CacheLimitOptionsMb = listOf(256, 512, 1024, 2048)
@@ -111,6 +113,7 @@ data class AppSettings(
     val cacheLimitMb: Int = DefaultCacheLimitMb,
     val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
     val dividerStyle: DividerStyle = DividerStyle.SUBTLE,
+    val drmTrackHiding: DrmTrackHiding = DrmTrackHiding.FULL,
 )
 
 @Singleton
@@ -149,6 +152,7 @@ class SettingsRepository @Inject constructor(
         val CACHE_LIMIT_MB = intPreferencesKey("cache_limit_mb")
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
         val DIVIDER_STYLE = stringPreferencesKey("divider_style")
+        val DRM_TRACK_HIDING = stringPreferencesKey("drm_track_hiding")
     }
 
     private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
@@ -215,6 +219,9 @@ class SettingsRepository @Inject constructor(
             dividerStyle = prefs[Keys.DIVIDER_STYLE]?.let {
                 runCatching { DividerStyle.valueOf(it) }.getOrNull()
             } ?: DividerStyle.SUBTLE,
+            drmTrackHiding = prefs[Keys.DRM_TRACK_HIDING]?.let {
+                runCatching { DrmTrackHiding.valueOf(it) }.getOrNull()
+            } ?: DrmTrackHiding.FULL,
         )
     }
 
@@ -344,5 +351,9 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setDividerStyle(style: DividerStyle) {
         context.dataStore.edit { it[Keys.DIVIDER_STYLE] = style.name }
+    }
+
+    suspend fun setDrmTrackHiding(mode: DrmTrackHiding) {
+        context.dataStore.edit { it[Keys.DRM_TRACK_HIDING] = mode.name }
     }
 }

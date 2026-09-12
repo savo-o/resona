@@ -93,6 +93,7 @@ import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.LyricsProvider
 import com.savoo.scclient.data.repository.DividerStyle
+import com.savoo.scclient.data.repository.DrmTrackHiding
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
 import com.savoo.scclient.ui.components.AppDivider
 import com.savoo.scclient.data.repository.PlayerStyle
@@ -182,6 +183,7 @@ class SettingsViewModel @Inject constructor(
     fun setHomeSections(sections: List<HomeSectionConfig>) = viewModelScope.launch { repository.setHomeSections(sections) }
     fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
     fun setDividerStyle(style: DividerStyle) = viewModelScope.launch { repository.setDividerStyle(style) }
+    fun setDrmTrackHiding(mode: DrmTrackHiding) = viewModelScope.launch { repository.setDrmTrackHiding(mode) }
     fun setPlayerStyle(style: PlayerStyle) = viewModelScope.launch { repository.setPlayerStyle(style) }
     fun setBackgroundMode(mode: AppBackgroundMode) = viewModelScope.launch { repository.setBackgroundMode(mode) }
     fun setPixelGlowEnabled(value: Boolean) = viewModelScope.launch { repository.setPixelGlowEnabled(value) }
@@ -775,6 +777,53 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_drm_hiding)) {
+                Text(
+                    stringResource(R.string.settings_drm_hiding_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                )
+                val drmModes = DrmTrackHiding.entries
+                val drmLabelResIds = listOf(
+                    R.string.settings_drm_hiding_full,
+                    R.string.settings_drm_hiding_partial,
+                    R.string.settings_drm_hiding_off,
+                )
+                val drmDescResIds = listOf(
+                    R.string.settings_drm_hiding_full_desc,
+                    R.string.settings_drm_hiding_partial_desc,
+                    R.string.settings_drm_hiding_off_desc,
+                )
+                ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    drmModes.forEachIndexed { index, mode ->
+                        val shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            drmModes.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                        ToggleButton(
+                            checked = settings.drmTrackHiding == mode,
+                            onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setDrmTrackHiding(mode) } },
+                            modifier = Modifier.weight(1f),
+                            shapes = shapes,
+                        ) {
+                            Text(
+                                stringResource(drmLabelResIds[index]),
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                }
+                Text(
+                    stringResource(drmDescResIds[drmModes.indexOf(settings.drmTrackHiding).coerceAtLeast(0)]),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                )
             }
 
             SettingsSectionCard {

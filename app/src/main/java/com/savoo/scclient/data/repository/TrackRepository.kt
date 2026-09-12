@@ -108,7 +108,7 @@ class TrackRepository @Inject constructor(
             allTracks.addAll(response.collection)
             nextUrl = response.nextHref
         }
-        return allTracks
+        return allTracks.distinctBy { it.id }
     }
 
     // Single-page, no pagination - for lightweight "does this artist have anything new" lookups

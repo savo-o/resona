@@ -70,6 +70,7 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.remote.BadgeRepository
+import com.savoo.scclient.data.repository.DrmTrackHiding
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
@@ -95,6 +96,16 @@ data class ArtistUiState(
     val error: String? = null,
 )
 
+private fun List<Track>.applyDrmHiding(mode: DrmTrackHiding): List<Track> = when (mode) {
+    DrmTrackHiding.OFF -> this
+    DrmTrackHiding.FULL -> filter { it.restrictionReason() == null }
+    DrmTrackHiding.PARTIAL -> {
+        val playableTitles = filter { it.restrictionReason() == null }
+            .mapTo(mutableSetOf()) { it.title.trim().lowercase() }
+        filter { it.restrictionReason() == null || it.title.trim().lowercase() !in playableTitles }
+    }
+}
+
 @UnstableApi
 @HiltViewModel
 class ArtistViewModel @Inject constructor(
@@ -114,6 +125,7 @@ class ArtistViewModel @Inject constructor(
 
     fun getBadges(userId: Long): StateFlow<List<String>> = badgeRepository.getBadges(userId)
     val developerMode = settingsRepository.settings.map { it.developerMode }
+    val drmTrackHiding = settingsRepository.settings.map { it.drmTrackHiding }
 
     fun loadArtist(userId: Long) {
         viewModelScope.launch {
@@ -235,7 +247,9 @@ fun ArtistScreen(
     androidx.compose.runtime.LaunchedEffect(sort) { listState.animateScrollToItem(0) }
 
     val context = LocalContext.current
-    val sortedTracks = state.tracks.applySortOption(sort)
+    val drmHiding by viewModel.drmTrackHiding.collectAsState(initial = DrmTrackHiding.FULL)
+    val visibleTracks = state.tracks.applyDrmHiding(drmHiding)
+    val sortedTracks = visibleTracks.applySortOption(sort)
 
     Scaffold(
         topBar = {
@@ -247,7 +261,7 @@ fun ArtistScreen(
                     }
                 },
                 actions = {
-                    if (state.tracks.isNotEmpty()) {
+                    if (visibleTracks.isNotEmpty()) {
                         TrackSortButton(sort = sort, onSortChange = { sort = it })
                     }
                     state.user?.permalinkUrl?.let { url ->
@@ -298,7 +312,10 @@ fun ArtistScreen(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Error: ${state.error}", color = MaterialTheme.colorScheme.error)
+                Text(
+                    stringResource(R.string.artist_error, state.error ?: ""),
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
             state.user != null -> LazyColumn(
                 state = listState,
@@ -311,7 +328,7 @@ fun ArtistScreen(
                     val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
                     ArtistHeader(
                         user = state.user!!,
-                        trackCount = state.tracks.size,
+                        trackCount = visibleTracks.size,
                         badges = artistBadges,
                         showId = isDeveloper,
                         isFavorite = isArtistFav,
@@ -322,7 +339,7 @@ fun ArtistScreen(
                 }
                 item {
                     Text(
-                        text = "Tracks",
+                        text = stringResource(R.string.artist_tracks),
                         style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                     )
@@ -433,14 +450,14 @@ private fun ArtistHeader(
         }
 
         Text(
-            text = "@${user.username}",
+            text = stringResource(R.string.artist_at_username, user.username),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         if (showId) {
             Text(
-                text = "ID: ${user.id}",
+                text = stringResource(R.string.artist_id, user.id),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.padding(top = 2.dp),
@@ -449,7 +466,7 @@ private fun ArtistHeader(
 
         user.followersCount?.let {
             Text(
-                text = "$it followers",
+                text = stringResource(R.string.artist_followers, it),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)
@@ -457,7 +474,7 @@ private fun ArtistHeader(
         }
 
         Text(
-            text = "$trackCount tracks",
+            text = stringResource(R.string.artist_tracks_count, trackCount),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -483,7 +500,7 @@ private fun ArtistHeader(
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Play All", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.play_all), style = MaterialTheme.typography.labelLarge)
                 }
             }
             IconButton(onClick = onToggleFavorite) {

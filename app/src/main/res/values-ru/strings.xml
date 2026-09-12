@@ -235,6 +235,7 @@
     <string name="artist_tracks_count">%d треков</string>
     <string name="artist_at_username">@%s</string>
     <string name="artist_id">ID: %d</string>
+    <string name="artist_error">Ошибка: %s</string>
     <string name="playlist_by">%s</string>
     <string name="playlist_tracks_count">%d треков</string>
 
@@ -582,4 +583,12 @@
     <string name="settings_dividers_hidden">Нет</string>
     <string name="settings_dividers_subtle">Мягкие</string>
     <string name="settings_dividers_bright">Яркие</string>
+    <string name="settings_drm_hiding">DRM треки</string>
+    <string name="settings_drm_hiding_desc">Часть загрузок SoundCloud шифрует, и приложение не может их воспроизвести. Обычно это релизы мейджор-лейблов.</string>
+    <string name="settings_drm_hiding_full">Полное</string>
+    <string name="settings_drm_hiding_partial">Частичное</string>
+    <string name="settings_drm_hiding_off">Отключено</string>
+    <string name="settings_drm_hiding_full_desc">Зашифрованные треки не показываются в профиле артиста совсем.</string>
+    <string name="settings_drm_hiding_partial_desc">Зашифрованный трек скрывается, только если у того же артиста есть его рабочая копия. Треки без копии остаются в списке с меткой «Недоступен».</string>
+    <string name="settings_drm_hiding_off_desc">Показываются все треки, зашифрованные помечаются как недоступные.</string>
 </resources>

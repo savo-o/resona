@@ -26,9 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Playlist
 
 @Composable
@@ -78,7 +80,7 @@ fun AlbumRow(
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "${playlist.trackCount} tracks",
+                    text = stringResource(R.string.playlist_tracks_count, playlist.trackCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

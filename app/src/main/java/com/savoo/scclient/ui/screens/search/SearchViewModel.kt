@@ -3,6 +3,7 @@ package com.savoo.scclient.ui.screens.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
+import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
@@ -29,7 +30,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class SearchTab(val label: String) { TRACKS("Tracks"), ARTISTS("Artists"), ALBUMS("Playlists") }
+enum class SearchTab(val labelRes: Int) {
+    TRACKS(R.string.tab_tracks),
+    ARTISTS(R.string.tab_artists),
+    ALBUMS(R.string.tab_playlists),
+}
 
 data class SearchUiState(
     val query: String = "",

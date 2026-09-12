@@ -172,6 +172,7 @@ class PlayerController @Inject constructor(
         const val TAG = "PlayerController"
         private const val PENDING_SCHEME = "rawresource"
         private const val SCRUB_THROTTLE_MS = 140L
+        private const val UNAVAILABLE_MARK_TTL_MS = 7L * 24 * 60 * 60 * 1000
         private const val FADE_STEP_MS = 60L
 
         // Placeholder items point at a real, always-loadable local silent file rather than an invalid URI (which used
@@ -229,6 +230,11 @@ class PlayerController @Inject constructor(
             settingsRepository.settings.map { it.crossfadeSeconds }.distinctUntilChanged().collect { seconds ->
                 fadeOutLeadMs = seconds * 1000L
                 fadeInMs = seconds * 600L
+            }
+        }
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                unavailableTrackDao.clearExpired(System.currentTimeMillis() - UNAVAILABLE_MARK_TTL_MS)
             }
         }
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -445,6 +451,16 @@ class PlayerController @Inject constructor(
         }
     }
 
+    private suspend fun rememberUnavailable(trackId: Long, reason: UnavailableReason) {
+        withContext(Dispatchers.IO) {
+            unavailableTrackDao.markIfAbsent(UnavailableTrackEntity(trackId, reason, System.currentTimeMillis()))
+        }
+    }
+
+    private suspend fun clearUnavailable(trackId: Long) {
+        withContext(Dispatchers.IO) { unavailableTrackDao.clear(trackId) }
+    }
+
     private fun evictFromQueue(trackId: Long) {
         while (true) {
             val index = queue.indexOfFirst { it.track.id == trackId }
@@ -465,9 +481,13 @@ class PlayerController @Inject constructor(
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
 
         withContext(Dispatchers.IO) { unavailableTrackDao.get(track.id) }?.let {
-            DebugLog.log(TAG, "resolveTrack: id=${track.id} title=${track.title} already marked ${it.reason}, skipping")
-            evictFromQueue(track.id)
-            return null
+            if (System.currentTimeMillis() - it.markedAt < UNAVAILABLE_MARK_TTL_MS) {
+                DebugLog.log(TAG, "resolveTrack: id=${track.id} title=${track.title} already marked ${it.reason}, skipping")
+                evictFromQueue(track.id)
+                return null
+            }
+            DebugLog.log(TAG, "resolveTrack: id=${track.id} title=${track.title} mark ${it.reason} expired, re-checking")
+            clearUnavailable(track.id)
         }
 
 
@@ -494,12 +514,6 @@ class PlayerController @Inject constructor(
                 }
                 if (fullTrack.media == null) {
                     DebugLog.log(TAG, "resolveTrack attempt=${attempt + 1}/$effectiveAttempts id=${track.id} title=${track.title}: getTrack() returned no media")
-                }
-                val transcodings = fullTrack.media?.transcodings
-                if (!transcodings.isNullOrEmpty() && transcodings.none { it.format.protocol == "progressive" || it.format.protocol == "hls" }) {
-                    DebugLog.log(TAG, "resolveTrack id=${track.id} title=${track.title}: only encrypted transcodings, marking DRM")
-                    markUnavailable(track.id, UnavailableReason.DRM)
-                    return null
                 }
                 val streamResult = withContext(Dispatchers.IO) {
                     runCatching { trackRepository.resolvePlayableStream(fullTrack) }
@@ -756,7 +770,7 @@ class PlayerController @Inject constructor(
         knownReason(track)?.let { reason ->
             DebugLog.log(TAG, "play: id=${track.id} title=${track.title} known unavailable ($reason), not touching playback")
             _skippedTrackEvents.tryEmit(SkippedTrack(track, reason))
-            scope.launch { persistUnavailable(track.id, reason) }
+            scope.launch { rememberUnavailable(track.id, reason) }
             return
         }
         currentQueueTag = null
@@ -772,8 +786,11 @@ class PlayerController @Inject constructor(
     }
 
     fun retryTrack(track: Track) {
-        val idx = queue.indexOfFirst { it.track.id == track.id }
-        if (idx >= 0) playFromQueue(idx) else play(track)
+        scope.launch {
+            clearUnavailable(track.id)
+            val idx = queue.indexOfFirst { it.track.id == track.id }
+            if (idx >= 0) playFromQueue(idx) else play(track)
+        }
     }
 
     fun playQueue(
@@ -789,7 +806,7 @@ class PlayerController @Inject constructor(
             knownReason(requested)?.let { reason ->
                 DebugLog.log(TAG, "playQueue: requested id=${requested.id} title=${requested.title} unavailable ($reason), not starting a queue")
                 _skippedTrackEvents.tryEmit(SkippedTrack(requested, reason))
-                scope.launch { persistUnavailable(requested.id, reason) }
+                scope.launch { rememberUnavailable(requested.id, reason) }
                 return
             }
         }

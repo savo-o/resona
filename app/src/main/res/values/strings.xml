@@ -235,6 +235,7 @@
     <string name="artist_tracks_count">%d tracks</string>
     <string name="artist_at_username">@%s</string>
     <string name="artist_id">ID: %d</string>
+    <string name="artist_error">Error: %s</string>
     <string name="playlist_by">%s</string>
     <string name="playlist_tracks_count">%d tracks</string>
 
@@ -582,4 +583,12 @@
     <string name="settings_dividers_hidden">Off</string>
     <string name="settings_dividers_subtle">Subtle</string>
     <string name="settings_dividers_bright">Bright</string>
+    <string name="settings_drm_hiding">DRM tracks</string>
+    <string name="settings_drm_hiding_desc">SoundCloud encrypts some uploads, and the app cannot play them. Major label releases are usually the ones affected.</string>
+    <string name="settings_drm_hiding_full">Full</string>
+    <string name="settings_drm_hiding_partial">Partial</string>
+    <string name="settings_drm_hiding_off">Off</string>
+    <string name="settings_drm_hiding_full_desc">Encrypted tracks are never shown in an artist profile.</string>
+    <string name="settings_drm_hiding_partial_desc">An encrypted track is hidden only when the same artist also has a playable copy of it. Tracks without a copy stay visible and are marked as unavailable.</string>
+    <string name="settings_drm_hiding_off_desc">Every track is shown, encrypted ones are marked as unavailable.</string>
 </resources>

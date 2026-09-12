@@ -17,4 +17,13 @@ interface UnavailableTrackDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun mark(entry: UnavailableTrackEntity)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun markIfAbsent(entry: UnavailableTrackEntity)
+
+    @Query("DELETE FROM unavailable_tracks WHERE trackId = :trackId")
+    suspend fun clear(trackId: Long)
+
+    @Query("DELETE FROM unavailable_tracks WHERE markedAt < :before")
+    suspend fun clearExpired(before: Long)
 }

@@ -15,6 +15,8 @@ data class UnavailableTrackEntity(
 fun Track.restrictionReason(): UnavailableReason? = when {
     policy.equals("SNIP", ignoreCase = true) -> UnavailableReason.PREVIEW
     policy.equals("BLOCK", ignoreCase = true) -> UnavailableReason.DRM
+    media?.transcodings?.any { it.format.protocol.contains("encrypted") } == true ->
+        UnavailableReason.DRM
     media?.transcodings?.isNotEmpty() == true && media.transcodings.all { it.snipped == true } ->
         UnavailableReason.PREVIEW
     else -> null

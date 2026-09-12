@@ -230,7 +230,7 @@ fun SearchScreen(
                                 )
                                 Spacer(Modifier.width(ToggleButtonDefaults.IconSpacing))
                                 Text(
-                                    text = tab.label,
+                                    text = stringResource(tab.labelRes),
                                     style = MaterialTheme.typography.labelLarge,
                                 )
                             }

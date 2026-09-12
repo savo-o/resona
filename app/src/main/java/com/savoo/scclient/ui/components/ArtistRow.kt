@@ -27,9 +27,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.data.model.User
 
 @Composable
@@ -75,14 +77,14 @@ fun ArtistRow(
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "@${user.username}",
+                    text = stringResource(R.string.artist_at_username, user.username),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 user.followersCount?.let {
                     Text(
-                        text = "$it followers",
+                        text = stringResource(R.string.artist_followers, it),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
