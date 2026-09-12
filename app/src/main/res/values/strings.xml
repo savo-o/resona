@@ -204,7 +204,7 @@
     <string name="history_title">Listening history</string>
     <string name="history_empty">Nothing here yet. Tracks you play will show up in your history.</string>
     <string name="history_clear">Clear history</string>
-    <string name="history_clear_confirm">The whole listening history will be deleted. Statistics will be reset too.</string>
+    <string name="history_clear_confirm">The whole listening history will be deleted. Your statistics will be kept.</string>
     <string name="history_remove_entry">Remove from history</string>
     <string name="history_today">Today</string>
     <string name="history_yesterday">Yesterday</string>
@@ -309,6 +309,8 @@
     <string name="settings_autoplay">Autoplay Next Track</string>
     <string name="settings_crossfade">Crossfade</string>
     <string name="settings_crossfade_desc">Fade the volume between tracks instead of switching abruptly</string>
+    <string name="settings_pause_for_other_apps">Pause for other apps</string>
+    <string name="settings_pause_for_other_apps_desc">Pause the music when another app starts playing sound. When off, the music keeps playing alongside it</string>
     <string name="settings_seek_bar_style">Seek bar style</string>
     <string name="settings_seek_bar_style_classic">Classic</string>
     <string name="settings_seek_bar_style_wavy">Wavy</string>

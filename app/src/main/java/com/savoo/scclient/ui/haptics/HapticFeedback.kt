@@ -48,6 +48,10 @@ class Haptics internal constructor(
     /** Sharp triple-buzz "shake" for errors — distinct from every other pattern here. */
     fun error() = fireWaveform(longArrayOf(0, 35, 45, 35, 45, 35), intArrayOf(0, 210, 0, 210, 0, 210))
 
+    fun warn() = fireWaveform(longArrayOf(0, 14, 70, 14), intArrayOf(0, 130, 0, 130))
+
+    fun remove() = fire(40L, 230)
+
     private fun fire(durationMs: Long, amplitude: Int) {
         if (!enabled) return
         val scaled = (amplitude * intensity.multiplier()).toInt().coerceIn(1, 255)

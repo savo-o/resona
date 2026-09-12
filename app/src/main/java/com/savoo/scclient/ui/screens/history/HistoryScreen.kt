@@ -158,14 +158,14 @@ class HistoryViewModel @Inject constructor(
     fun remove(entry: HistoryEntry) {
         viewModelScope.launch {
             val dao = playHistoryDao
-            val removed = dao.eventsByIds(entry.eventIds)
-            entry.eventIds.forEach { dao.deleteEvent(it) }
-            if (removed.isEmpty()) return@launch
+            val ids = entry.eventIds
+            if (ids.isEmpty()) return@launch
+            dao.setHiddenFromHistory(ids, true)
             undoController.show(
                 UndoAction(
                     messageRes = R.string.history_entry_removed,
                     icon = Icons.Filled.History,
-                    onUndo = { runCatching { dao.insertAll(removed) } },
+                    onUndo = { runCatching { dao.setHiddenFromHistory(ids, false) } },
                 )
             )
         }

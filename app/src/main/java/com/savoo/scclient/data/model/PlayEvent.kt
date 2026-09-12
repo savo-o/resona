@@ -1,5 +1,6 @@
 package com.savoo.scclient.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -14,4 +15,5 @@ data class PlayEvent(
     val msPlayed: Long,
     val playedAt: Long,
     val genre: String? = null,
+    @ColumnInfo(defaultValue = "0") val hiddenFromHistory: Boolean = false,
 )

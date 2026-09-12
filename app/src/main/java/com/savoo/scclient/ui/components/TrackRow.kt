@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -246,7 +247,17 @@ fun TrackRow(
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (onToggleDownload != null) {
+                if (onToggleDownload != null && isDownloaded && !showDownloadProgress) {
+                    ConfirmOfflineRemoval(onRemove = onToggleDownload) { armed, onPress, bounce ->
+                        IconButton(onClick = onPress, modifier = bounce) {
+                            Icon(
+                                imageVector = if (armed) Icons.Filled.Delete else Icons.Filled.CloudDone,
+                                contentDescription = stringResource(R.string.action_download),
+                                tint = if (armed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                } else if (onToggleDownload != null) {
                     IconButton(
                         onClick = {
                             if (!showDownloadProgress) {

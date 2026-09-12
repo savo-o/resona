@@ -104,6 +104,7 @@ data class AppSettings(
     val onboardingCompleted: Boolean = false,
     val eulaAccepted: Boolean = false,
     val crossfadeEnabled: Boolean = false,
+    val pauseForOtherApps: Boolean = true,
     val seekBarStyle: SeekBarStyle = SeekBarStyle.WAVY,
     val customSeedColor: Color = OrangeSeed.Primary,
     val homeSections: List<HomeSectionConfig> = DefaultHomeSections,
@@ -147,6 +148,7 @@ class SettingsRepository @Inject constructor(
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         val EULA_ACCEPTED = booleanPreferencesKey("eula_accepted")
         val CROSSFADE_ENABLED = booleanPreferencesKey("crossfade_enabled")
+        val PAUSE_FOR_OTHER_APPS = booleanPreferencesKey("pause_for_other_apps")
         val SEEK_BAR_STYLE = stringPreferencesKey("seek_bar_style")
         val CUSTOM_SEED_COLOR = intPreferencesKey("custom_seed_color")
         val HOME_SECTIONS = stringPreferencesKey("home_sections")
@@ -203,6 +205,7 @@ class SettingsRepository @Inject constructor(
             onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: hasPreExistingSettings(prefs),
             eulaAccepted = prefs[Keys.EULA_ACCEPTED] ?: hasPreExistingSettings(prefs),
             crossfadeEnabled = prefs[Keys.CROSSFADE_ENABLED] ?: false,
+            pauseForOtherApps = prefs[Keys.PAUSE_FOR_OTHER_APPS] ?: true,
             seekBarStyle = prefs[Keys.SEEK_BAR_STYLE]?.let {
                 runCatching { SeekBarStyle.valueOf(it) }.getOrNull()
             } ?: SeekBarStyle.WAVY,
@@ -328,6 +331,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setCrossfadeEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.CROSSFADE_ENABLED] = value }
+    }
+
+    suspend fun setPauseForOtherApps(value: Boolean) {
+        context.dataStore.edit { it[Keys.PAUSE_FOR_OTHER_APPS] = value }
     }
 
     suspend fun setSeekBarStyle(style: SeekBarStyle) {

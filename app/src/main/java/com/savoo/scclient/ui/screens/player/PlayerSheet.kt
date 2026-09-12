@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MoreVert
@@ -168,6 +169,7 @@ import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.components.TrackSkippedBanner
 import com.savoo.scclient.ui.components.AppDivider
 import com.savoo.scclient.ui.components.BulkDownloadBanner
+import com.savoo.scclient.ui.components.ConfirmOfflineRemoval
 import com.savoo.scclient.ui.components.UndoAction
 import com.savoo.scclient.ui.components.UndoBanner
 import kotlinx.coroutines.delay
@@ -951,14 +953,23 @@ private fun PixelPlayerContent(
                     Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
                         LoadingIndicator(modifier = Modifier.size(20.dp), color = accent)
                     }
+                } else if (isOffline) {
+                    ConfirmOfflineRemoval(onRemove = onRemoveFromOffline) { armed, onPress, bounce ->
+                        PixelIconButton(
+                            icon = if (armed) Icons.Filled.Delete else Icons.Filled.CloudDone,
+                            contentDescription = stringResource(R.string.player_saved_offline),
+                            onClick = onPress,
+                            tint = if (armed) MaterialTheme.colorScheme.error else accent,
+                            background = palette.surface,
+                            modifier = bounce,
+                        )
+                    }
                 } else {
                     PixelIconButton(
-                        icon = if (isOffline) Icons.Filled.CloudDone else Icons.Filled.CloudDownload,
-                        contentDescription = stringResource(
-                            if (isOffline) R.string.player_saved_offline else R.string.player_save_offline
-                        ),
-                        onClick = { haptic(); if (isOffline) onRemoveFromOffline() else onSaveForOffline() },
-                        tint = if (isOffline) accent else palette.onBackground,
+                        icon = Icons.Filled.CloudDownload,
+                        contentDescription = stringResource(R.string.player_save_offline),
+                        onClick = { haptic(); onSaveForOffline() },
+                        tint = palette.onBackground,
                         background = palette.surface,
                     )
                 }
@@ -2040,13 +2051,15 @@ private fun ClassicPlayerContent(
                     )
                 }
             } else if (isOffline) {
-                IconButton(onClick = { haptic(); onRemoveFromOffline() }) {
-                    Icon(
-                        Icons.Filled.CloudDone,
-                        contentDescription = stringResource(R.string.player_saved_offline),
-                        tint = accent,
-                        modifier = Modifier.size(22.dp),
-                    )
+                ConfirmOfflineRemoval(onRemove = onRemoveFromOffline) { armed, onPress, bounce ->
+                    IconButton(onClick = onPress, modifier = bounce) {
+                        Icon(
+                            if (armed) Icons.Filled.Delete else Icons.Filled.CloudDone,
+                            contentDescription = stringResource(R.string.player_saved_offline),
+                            tint = if (armed) MaterialTheme.colorScheme.error else accent,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
             } else {
                 IconButton(onClick = { haptic(); onSaveForOffline() }) {

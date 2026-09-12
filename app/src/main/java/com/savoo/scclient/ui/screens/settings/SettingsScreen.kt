@@ -181,6 +181,7 @@ class SettingsViewModel @Inject constructor(
         AppIconManager.apply(context, option)
     }
     fun setCrossfadeEnabled(value: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(value) }
+    fun setPauseForOtherApps(value: Boolean) = viewModelScope.launch { repository.setPauseForOtherApps(value) }
     fun setSeekBarStyle(style: SeekBarStyle) = viewModelScope.launch { repository.setSeekBarStyle(style) }
     fun setLyricsProvider(provider: LyricsProvider) = viewModelScope.launch { repository.setLyricsProvider(provider) }
     fun setGeniusFallbackEnabled(value: Boolean) = viewModelScope.launch { repository.setGeniusFallbackEnabled(value) }
@@ -732,6 +733,13 @@ fun SettingsScreen(
                     title = stringResource(R.string.settings_autoplay),
                     checked = autoplay,
                     onCheckedChange = { viewModel.setAutoplayNext(it) }
+                )
+                SettingsDivider()
+                SwitchItem(
+                    title = stringResource(R.string.settings_pause_for_other_apps),
+                    subtitle = stringResource(R.string.settings_pause_for_other_apps_desc),
+                    checked = settings.pauseForOtherApps,
+                    onCheckedChange = { viewModel.setPauseForOtherApps(it) }
                 )
                 SettingsDivider()
                 SwitchItem(

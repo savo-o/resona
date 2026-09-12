@@ -39,18 +39,13 @@ interface PlayHistoryDao {
     @Insert
     suspend fun insert(event: PlayEvent): Long
 
-    @Insert
-    suspend fun insertAll(events: List<PlayEvent>)
-
-    @Query("SELECT * FROM play_history WHERE id IN (:ids)")
-    suspend fun eventsByIds(ids: List<Long>): List<PlayEvent>
-
     @Query("UPDATE play_history SET msPlayed = :msPlayed WHERE id = :id")
     suspend fun updateMsPlayed(id: Long, msPlayed: Long)
 
     @Query("""
         SELECT trackId, title, artistId, artistName, artworkUrl, MAX(playedAt) AS lastPlayedAt
         FROM play_history
+        WHERE hiddenFromHistory = 0
         GROUP BY trackId
         ORDER BY lastPlayedAt DESC
         LIMIT :limit
@@ -76,16 +71,16 @@ interface PlayHistoryDao {
     @Query("SELECT * FROM play_history WHERE msPlayed >= :minMs ORDER BY playedAt DESC LIMIT :limit")
     suspend fun recentEvents(limit: Int = 500, minMs: Long = MIN_COUNTED_MS): List<PlayEvent>
 
-    @Query("SELECT * FROM play_history ORDER BY playedAt DESC LIMIT :limit")
+    @Query("SELECT * FROM play_history WHERE hiddenFromHistory = 0 ORDER BY playedAt DESC LIMIT :limit")
     fun observeRecentEvents(limit: Int = 1000): Flow<List<PlayEvent>>
 
-    @Query("DELETE FROM play_history WHERE id = :id")
-    suspend fun deleteEvent(id: Long)
+    @Query("UPDATE play_history SET hiddenFromHistory = :hidden WHERE id IN (:ids)")
+    suspend fun setHiddenFromHistory(ids: List<Long>, hidden: Boolean)
 
     @Query("DELETE FROM play_history WHERE trackId = :trackId")
     suspend fun deleteTrackHistory(trackId: Long)
 
-    @Query("DELETE FROM play_history")
+    @Query("UPDATE play_history SET hiddenFromHistory = 1 WHERE hiddenFromHistory = 0")
     suspend fun clearHistory()
 
     @Query("""

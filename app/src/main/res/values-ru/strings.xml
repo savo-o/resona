@@ -205,7 +205,7 @@
     <string name="history_title">История прослушиваний</string>
     <string name="history_empty">Пока пусто. Треки, которые вы слушаете, появятся в истории.</string>
     <string name="history_clear">Очистить историю</string>
-    <string name="history_clear_confirm">Вся история прослушиваний будет удалена. Статистика тоже обнулится.</string>
+    <string name="history_clear_confirm">Вся история прослушиваний будет удалена. Статистика сохранится.</string>
     <string name="history_remove_entry">Убрать из истории</string>
     <string name="history_today">Сегодня</string>
     <string name="history_yesterday">Вчера</string>
@@ -309,6 +309,8 @@
     <string name="settings_autoplay">Автовоспроизведение следующего трека</string>
     <string name="settings_crossfade">Кроссфейд</string>
     <string name="settings_crossfade_desc">Плавно менять громкость между треками вместо резкого переключения</string>
+    <string name="settings_pause_for_other_apps">Пауза при звуке других приложений</string>
+    <string name="settings_pause_for_other_apps_desc">Ставить музыку на паузу, когда другое приложение начинает воспроизводить звук. Если выключено, музыка продолжит играть одновременно с ним</string>
     <string name="settings_seek_bar_style">Стиль полосы перемотки</string>
     <string name="settings_seek_bar_style_classic">Обычный</string>
     <string name="settings_seek_bar_style_wavy">Волнистый</string>
