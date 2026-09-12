@@ -28,7 +28,6 @@
   <img src="screenshots/eng_main.png" width="220">
   <img src="screenshots/player_both.png" width="220">
   <img src="screenshots/lyrics_both.png" width="220">
-  <img src="screenshots/eng_offline.jpg" width="220">
   <img src="screenshots/eng_customization.png" width="220">
 </p>
 
