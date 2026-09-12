@@ -108,6 +108,7 @@ class PlayerController @Inject constructor(
     private var controller: MediaController? = null
     private var positionJob: kotlinx.coroutines.Job? = null
     private var seedColorJob: kotlinx.coroutines.Job? = null
+    private var seedColorUrl: String? = null
 
     private val _state = MutableStateFlow(PlaybackState())
     val state = _state.asStateFlow()
@@ -216,6 +217,7 @@ class PlayerController @Inject constructor(
     }
 
     init {
+        primeFromSavedState()
         scope.launch {
             settingsRepository.settings.map { it.crossfadeEnabled }.distinctUntilChanged().collect { enabled ->
                 crossfadeEnabled = enabled
@@ -1212,6 +1214,25 @@ class PlayerController @Inject constructor(
         }
     }
 
+    private fun primeFromSavedState() {
+        val trackStr = prefs.getString("last_track", null) ?: return
+        val track = runCatching { jsonToTrack(JSONObject(trackStr)) }.getOrNull() ?: return
+        val cachedUrl = prefs.getString("seed_color_url", null)
+        if (cachedUrl != null && cachedUrl == track.artworkUrl && prefs.contains("seed_color")) {
+            seedColorUrl = cachedUrl
+            _seedColor.value = Color(prefs.getInt("seed_color", 0))
+        }
+        _state.update {
+            it.copy(
+                currentTrack = track,
+                durationMs = track.durationMs,
+                positionMs = prefs.getLong("position_ms", 0L).coerceAtLeast(0L),
+                loadingTrackId = track.id,
+            )
+        }
+        extractSeedColor(track.artworkUrl)
+    }
+
     private fun restorePlayLastTrack() {
         val trackStr = prefs.getString("last_track", null)
         if (trackStr == null) return
@@ -1238,7 +1259,13 @@ class PlayerController @Inject constructor(
             val requestId = ++playRequestId
             updateQueueState()
             scope.launch {
-                val resolved = resolveTrack(track) ?: return@launch
+                val resolved = resolveTrack(track)
+                if (resolved == null) {
+                    if (requestId == playRequestId && controller?.mediaItemCount == 0) {
+                        _state.update { it.copy(currentTrack = null, loadingTrackId = null) }
+                    }
+                    return@launch
+                }
                 if (requestId != playRequestId) return@launch
                 val (fullTrack, url, needsCaching, isHls) = resolved
                 playerCommandMutex.withLock {
@@ -1262,7 +1289,9 @@ class PlayerController @Inject constructor(
                     trackCache.cacheAudioFile(fullTrack, url)
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            _state.update { it.copy(currentTrack = null, loadingTrackId = null) }
+        }
     }
 
     private fun trackToJson(track: Track): JSONObject = JSONObject().apply {
@@ -1293,7 +1322,9 @@ class PlayerController @Inject constructor(
     // these run at wildly different speeds (cache hit vs network fetch vs decode), so without it
     // whichever request happens to finish last wins, which is rarely the track now playing.
     private fun extractSeedColor(artworkUrl: String?) {
+        if (artworkUrl != null && artworkUrl == seedColorUrl && (_seedColor.value != null || seedColorJob?.isActive == true)) return
         seedColorJob?.cancel()
+        seedColorUrl = artworkUrl
         if (artworkUrl == null) {
             _seedColor.value = null
             return
@@ -1313,6 +1344,10 @@ class PlayerController @Inject constructor(
                         if (swatch != null) {
                             ensureActive()
                             _seedColor.value = Color(swatch.rgb)
+                            prefs.edit()
+                                .putString("seed_color_url", artworkUrl)
+                                .putInt("seed_color", swatch.rgb)
+                                .apply()
                         }
                     }
                 }
@@ -1320,6 +1355,7 @@ class PlayerController @Inject constructor(
                 throw CancellationException()
             } catch (_: Exception) {
                 _seedColor.value = null
+                seedColorUrl = null
             }
         }
     }
