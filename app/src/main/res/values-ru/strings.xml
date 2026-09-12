@@ -617,4 +617,6 @@
     <string name="custom_language_loaded">Перевод загружен</string>
     <string name="custom_language_failed">Не удалось прочитать файл</string>
     <string name="custom_language_template_saved">Шаблон сохранён</string>
+    <string name="custom_language_catalog">Каталог переводов</string>
+    <string name="custom_language_catalog_desc">Готовые переводы от сообщества</string>
 </resources>

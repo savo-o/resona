@@ -617,4 +617,6 @@
     <string name="custom_language_loaded">Translation loaded</string>
     <string name="custom_language_failed">Could not read the file</string>
     <string name="custom_language_template_saved">Template saved</string>
+    <string name="custom_language_catalog">Translation catalog</string>
+    <string name="custom_language_catalog_desc">Ready-made translations from the community</string>
 </resources>

@@ -349,6 +349,8 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
+private const val TRANSLATION_CATALOG_URL = "https://savo-o.github.io/resona-status/translations/"
+
 @Composable
 internal fun SettingsDivider() {
     AppDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -512,6 +514,45 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
                     )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                haptic()
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(TRANSLATION_CATALOG_URL))
+                                )
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Public,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.custom_language_catalog),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            Text(
+                                stringResource(R.string.custom_language_catalog_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Filled.OpenInNew,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
 
                     Row(
                         modifier = Modifier
