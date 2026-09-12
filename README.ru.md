@@ -27,7 +27,6 @@
 <p align="center">
   <img src="screenshots/ru_main.png" width="220">
   <img src="screenshots/player_both.png" width="220">
-  <img src="screenshots/lyrics_both.png" width="220">
   <img src="screenshots/ru_customization.png" width="220">
 </p>
 
@@ -65,6 +64,17 @@ Resona всегда будет бесплатной и с открытым ис�
 ## Сообщество
 
 Вопросы, баги, идеи: [t.me/resona_tg](https://t.me/resona_tg)
+
+## История Звезд
+
+<a href="https://www.star-history.com/?repos=savo-o%2Fresona&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=savo-o/resona&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=savo-o/resona&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=savo-o/resona&type=date&legend=top-left" />
+ </picture>
+</a>
+
 
 ## Лицензия
 
