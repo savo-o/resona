@@ -23,6 +23,7 @@ import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.systemDefaultLanguage
+import com.savoo.scclient.i18n.withCustomStrings
 import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
@@ -63,7 +64,7 @@ class MainActivity : ComponentActivity() {
         config.setLocale(locale)
         config.setLayoutDirection(locale)
         val updatedContext = newBase.createConfigurationContext(config)
-        super.attachBaseContext(updatedContext)
+        super.attachBaseContext(updatedContext.withCustomStrings())
     }
 
     private fun applyOrientationLock() {

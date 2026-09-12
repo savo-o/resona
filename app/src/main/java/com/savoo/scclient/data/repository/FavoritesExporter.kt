@@ -88,7 +88,7 @@ class FavoritesExporter @Inject constructor(
     suspend fun exportToFile(uri: Uri): Result<Unit> = runCatching {
         val json = exportToJson()
         withContext(Dispatchers.IO) {
-            context.contentResolver.openOutputStream(uri)?.use { out ->
+            context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
                 out.bufferedWriter().use { it.write(json) }
             } ?: throw IllegalStateException("Cannot open file for writing")
         }

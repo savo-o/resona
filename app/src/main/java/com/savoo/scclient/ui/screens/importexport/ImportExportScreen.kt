@@ -1,5 +1,6 @@
 package com.savoo.scclient.ui.screens.importexport
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -35,8 +36,10 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroup
+import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
@@ -51,8 +54,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -76,8 +81,14 @@ import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.remote.ScProfile
 import com.savoo.scclient.data.remote.SoundCloudImportRepository
+import com.savoo.scclient.data.repository.AppSettings
+import com.savoo.scclient.data.repository.AutoExportInterval
 import com.savoo.scclient.data.repository.FavoritesExporter
+import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TelegramImportRepository
+import com.savoo.scclient.work.AutoExportManager
+import java.text.DateFormat
+import java.util.Date
 import com.savoo.scclient.telegram.ImportItemResult
 import com.savoo.scclient.telegram.ImportItemStatus
 import com.savoo.scclient.telegram.ImportProgress
@@ -96,6 +107,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+private const val DEFAULT_EXPORT_FILE_NAME = "resona_favorites.json"
+
+private fun displayFileName(uri: String): String =
+    Uri.parse(uri).lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: uri
+
 @HiltViewModel
 class ImportExportViewModel @Inject constructor(
     private val exporter: FavoritesExporter,
@@ -103,8 +119,13 @@ class ImportExportViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val telegramClient: TelegramClient,
     private val telegramImportRepo: TelegramImportRepository,
+    private val settingsRepository: SettingsRepository,
+    private val autoExportManager: AutoExportManager,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    val settings = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
 
     private val _message = MutableStateFlow<String?>(null)
     val message = _message.asStateFlow()
@@ -200,6 +221,46 @@ class ImportExportViewModel @Inject constructor(
             }.onFailure {
                 _message.value = context.getString(R.string.msg_export_failed, it.message ?: "")
             }
+        }
+    }
+
+    fun setAutoExportFile(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }.onFailure {
+                _message.value = context.getString(R.string.msg_export_failed, it.message ?: "")
+                return@launch
+            }
+            settingsRepository.setAutoExportUri(uri.toString())
+            settingsRepository.setAutoExportEnabled(true)
+            autoExportManager.syncSchedule()
+            exportNow()
+        }
+    }
+
+    fun setAutoExportEnabled(value: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setAutoExportEnabled(value)
+            autoExportManager.syncSchedule()
+        }
+    }
+
+    fun setAutoExportInterval(interval: AutoExportInterval) {
+        viewModelScope.launch {
+            settingsRepository.setAutoExportInterval(interval)
+            autoExportManager.syncSchedule()
+        }
+    }
+
+    fun exportNow() {
+        viewModelScope.launch {
+            autoExportManager.exportNow()
+                .onSuccess { _message.value = context.getString(R.string.msg_export_success) }
+                .onFailure { _message.value = context.getString(R.string.msg_export_failed, it.message ?: "") }
         }
     }
 
@@ -322,7 +383,7 @@ sealed class TelegramImportUiState {
     data class Error(val message: String) : TelegramImportUiState()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ImportExportScreen(
     onBack: () -> Unit = {},
@@ -341,6 +402,10 @@ fun ImportExportScreen(
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { viewModel.importFromFile(it) } }
+
+    val autoExportFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { viewModel.setAutoExportFile(it) } }
 
     message?.let { msg ->
         scope.launch {
@@ -374,7 +439,7 @@ fun ImportExportScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { exportLauncher.launch("resona_favorites.json") }
+                        .clickable { exportLauncher.launch(DEFAULT_EXPORT_FILE_NAME) }
                         .padding(horizontal = 20.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -418,6 +483,143 @@ fun ImportExportScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+            }
+
+            ImportExportSectionCard {
+                val settings by viewModel.settings.collectAsState()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.auto_export), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.auto_export_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = settings.autoExportEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled && settings.autoExportUri == null) {
+                                autoExportFileLauncher.launch(DEFAULT_EXPORT_FILE_NAME)
+                            } else {
+                                viewModel.setAutoExportEnabled(enabled)
+                            }
+                        },
+                    )
+                }
+
+                ImportExportDivider()
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { autoExportFileLauncher.launch(DEFAULT_EXPORT_FILE_NAME) }
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Folder,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            stringResource(
+                                if (settings.autoExportUri == null) R.string.auto_export_pick_file
+                                else R.string.auto_export_change_file
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            settings.autoExportUri?.let { displayFileName(it) }
+                                ?: stringResource(R.string.auto_export_no_file),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                if (settings.autoExportEnabled && settings.autoExportUri != null) {
+                    ImportExportDivider()
+
+                    val intervals = AutoExportInterval.entries
+                    val intervalLabelResIds = listOf(
+                        R.string.auto_export_interval_6h,
+                        R.string.auto_export_interval_daily,
+                        R.string.auto_export_interval_weekly,
+                    )
+                    ButtonGroup(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 16.dp)
+                    ) {
+                        intervals.forEachIndexed { index, interval ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                intervals.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.autoExportInterval == interval,
+                                onCheckedChange = { checked ->
+                                    if (checked) viewModel.setAutoExportInterval(interval)
+                                },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(
+                                    stringResource(intervalLabelResIds[index]),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        if (settings.autoExportLastRunAt == 0L) {
+                            stringResource(R.string.auto_export_never)
+                        } else {
+                            stringResource(
+                                R.string.auto_export_last_run,
+                                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                                    .format(Date(settings.autoExportLastRunAt)),
+                            )
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
+
+                    Text(
+                        stringResource(R.string.auto_export_battery_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
+
+                    TextButton(
+                        onClick = { viewModel.exportNow() },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        Text(stringResource(R.string.auto_export_run_now))
                     }
                 }
             }

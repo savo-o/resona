@@ -28,6 +28,7 @@ enum class AppIconOption { NORMAL, DYNAMIC }
 enum class LanguageOption(val locale: Locale?, val displayName: String) {
     ENGLISH(Locale.ENGLISH, "English"),
     RUSSIAN(Locale("ru"), "Русский"),
+    CUSTOM(null, "Custom"),
 }
 
 // Only used when the user has never explicitly chosen a language: Russian devices default to Russian,
@@ -50,6 +51,8 @@ enum class AppBackgroundMode { DYNAMIC, DEFAULT, CUSTOM, PLAYER_ONLY }
 enum class DividerStyle { HIDDEN, SUBTLE, BRIGHT }
 
 enum class DrmTrackHiding { FULL, PARTIAL, OFF }
+
+enum class AutoExportInterval(val hours: Long) { SIX_HOURS(6), DAILY(24), WEEKLY(168) }
 
 enum class HomeSection { JUMP_BACK_IN, FAVORITES, OFFLINE, ARTISTS, PLAYLISTS }
 
@@ -114,6 +117,10 @@ data class AppSettings(
     val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
     val dividerStyle: DividerStyle = DividerStyle.SUBTLE,
     val drmTrackHiding: DrmTrackHiding = DrmTrackHiding.FULL,
+    val autoExportEnabled: Boolean = false,
+    val autoExportUri: String? = null,
+    val autoExportInterval: AutoExportInterval = AutoExportInterval.DAILY,
+    val autoExportLastRunAt: Long = 0L,
 )
 
 @Singleton
@@ -153,6 +160,10 @@ class SettingsRepository @Inject constructor(
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
         val DIVIDER_STYLE = stringPreferencesKey("divider_style")
         val DRM_TRACK_HIDING = stringPreferencesKey("drm_track_hiding")
+        val AUTO_EXPORT_ENABLED = booleanPreferencesKey("auto_export_enabled")
+        val AUTO_EXPORT_URI = stringPreferencesKey("auto_export_uri")
+        val AUTO_EXPORT_INTERVAL = stringPreferencesKey("auto_export_interval")
+        val AUTO_EXPORT_LAST_RUN_AT = longPreferencesKey("auto_export_last_run_at")
     }
 
     private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
@@ -222,6 +233,12 @@ class SettingsRepository @Inject constructor(
             drmTrackHiding = prefs[Keys.DRM_TRACK_HIDING]?.let {
                 runCatching { DrmTrackHiding.valueOf(it) }.getOrNull()
             } ?: DrmTrackHiding.FULL,
+            autoExportEnabled = prefs[Keys.AUTO_EXPORT_ENABLED] ?: false,
+            autoExportUri = prefs[Keys.AUTO_EXPORT_URI]?.takeIf { it.isNotBlank() },
+            autoExportInterval = prefs[Keys.AUTO_EXPORT_INTERVAL]?.let {
+                runCatching { AutoExportInterval.valueOf(it) }.getOrNull()
+            } ?: AutoExportInterval.DAILY,
+            autoExportLastRunAt = prefs[Keys.AUTO_EXPORT_LAST_RUN_AT] ?: 0L,
         )
     }
 
@@ -355,5 +372,23 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setDrmTrackHiding(mode: DrmTrackHiding) {
         context.dataStore.edit { it[Keys.DRM_TRACK_HIDING] = mode.name }
+    }
+
+    suspend fun setAutoExportEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.AUTO_EXPORT_ENABLED] = value }
+    }
+
+    suspend fun setAutoExportUri(uri: String?) {
+        context.dataStore.edit {
+            if (uri == null) it.remove(Keys.AUTO_EXPORT_URI) else it[Keys.AUTO_EXPORT_URI] = uri
+        }
+    }
+
+    suspend fun setAutoExportInterval(interval: AutoExportInterval) {
+        context.dataStore.edit { it[Keys.AUTO_EXPORT_INTERVAL] = interval.name }
+    }
+
+    suspend fun setAutoExportLastRunAt(timestamp: Long) {
+        context.dataStore.edit { it[Keys.AUTO_EXPORT_LAST_RUN_AT] = timestamp }
     }
 }

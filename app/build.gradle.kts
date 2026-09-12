@@ -14,6 +14,14 @@ val localProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+// Ships the English strings.xml inside the APK so "Custom language" can hand the user a template
+// that always matches the installed build, instead of reflecting over R.string at runtime.
+val copyStringsTemplate by tasks.registering(Copy::class) {
+    from(layout.projectDirectory.file("src/main/res/values/strings.xml"))
+    into(layout.buildDirectory.dir("generated/i18nAssets"))
+    rename { "strings_template.xml" }
+}
+
 android {
     namespace = "com.savoo.scclient"
     compileSdk = 35
@@ -93,6 +101,10 @@ android {
     packaging {
         resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
     }
+
+    sourceSets.getByName("main") {
+        assets.srcDir(copyStringsTemplate)
+    }
 }
 
 dependencies {
@@ -141,6 +153,10 @@ dependencies {
 
     implementation(libs.datastore.preferences)
     implementation(libs.security.crypto)
+
+    implementation(libs.work.runtime.ktx)
+    implementation(libs.hilt.work)
+    kapt(libs.androidx.hilt.compiler)
 
     implementation(libs.kotlinx.coroutines.android)
 }

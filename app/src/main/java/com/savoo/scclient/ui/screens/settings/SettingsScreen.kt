@@ -38,6 +38,11 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Translate
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.savoo.scclient.i18n.CustomStrings
+import com.savoo.scclient.i18n.CustomStringsStats
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -184,6 +189,61 @@ class SettingsViewModel @Inject constructor(
     fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
     fun setDividerStyle(style: DividerStyle) = viewModelScope.launch { repository.setDividerStyle(style) }
     fun setDrmTrackHiding(mode: DrmTrackHiding) = viewModelScope.launch { repository.setDrmTrackHiding(mode) }
+
+    data class CustomTranslationState(
+        val present: Boolean = false,
+        val stats: CustomStringsStats? = null,
+        val failed: Boolean = false,
+        val templateSaved: Boolean = false,
+        val pendingRestart: Boolean = false,
+    )
+
+    private val _customTranslation = MutableStateFlow(
+        CustomTranslationState(present = CustomStrings.hasFile(context), stats = CustomStrings.stats)
+    )
+    val customTranslation = _customTranslation.asStateFlow()
+
+    fun installCustomTranslation(uri: Uri) {
+        viewModelScope.launch {
+            val stream = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
+            if (stream == null) {
+                _customTranslation.value = _customTranslation.value.copy(failed = true)
+                return@launch
+            }
+            CustomStrings.install(context, stream)
+                .onSuccess { stats ->
+                    _customTranslation.value =
+                        CustomTranslationState(present = true, stats = stats, pendingRestart = true)
+                }
+                .onFailure {
+                    _customTranslation.value = _customTranslation.value.copy(failed = true)
+                }
+        }
+    }
+
+    fun clearCustomTranslation() {
+        CustomStrings.clear(context)
+        _customTranslation.value = CustomTranslationState()
+    }
+
+    fun consumeCustomTranslationRestart() {
+        _customTranslation.value = _customTranslation.value.copy(pendingRestart = false)
+    }
+
+    fun exportTranslationTemplate(uri: Uri) {
+        viewModelScope.launch {
+            val saved = runCatching {
+                context.assets.open("strings_template.xml").use { input ->
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { input.copyTo(it) }
+                        ?: throw IllegalStateException("Cannot open file for writing")
+                }
+            }.isSuccess
+            _customTranslation.value = _customTranslation.value.copy(
+                templateSaved = saved,
+                failed = !saved,
+            )
+        }
+    }
     fun setPlayerStyle(style: PlayerStyle) = viewModelScope.launch { repository.setPlayerStyle(style) }
     fun setBackgroundMode(mode: AppBackgroundMode) = viewModelScope.launch { repository.setBackgroundMode(mode) }
     fun setPixelGlowEnabled(value: Boolean) = viewModelScope.launch { repository.setPixelGlowEnabled(value) }
@@ -348,6 +408,14 @@ fun SettingsScreen(
     val haptic = rememberHapticTick()
     val haptics = rememberHaptics()
 
+    val translationTemplateLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/xml")
+    ) { uri -> uri?.let { viewModel.exportTranslationTemplate(it) } }
+
+    val translationFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { viewModel.installCustomTranslation(it) } }
+
     LaunchedEffect(updateCheckState) {
         when (val state = updateCheckState) {
             UpdateCheckUiState.UpToDate -> {
@@ -395,7 +463,11 @@ fun SettingsScreen(
 
             SettingsSectionCard(title = stringResource(R.string.settings_language)) {
                 val languages = LanguageOption.entries
-                val langLabelResIds = listOf(R.string.settings_language_en, R.string.settings_language_ru)
+                val langLabelResIds = listOf(
+                    R.string.settings_language_en,
+                    R.string.settings_language_ru,
+                    R.string.settings_language_custom,
+                )
                 ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     languages.forEachIndexed { index, lang ->
                         val shapes = when (index) {
@@ -419,6 +491,139 @@ fun SettingsScreen(
                         ) {
                             Text(stringResource(langLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
                         }
+                    }
+                }
+
+                if (settings.language == LanguageOption.CUSTOM) {
+                    val custom by viewModel.customTranslation.collectAsState()
+
+                    LaunchedEffect(custom.pendingRestart) {
+                        if (custom.pendingRestart) {
+                            viewModel.consumeCustomTranslationRestart()
+                            activity?.recreate()
+                        }
+                    }
+
+                    SettingsDivider()
+
+                    Text(
+                        stringResource(R.string.custom_language_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                haptic()
+                                translationTemplateLauncher.launch("strings_template.xml")
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Folder,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Text(
+                            stringResource(R.string.custom_language_template),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                haptic()
+                                translationFileLauncher.launch(arrayOf("text/xml", "application/xml", "*/*"))
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Translate,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(
+                                    if (custom.present) R.string.custom_language_replace
+                                    else R.string.custom_language_pick
+                                ),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            val status = when {
+                                custom.failed -> stringResource(R.string.custom_language_failed)
+                                custom.templateSaved && !custom.present ->
+                                    stringResource(R.string.custom_language_template_saved)
+                                custom.stats != null -> stringResource(
+                                    R.string.custom_language_stats,
+                                    custom.stats!!.applied,
+                                    custom.stats!!.total,
+                                )
+                                custom.present -> stringResource(R.string.custom_language_loaded)
+                                else -> stringResource(R.string.custom_language_none)
+                            }
+                            Text(
+                                status,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            custom.stats?.takeIf { it.unknown > 0 }?.let { stats ->
+                                Text(
+                                    stringResource(R.string.custom_language_unknown, stats.unknown),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        stringResource(R.string.custom_language_missing_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+
+                    if (custom.present) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic()
+                                    viewModel.clearCustomTranslation()
+                                    activity?.recreate()
+                                }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(Modifier.width(14.dp))
+                            Text(
+                                stringResource(R.string.custom_language_clear),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.height(12.dp))
                     }
                 }
             }
