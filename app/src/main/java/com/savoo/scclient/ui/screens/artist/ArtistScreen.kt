@@ -88,6 +88,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.compose.ui.text.style.TextOverflow
 
 data class ArtistUiState(
     val user: User? = null,
@@ -254,7 +255,7 @@ fun ArtistScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.user?.fullName?.ifBlank { null } ?: state.user?.username ?: "") },
+                title = { Text(state.user?.fullName?.ifBlank { null } ?: state.user?.username ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))

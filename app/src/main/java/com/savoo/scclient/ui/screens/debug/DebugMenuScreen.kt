@@ -88,6 +88,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import androidx.compose.ui.text.style.TextOverflow
 
 @HiltViewModel
 class DebugMenuViewModel @Inject constructor(
@@ -269,7 +270,7 @@ fun DebugMenuScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.debug_menu_title)) },
+                title = { Text(stringResource(R.string.debug_menu_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))

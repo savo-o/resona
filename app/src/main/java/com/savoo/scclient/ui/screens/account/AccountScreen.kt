@@ -84,6 +84,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.compose.ui.text.style.TextOverflow
 
 data class AccountUiState(
     val isLoggedIn: Boolean = false,
@@ -170,7 +171,7 @@ fun AccountScreen(
     val context = LocalContext.current
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.account_title)) }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.account_title), maxLines = 1, overflow = TextOverflow.Ellipsis) }) },
         snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {

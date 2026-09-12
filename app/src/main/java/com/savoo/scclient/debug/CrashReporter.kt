@@ -3,6 +3,7 @@ package com.savoo.scclient.debug
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Process
+import android.os.SystemClock
 import android.util.Log
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -12,15 +13,29 @@ import kotlin.system.exitProcess
 object CrashReporter {
     private const val PREFS_NAME = "crash_reports"
     private const val KEY_REPORT = "pending_report"
+    private const val KEY_LAUNCH_CRASH_STREAK = "launch_crash_streak"
+    const val EARLY_CRASH_WINDOW_MS = 15_000L
 
     private lateinit var prefs: SharedPreferences
 
+    private fun prefsOf(context: Context): SharedPreferences =
+        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
     fun install(context: Context) {
-        prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs = prefsOf(context)
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
-                prefs.edit().putString(KEY_REPORT, buildReport(throwable)).commit()
+                val uptime = SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime()
+                val streak = if (uptime < EARLY_CRASH_WINDOW_MS) {
+                    prefs.getInt(KEY_LAUNCH_CRASH_STREAK, 0) + 1
+                } else {
+                    0
+                }
+                prefs.edit()
+                    .putString(KEY_REPORT, buildReport(throwable))
+                    .putInt(KEY_LAUNCH_CRASH_STREAK, streak)
+                    .commit()
             }
             if (previousHandler != null) {
                 previousHandler.uncaughtException(thread, throwable)
@@ -40,6 +55,13 @@ object CrashReporter {
             appendLine("Recent trace:")
             trace.takeLast(50).forEach { appendLine(it) }
         }
+    }
+
+    fun launchCrashStreak(context: Context): Int =
+        runCatching { prefsOf(context).getInt(KEY_LAUNCH_CRASH_STREAK, 0) }.getOrDefault(0)
+
+    fun resetLaunchCrashStreak(context: Context) {
+        runCatching { prefsOf(context).edit().remove(KEY_LAUNCH_CRASH_STREAK).apply() }
     }
 
     fun consumePendingReport(): String? {

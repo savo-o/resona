@@ -81,6 +81,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.compose.ui.text.style.TextOverflow
 
 private const val TRACK_RESOLVE_CONCURRENCY = 8
 
@@ -256,7 +257,7 @@ fun PlaylistScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.playlist?.title ?: "") },
+                title = { Text(state.playlist?.title ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))

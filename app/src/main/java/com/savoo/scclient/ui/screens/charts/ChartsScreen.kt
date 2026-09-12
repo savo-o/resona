@@ -72,9 +72,11 @@ fun ChartsScreen(
         TopAppBar(
             title = {
                 Column {
-                    Text(stringResource(R.string.charts_title))
+                    Text(stringResource(R.string.charts_title), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         stringResource(R.string.charts_subtitle),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

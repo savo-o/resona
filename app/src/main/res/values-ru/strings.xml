@@ -621,4 +621,15 @@
     <string name="custom_language_template_saved">Шаблон сохранён</string>
     <string name="custom_language_catalog">Каталог переводов</string>
     <string name="custom_language_catalog_desc">Готовые переводы от сообщества</string>
+    <string name="custom_language_safe_mode">Приложение падало из-за вашего перевода, поэтому он отключён. Загрузите исправленный файл в настройках.</string>
+    <string name="custom_language_disabled_too_large">Файл вашего перевода больше 3 МБ, поэтому он отключён. Загрузите файл поменьше в настройках.</string>
+    <string name="custom_language_checking">Проверяем файл…</string>
+    <string name="custom_language_too_large">Файл больше 3 МБ. Обычный перевод весит около 50 КБ.</string>
+    <string name="custom_language_warning_title">Проблемы в файле перевода</string>
+    <string name="custom_language_warning_size">Размер файла: %s</string>
+    <string name="custom_language_warning_long">Строк, которые намного длиннее оригинала: %d. Они могут сломать интерфейс и замедлить приложение.</string>
+    <string name="custom_language_warning_placeholders">Строк с ошибками в подстановках вроде %%s или %%d: %d. Вместо них будет показан оригинальный текст.</string>
+    <string name="custom_language_warning_hint">Можно пропустить эти строки и оставить остальные или загрузить файл как есть.</string>
+    <string name="custom_language_warning_skip">Пропустить проблемные строки</string>
+    <string name="custom_language_warning_anyway">Загрузить как есть</string>
 </resources>

@@ -621,4 +621,15 @@
     <string name="custom_language_template_saved">Template saved</string>
     <string name="custom_language_catalog">Translation catalog</string>
     <string name="custom_language_catalog_desc">Ready-made translations from the community</string>
+    <string name="custom_language_safe_mode">The app kept crashing with your custom translation, so it was turned off. Load a fixed file in Settings.</string>
+    <string name="custom_language_disabled_too_large">Your custom translation file is larger than 3 MB, so it was turned off. Load a smaller file in Settings.</string>
+    <string name="custom_language_checking">Checking the file…</string>
+    <string name="custom_language_too_large">The file is larger than 3 MB. A normal translation is about 50 KB.</string>
+    <string name="custom_language_warning_title">Problems in the translation file</string>
+    <string name="custom_language_warning_size">File size: %s</string>
+    <string name="custom_language_warning_long">Strings that are much longer than the original: %d. They can break the layout and slow the app down.</string>
+    <string name="custom_language_warning_placeholders">Strings with broken placeholders like %%s or %%d: %d. The original text will be shown instead.</string>
+    <string name="custom_language_warning_hint">You can skip these strings and keep the rest, or load the file as it is.</string>
+    <string name="custom_language_warning_skip">Skip problem strings</string>
+    <string name="custom_language_warning_anyway">Load as is</string>
 </resources>

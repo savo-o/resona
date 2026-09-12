@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.os.Bundle
 import android.webkit.WebView
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -23,6 +24,9 @@ import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.systemDefaultLanguage
+import com.savoo.scclient.debug.CrashReporter
+import com.savoo.scclient.i18n.CustomStrings
+import com.savoo.scclient.i18n.CustomStringsDisableReason
 import com.savoo.scclient.i18n.withCustomStrings
 import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.player.PlayerController
@@ -84,6 +88,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         applyOrientationLock()
+
+        when (CustomStrings.consumeDisableNotice(this)) {
+            CustomStringsDisableReason.CRASHES ->
+                Toast.makeText(this, R.string.custom_language_safe_mode, Toast.LENGTH_LONG).show()
+            CustomStringsDisableReason.TOO_LARGE ->
+                Toast.makeText(this, R.string.custom_language_disabled_too_large, Toast.LENGTH_LONG).show()
+            null -> Unit
+        }
+        window.decorView.postDelayed(
+            { CrashReporter.resetLaunchCrashStreak(this) },
+            CrashReporter.EARLY_CRASH_WINDOW_MS,
+        )
 
         apiWebView = WebView(this).apply {
             // Must be attached to a real window (not just held in a field) - Android throttles

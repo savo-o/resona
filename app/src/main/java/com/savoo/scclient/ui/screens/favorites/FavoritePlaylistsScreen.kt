@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.compose.ui.text.style.TextOverflow
 
 @HiltViewModel
 class FavoritePlaylistsViewModel @Inject constructor(
@@ -72,7 +73,7 @@ fun FavoritePlaylistsScreen(
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(stringResource(R.string.favorite_playlists_title)) },
+            title = { Text(stringResource(R.string.favorite_playlists_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))

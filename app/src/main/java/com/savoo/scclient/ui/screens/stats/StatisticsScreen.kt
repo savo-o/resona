@@ -150,7 +150,7 @@ fun StatisticsScreen(
     if (showRankingInfo) {
         AlertDialog(
             onDismissRequest = { showRankingInfo = false },
-            title = { Text(stringResource(R.string.statistics_top_artists_info_title)) },
+            title = { Text(stringResource(R.string.statistics_top_artists_info_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             text = { Text(stringResource(R.string.statistics_top_artists_info_body)) },
             confirmButton = {
                 TextButton(onClick = { showRankingInfo = false }) {
@@ -162,7 +162,7 @@ fun StatisticsScreen(
 
     Scaffold(topBar = {
         TopAppBar(
-            title = { Text(stringResource(R.string.statistics_title)) },
+            title = { Text(stringResource(R.string.statistics_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)

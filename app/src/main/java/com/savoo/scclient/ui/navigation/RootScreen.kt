@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -194,7 +195,7 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                         selected = currentRoute == screen.route,
                         onClick = { selectDestination(screen) },
                         icon = { Icon(icon, contentDescription = stringResource(label)) },
-                        label = { Text(stringResource(label)) },
+                        label = { Text(stringResource(label), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     )
                 }
             }

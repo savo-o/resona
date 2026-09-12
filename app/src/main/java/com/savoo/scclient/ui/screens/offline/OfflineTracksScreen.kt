@@ -75,6 +75,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.compose.ui.text.style.TextOverflow
 
 @UnstableApi
 @HiltViewModel
@@ -228,7 +229,7 @@ fun OfflineTracksScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.library_offline)) },
+                title = { Text(stringResource(R.string.library_offline), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -338,7 +339,7 @@ fun OfflineTracksScreen(
     if (showWatchedFolders) {
         AlertDialog(
             onDismissRequest = { showWatchedFolders = false },
-            title = { Text(stringResource(R.string.offline_watched_folders_title)) },
+            title = { Text(stringResource(R.string.offline_watched_folders_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             text = {
                 if (watchedFolders.isEmpty()) {
                     Text(stringResource(R.string.offline_watched_folders_empty))

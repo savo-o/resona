@@ -240,7 +240,7 @@ fun HistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.history_title)) },
+                title = { Text(stringResource(R.string.history_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -319,7 +319,7 @@ fun HistoryScreen(
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text(stringResource(R.string.history_clear)) },
+            title = { Text(stringResource(R.string.history_clear), maxLines = 1, overflow = TextOverflow.Ellipsis) },
             text = { Text(stringResource(R.string.history_clear_confirm)) },
             confirmButton = {
                 TextButton(onClick = { viewModel.clearAll(); showClearDialog = false }) {

@@ -42,7 +42,9 @@ import androidx.compose.material.icons.filled.Translate
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.savoo.scclient.i18n.CustomStrings
+import com.savoo.scclient.i18n.CustomStringsCheck
 import com.savoo.scclient.i18n.CustomStringsStats
+import com.savoo.scclient.i18n.CustomStringsTooLargeException
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -126,6 +128,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
+import androidx.compose.ui.text.style.TextOverflow
 
 sealed interface UpdateCheckUiState {
     data object Idle : UpdateCheckUiState
@@ -195,8 +198,11 @@ class SettingsViewModel @Inject constructor(
         val present: Boolean = false,
         val stats: CustomStringsStats? = null,
         val failed: Boolean = false,
+        val tooLarge: Boolean = false,
+        val checking: Boolean = false,
         val templateSaved: Boolean = false,
         val pendingRestart: Boolean = false,
+        val pendingCheck: CustomStringsCheck? = null,
     )
 
     private val _customTranslation = MutableStateFlow(
@@ -206,20 +212,45 @@ class SettingsViewModel @Inject constructor(
 
     fun installCustomTranslation(uri: Uri) {
         viewModelScope.launch {
-            val stream = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
-            if (stream == null) {
-                _customTranslation.value = _customTranslation.value.copy(failed = true)
-                return@launch
+            val current = _customTranslation.value
+            _customTranslation.value = current.copy(checking = true, failed = false, tooLarge = false)
+            val check = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
+                    ?.let { CustomStrings.inspect(context, it) }
             }
-            CustomStrings.install(context, stream)
-                .onSuccess { stats ->
-                    _customTranslation.value =
-                        CustomTranslationState(present = true, stats = stats, pendingRestart = true)
-                }
-                .onFailure {
-                    _customTranslation.value = _customTranslation.value.copy(failed = true)
-                }
+            val error = check?.exceptionOrNull()
+            when {
+                check == null || error is OutOfMemoryError -> _customTranslation.value =
+                    current.copy(failed = true)
+                error is CustomStringsTooLargeException -> _customTranslation.value =
+                    current.copy(tooLarge = true)
+                error != null -> _customTranslation.value = current.copy(failed = true)
+                check.getOrThrow().hasWarnings -> _customTranslation.value =
+                    current.copy(pendingCheck = check.getOrThrow())
+                else -> applyCustomTranslation(check.getOrThrow(), skipProblems = false)
+            }
         }
+    }
+
+    fun confirmCustomTranslation(skipProblems: Boolean) {
+        val check = _customTranslation.value.pendingCheck ?: return
+        _customTranslation.value = _customTranslation.value.copy(pendingCheck = null, checking = true)
+        viewModelScope.launch { applyCustomTranslation(check, skipProblems) }
+    }
+
+    fun cancelCustomTranslation() {
+        _customTranslation.value = _customTranslation.value.copy(pendingCheck = null, checking = false)
+    }
+
+    private suspend fun applyCustomTranslation(check: CustomStringsCheck, skipProblems: Boolean) {
+        withContext(Dispatchers.IO) { CustomStrings.install(context, check, skipProblems) }
+            .onSuccess { stats ->
+                _customTranslation.value =
+                    CustomTranslationState(present = true, stats = stats, pendingRestart = true)
+            }
+            .onFailure {
+                _customTranslation.value = _customTranslation.value.copy(failed = true, checking = false)
+            }
     }
 
     fun clearCustomTranslation() {
@@ -445,7 +476,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
+                title = { Text(stringResource(R.string.settings_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -505,6 +536,15 @@ fun SettingsScreen(
                             viewModel.consumeCustomTranslationRestart()
                             activity?.recreate()
                         }
+                    }
+
+                    custom.pendingCheck?.let { check ->
+                        CustomTranslationWarningDialog(
+                            check = check,
+                            onSkipProblems = { viewModel.confirmCustomTranslation(skipProblems = true) },
+                            onLoadAnyway = { viewModel.confirmCustomTranslation(skipProblems = false) },
+                            onCancel = { viewModel.cancelCustomTranslation() },
+                        )
                     }
 
                     SettingsDivider()
@@ -605,6 +645,8 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyLarge,
                             )
                             val status = when {
+                                custom.checking -> stringResource(R.string.custom_language_checking)
+                                custom.tooLarge -> stringResource(R.string.custom_language_too_large)
                                 custom.failed -> stringResource(R.string.custom_language_failed)
                                 custom.templateSaved && !custom.present ->
                                     stringResource(R.string.custom_language_template_saved)
