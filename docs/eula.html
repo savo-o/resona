@@ -204,6 +204,7 @@
         @media (max-width: 480px) {
             .nav-brand span { display: none; }
             main { padding: 108px 20px 72px; }
+            .nav-links a.nav-translations { display: none; }
         }
     </style>
 </head>
@@ -220,6 +221,9 @@
         </a>
         <a href="api.html" class="nav-item">
             <span class="t-en">API Docs</span><span class="t-ru">API</span>
+        </a>
+        <a href="https://savo-o.github.io/resona-status/translations/" target="_blank" class="nav-item nav-translations">
+            <span class="t-en">Translations</span><span class="t-ru">Переводы</span>
         </a>
         <div class="lang-switch">
             <button id="langEnBtn" onclick="setLang('en')">EN</button>

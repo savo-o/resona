@@ -38,14 +38,12 @@ You can also track updates automatically with [Obtainium](https://github.com/Imr
 
 ## Features
 
-- **Open source, no ads, no telemetry.** Nothing to strip out, the whole app is right here
+- **Open source, no ads, no telemetry.**
 - No account required, log in only if you want to sync your own likes
 - Offline downloads, plus a folder watcher that picks up local files automatically
 - Import tracks straight from Telegram chats
-- Home mix that keeps discovering new stuff from artists you already like
+- Mix that keeps discovering new stuff from artists you already like
 - Lyrics for pretty much anything, even niche tracks, with a few sources chained as fallback and synced timing where it's available
-- Crossfade, shuffle and repeat that actually behave
-- Favorites and playlists, with multi-select and swipe actions to manage them fast
 - Listening stats
 - Custom color themes and app icons, dynamic color that adapts to the track's artwork
 
