@@ -301,11 +301,37 @@ object CustomStrings {
         return conversions(custom) != expected
     }
 
-    private fun unescape(raw: String): String = raw
-        .replace("\\'", "'")
-        .replace("\\\"", "\"")
-        .replace("\\n", "\n")
-        .replace("\\t", "\t")
+    private fun unescape(raw: String): String {
+        if (!raw.contains('\\')) return raw
+        val out = StringBuilder(raw.length)
+        var i = 0
+        while (i < raw.length) {
+            val c = raw[i]
+            if (c != '\\' || i == raw.lastIndex) {
+                out.append(c)
+                i++
+                continue
+            }
+            when (val next = raw[i + 1]) {
+                'n' -> out.append('\n')
+                't' -> out.append('\t')
+                'u' -> {
+                    val code = raw.substring(i + 2, minOf(i + 6, raw.length))
+                        .takeIf { it.length == 4 }
+                        ?.toIntOrNull(16)
+                    if (code != null) {
+                        out.append(code.toChar())
+                        i += 6
+                        continue
+                    }
+                    out.append(next)
+                }
+                else -> out.append(next)
+            }
+            i += 2
+        }
+        return out.toString()
+    }
 }
 
 @Suppress("DEPRECATION")

@@ -632,4 +632,5 @@
     <string name="custom_language_warning_hint">You can skip these strings and keep the rest, or load the file as it is.</string>
     <string name="custom_language_warning_skip">Skip problem strings</string>
     <string name="custom_language_warning_anyway">Load as is</string>
+    <string name="custom_language_official_note">It is safer to download translations from the catalog on the official site. Files from other places can be broken or too large.</string>
 </resources>

@@ -107,6 +107,10 @@ android {
     }
 }
 
+tasks.named("preBuild") {
+    dependsOn(copyStringsTemplate)
+}
+
 dependencies {
     implementation(libs.core.ktx)
     implementation(libs.lifecycle.runtime.ktx)

@@ -632,4 +632,5 @@
     <string name="custom_language_warning_hint">Можно пропустить эти строки и оставить остальные или загрузить файл как есть.</string>
     <string name="custom_language_warning_skip">Пропустить проблемные строки</string>
     <string name="custom_language_warning_anyway">Загрузить как есть</string>
+    <string name="custom_language_official_note">Переводы надёжнее скачивать из каталога на официальном сайте. Файлы из других мест могут оказаться битыми или слишком большими.</string>
 </resources>
