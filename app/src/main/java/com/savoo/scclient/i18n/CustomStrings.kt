@@ -298,7 +298,8 @@ object CustomStrings {
         val expected = conversions(original)
         if (expected.isEmpty()) return false
         if (FORMAT_SPEC.replace(custom, "").contains('%')) return true
-        return conversions(custom) != expected
+        val remaining = expected.toMutableList()
+        return conversions(custom).any { !remaining.remove(it) }
     }
 
     private fun unescape(raw: String): String {
