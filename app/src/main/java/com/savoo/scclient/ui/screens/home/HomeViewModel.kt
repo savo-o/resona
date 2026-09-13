@@ -1,5 +1,7 @@
 package com.savoo.scclient.ui.screens.home
 
+import com.savoo.scclient.data.local.FavoriteTrackFilter
+import com.savoo.scclient.data.model.toTrack
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.savoo.scclient.auth.TokenStore
@@ -33,6 +35,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -42,16 +45,6 @@ import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.random.Random
 import javax.inject.Inject
-
-private fun FavoriteTrack.toTrack() = Track(
-    id = trackId,
-    title = title,
-    durationMs = durationMs,
-    artworkUrl = artworkUrl,
-    user = User(id = userId, username = username, avatarUrl = userAvatarUrl),
-    permalinkUrl = permalinkUrl,
-    genre = genre,
-)
 
 private fun OfflineTrack.toTrack() = Track(
     id = trackId,
@@ -66,7 +59,7 @@ private fun OfflineTrack.toTrack() = Track(
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     val playerController: PlayerController,
-    favoritesDao: FavoritesDao,
+    private val favoritesDao: FavoritesDao,
     offlineTrackManager: OfflineTrackManager,
     private val excludedArtistDao: ExcludedArtistDao,
     private val playHistoryDao: PlayHistoryDao,
@@ -92,8 +85,13 @@ class HomeViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val favoriteTracks = favoritesDao.getAllTracks()
+    val favoriteTracks = favoritesDao.observeLatestTracks(HOME_FAVORITES_PREVIEW)
         .map { list -> list.map { it.toTrack() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val mixFavoritesPool = favoritesDao.observeTrackCount()
+        .debounce(MIX_POOL_DEBOUNCE_MS)
+        .mapLatest { withContext(Dispatchers.IO) { favoritesDao.getRandomTracks(MIX_FAVORITES_SAMPLE).map { it.toTrack() } } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoriteArtists: kotlinx.coroutines.flow.StateFlow<List<FavoriteArtist>> = favoritesDao.getAllArtists()
@@ -110,16 +108,18 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val mixSelectableArtists: kotlinx.coroutines.flow.StateFlow<List<FavoriteArtist>> =
-        combine(favoriteArtists, favoriteTracks, offlineTracks) { artists, favTracks, offTracks ->
+        combine(favoriteArtists, favoritesDao.observeTrackArtists(), offlineTracks) { artists, favTrackArtists, offTracks ->
             val byId = LinkedHashMap<Long, FavoriteArtist>()
             artists.forEach { byId[it.artistId] = it }
-            (favTracks + offTracks).forEach { track ->
-                if (track.user.id != 0L && track.user.id !in byId) {
-                    byId[track.user.id] = FavoriteArtist(
-                        artistId = track.user.id,
-                        username = track.user.username,
+            val trackArtists = favTrackArtists.map { Triple(it.userId, it.username, it.userAvatarUrl) } +
+                offTracks.map { Triple(it.user.id, it.user.username, it.user.avatarUrl) }
+            trackArtists.forEach { (userId, username, avatarUrl) ->
+                if (userId != 0L && userId !in byId) {
+                    byId[userId] = FavoriteArtist(
+                        artistId = userId,
+                        username = username,
                         fullName = null,
-                        avatarUrl = track.user.avatarUrl,
+                        avatarUrl = avatarUrl,
                         followersCount = null,
                         permalinkUrl = null,
                         addedAt = 0L,
@@ -187,7 +187,7 @@ class HomeViewModel @Inject constructor(
         // window and you get a tiny "mix" (sometimes just the one track that happened to be in
         // recentTracks) that then loops forever, which is what "sometimes just one track" was.
         viewModelScope.launch {
-            val mix4Flow = combine(favoriteTracks, offlineTracks, favoriteArtists, excludedArtists) { fav, off, artists, excluded -> Mix4(fav, off, artists, excluded) }
+            val mix4Flow = combine(mixFavoritesPool, offlineTracks, favoriteArtists, excludedArtists) { fav, off, artists, excluded -> Mix4(fav, off, artists, excluded) }
             combine(mix4Flow, preferredArtistIds, mixDiscoveryEnabled) { mix4, preferred, discovery -> Mix6(mix4, preferred, discovery) }
                 .debounce(400)
                 .collectLatest { (mix4, preferred, discovery) ->
@@ -231,7 +231,8 @@ class HomeViewModel @Inject constructor(
         // recently blurred that into "why is this random recent thing in my mix".
         val localPool = (favorites + offline).distinctBy { it.id }.filterNot { isExcluded(it) }
         val knownTrackIds = localPool.mapTo(HashSet()) { it.id }
-        val knownArtistIds = (artists.map { it.artistId } + favorites.map { it.user.id } + offline.map { it.user.id })
+        val favoriteArtistIds = runCatching { favoritesDao.getTrackArtistIds() }.getOrDefault(emptyList())
+        val knownArtistIds = (artists.map { it.artistId } + favoriteArtistIds + offline.map { it.user.id })
             .filter { it != 0L && it !in excludedArtistIds }
             .distinct()
         android.util.Log.d(TAG, "buildMix: favorites=${favorites.size} offline=${offline.size} favoriteArtists=${artists.size} knownArtistIds=${knownArtistIds.size} excluded=${excludedArtistIds.size} preferred=${preferredArtistIds.size} discovery=$discoveryEnabled")
@@ -263,8 +264,11 @@ class HomeViewModel @Inject constructor(
                         .getOrNull()
                         .orEmpty()
                     android.util.Log.d(TAG, "buildMix: artist=$artistId returned ${artistTracks.size} tracks")
+                    val alreadyFavorite = runCatching {
+                        favoritesDao.filterFavoriteTrackIds(artistTracks.map { it.id }).toSet()
+                    }.getOrDefault(emptySet())
                     artistTracks
-                        .filterNot { it.id in knownTrackIds }
+                        .filterNot { it.id in knownTrackIds || it.id in alreadyFavorite }
                         .shuffled()
                         .take(5)
                 }
@@ -342,6 +346,9 @@ class HomeViewModel @Inject constructor(
         private const val DISCOVERY_ARTIST_SAMPLE = 14
         private const val DISCOVERY_TRACK_CAP = 45
         private const val MAX_LOCAL_POOL_TRACKS = 40
+        private const val HOME_FAVORITES_PREVIEW = 10
+        private const val MIX_FAVORITES_SAMPLE = 400
+        private const val MIX_POOL_DEBOUNCE_MS = 1000L
 
         // Lets the hero Play button tell "the mix is the queue that's actually active" apart from
         // "the current track merely happens to also be somewhere in the mix's pool" - those aren't the
@@ -359,6 +366,11 @@ class HomeViewModel @Inject constructor(
         // time - felt like "the same mix" rather than a different session of the same pool. Shuffling
         // a copy here doesn't affect what the hero artwork is showing (that reads mixTracks directly).
         playerController.playQueue(tracks.shuffled(), repeatAll = true, tag = MIX_QUEUE_TAG, startExact = false)
+    }
+
+    fun playFavoritesFrom(track: Track) {
+        val index = favoriteTracks.value.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
+        playerController.playFavorites(FavoriteTrackFilter(), index, track, repeatAll = true)
     }
 
     fun playFrom(tracks: List<Track>, trackId: Long, tag: String? = null) {
@@ -395,7 +407,7 @@ class HomeViewModel @Inject constructor(
                     .onSuccess { favoritesRepository.syncOnlineLikes(it) }
             }
             _mixTracks.value = buildMix(
-                favoriteTracks.value,
+                mixFavoritesPool.value,
                 offlineTracks.value,
                 favoriteArtists.value,
                 excludedArtists.value,
@@ -409,7 +421,7 @@ class HomeViewModel @Inject constructor(
     fun applyMixPreferencesAndPlay() {
         viewModelScope.launch {
             val fresh = buildMix(
-                favoriteTracks.value,
+                mixFavoritesPool.value,
                 offlineTracks.value,
                 favoriteArtists.value,
                 excludedArtists.value,

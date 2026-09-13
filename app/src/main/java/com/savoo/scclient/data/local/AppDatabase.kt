@@ -10,6 +10,7 @@ import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.data.model.favoriteTextKey
 import com.savoo.scclient.data.model.LyricsCacheEntity
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.PlayEvent
@@ -18,7 +19,7 @@ import com.savoo.scclient.data.model.UnavailableTrackEntity
 
 @Database(
     entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class, LyricsCacheEntity::class, UnavailableTrackEntity::class],
-    version = 12,
+    version = 13,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
@@ -196,9 +197,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE favorites ADD COLUMN titleKey TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE favorites ADD COLUMN artistKey TEXT NOT NULL DEFAULT ''")
+                db.query("SELECT trackId, title, username FROM favorites").use { cursor ->
+                    val update = db.compileStatement("UPDATE favorites SET titleKey = ?, artistKey = ? WHERE trackId = ?")
+                    while (cursor.moveToNext()) {
+                        update.bindString(1, favoriteTextKey(cursor.getString(1).orEmpty()))
+                        update.bindString(2, favoriteTextKey(cursor.getString(2).orEmpty()))
+                        update.bindLong(3, cursor.getLong(0))
+                        update.executeUpdateDelete()
+                        update.clearBindings()
+                    }
+                }
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_favorites_addedAt` ON `favorites` (`addedAt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_favorites_titleKey` ON `favorites` (`titleKey`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_favorites_artistKey` ON `favorites` (`artistKey`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_favorites_durationMs` ON `favorites` (`durationMs`)")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .build()
     }
 }

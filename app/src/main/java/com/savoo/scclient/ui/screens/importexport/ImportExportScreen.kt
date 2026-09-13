@@ -339,12 +339,11 @@ class ImportExportViewModel @Inject constructor(
             _scState.value = ScImportState.Importing
             try {
                 if (replace) {
-                    favoritesDao.getAllTracksSync().forEach { favoritesDao.removeTrack(it.trackId) }
-                    favoritesDao.getAllPlaylistsSync().forEach { favoritesDao.removePlaylist(it.playlistId) }
+                    favoritesDao.removeAllTracks()
+                    favoritesDao.removeAllPlaylists()
                 }
-                // Local/offline favorites only - see import_sc_desc.
-                tracks.forEach { favoritesDao.addTrack(it) }
-                playlists.forEach { favoritesDao.addPlaylist(it) }
+                tracks.chunked(500).forEach { favoritesDao.addTracks(it) }
+                playlists.chunked(500).forEach { favoritesDao.addPlaylists(it) }
                 _message.value = context.getString(R.string.msg_sc_import_result, tracks.size)
                 _scState.value = ScImportState.Idle
             } catch (e: Exception) {

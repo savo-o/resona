@@ -212,7 +212,7 @@ fun HomeScreen(
                                         if (playerState.currentTrack?.id == track.id) {
                                             viewModel.playerController.togglePlayPause()
                                         } else {
-                                            viewModel.playFrom(favoriteTracks, track.id, tag = "favorites")
+                                            viewModel.playFavoritesFrom(track)
                                         }
                                     },
                                 )

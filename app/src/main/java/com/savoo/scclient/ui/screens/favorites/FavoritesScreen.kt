@@ -1,12 +1,12 @@
 package com.savoo.scclient.ui.screens.favorites
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -30,7 +31,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -41,7 +44,21 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.R
 import com.savoo.scclient.auth.TokenStore
+import androidx.paging.LoadState
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
+import androidx.paging.map
+import com.savoo.scclient.data.local.FavoriteTrackFilter
+import com.savoo.scclient.data.local.FavoriteTrackOrder
+import com.savoo.scclient.data.local.FavoriteTrackQueries
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.local.SQLITE_MAX_IDS_PER_QUERY
+import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.data.model.toTrack
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.model.restrictionReason
@@ -56,26 +73,58 @@ import com.savoo.scclient.ui.components.FavoriteSource
 import com.savoo.scclient.ui.components.TrackRow
 import com.savoo.scclient.ui.components.TrackSelectionBar
 import com.savoo.scclient.ui.components.TrackSort
+import com.savoo.scclient.ui.components.TrackSortOption
 import com.savoo.scclient.ui.components.TrackSortButton
 import com.savoo.scclient.ui.components.UndoAction
 import com.savoo.scclient.ui.components.UndoController
-import com.savoo.scclient.ui.components.applySortOption
 import com.savoo.scclient.ui.components.rememberTrackSelection
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
 import androidx.compose.ui.text.style.TextOverflow
 
+private const val FAVORITES_PAGE_SIZE = 60
+private const val SEARCH_DEBOUNCE_MS = 250L
+
+data class FavoriteRow(
+    val track: Track,
+    val source: FavoriteSource,
+)
+
+private fun FavoriteTrack.toRow() = FavoriteRow(
+    track = toTrack(),
+    source = runCatching { FavoriteSource.valueOf(source) }.getOrDefault(FavoriteSource.LOCAL),
+)
+
+private fun TrackSort.toFilter(search: String) = FavoriteTrackFilter(
+    search = search,
+    order = when (option) {
+        TrackSortOption.DEFAULT -> FavoriteTrackOrder.ADDED
+        TrackSortOption.TITLE -> FavoriteTrackOrder.TITLE
+        TrackSortOption.ARTIST -> FavoriteTrackOrder.ARTIST
+        TrackSortOption.DURATION -> FavoriteTrackOrder.DURATION
+    },
+    descending = descending,
+)
+
 @UnstableApi
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
@@ -89,24 +138,31 @@ class FavoritesViewModel @Inject constructor(
     private val undoController: UndoController,
 ) : ViewModel() {
 
-    // Online likes are reconciled into this same Room table (see FavoritesRepository), so this
-    // single query already includes local, online, and both-sourced favorites, sorted naturally.
-    val tracks = favoritesDao.getAllTracks().map { list ->
-        list.map { fav ->
-            Track(
-                id = fav.trackId,
-                title = fav.title,
-                durationMs = fav.durationMs,
-                artworkUrl = fav.artworkUrl,
-                user = User(id = fav.userId, username = fav.username, avatarUrl = fav.userAvatarUrl),
-                permalinkUrl = fav.permalinkUrl,
-            )
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
 
-    val trackSources = favoritesDao.getAllTracks().map { list ->
-        list.associate { it.trackId to FavoriteSource.valueOf(it.source) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    private val _sort = MutableStateFlow(TrackSort())
+    val sort = _sort.asStateFlow()
+
+    private val filter = combine(
+        _searchQuery.debounce { if (it.isEmpty()) 0L else SEARCH_DEBOUNCE_MS },
+        _sort,
+    ) { query, sort -> sort.toFilter(query) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FavoriteTrackFilter())
+
+    val tracks: Flow<PagingData<FavoriteRow>> = filter
+        .flatMapLatest { current ->
+            Pager(PagingConfig(pageSize = FAVORITES_PAGE_SIZE, prefetchDistance = FAVORITES_PAGE_SIZE, enablePlaceholders = false)) {
+                favoritesDao.pagingSource(FavoriteTrackQueries.page(current))
+            }.flow
+        }
+        .map { paging -> paging.map { it.toRow() } }
+        .cachedIn(viewModelScope)
+
+    val totalCount = favoritesDao.observeTrackCount()
+        .map<Int, Int?> { it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -131,6 +187,14 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun setSort(sort: TrackSort) {
+        _sort.value = sort
+    }
+
     fun refreshOnline() {
         if (!tokenStore.isLoggedIn.value || !onlineFavoritesEnabled.value) return
         viewModelScope.launch {
@@ -148,16 +212,16 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
-    fun playTrack(track: Track, queue: List<Track> = tracks.value) {
-        val idx = queue.indexOfFirst { it.id == track.id }
-        playerController.playQueue(queue, idx.coerceAtLeast(0), tag = "favorites")
+    fun playTrack(track: Track, index: Int) {
+        playerController.playFavorites(filter.value, index, track)
     }
 
-    /** Every row shown here is already favorited (locally, online, or both) - tapping the heart
-     * always means "remove", from whichever source(s) it's currently in. */
+    suspend fun filteredTrackIds(): List<Long> = withContext(Dispatchers.IO) {
+        favoritesDao.queryTrackIds(FavoriteTrackQueries.ids(filter.value))
+    }
+
     fun toggleFavorite(trackId: Long) {
-        val removed = tracks.value.filter { it.id == trackId }
-        viewModelScope.launch { removeWithUndo(removed) }
+        viewModelScope.launch { removeWithUndo(setOf(trackId)) }
     }
 
     private suspend fun removeFavorite(trackId: Long) {
@@ -168,19 +232,40 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
-    private suspend fun removeWithUndo(removed: List<Track>) {
+    private suspend fun loadRows(ids: Collection<Long>): List<FavoriteTrack> = withContext(Dispatchers.IO) {
+        ids.chunked(SQLITE_MAX_IDS_PER_QUERY).flatMap { favoritesDao.getTracksByIds(it) }
+    }
+
+    private suspend fun loadSelectedInOrder(ids: Set<Long>): List<Track> {
+        val ordered = filteredTrackIds().filter { it in ids }
+        val byId = loadRows(ordered).associateBy { it.trackId }
+        return ordered.mapNotNull { byId[it]?.toTrack() }
+    }
+
+    private suspend fun removeWithUndo(ids: Set<Long>) {
+        val removed = loadRows(ids)
         if (removed.isEmpty()) return
+        val online = onlineFavoritesEnabled.value && tokenStore.isLoggedIn.value
         val repository = favoritesRepository
-        val previous = removed.associate { it.id to repository.getTrackFavorite(it.id) }
-        removed.forEach { removeFavorite(it.id) }
+        if (online) {
+            removed.forEach { removeFavorite(it.trackId) }
+        } else {
+            withContext(Dispatchers.IO) {
+                removed.map { it.trackId }.chunked(SQLITE_MAX_IDS_PER_QUERY).forEach { favoritesDao.removeTracks(it) }
+            }
+        }
         undoController.show(
             UndoAction(
                 messageRes = if (removed.size == 1) R.string.favorite_removed else R.string.favorites_removed_count,
                 messageArgs = if (removed.size == 1) emptyList() else listOf(removed.size),
                 icon = Icons.Filled.FavoriteBorder,
                 onUndo = {
-                    removed.forEach { track ->
-                        previous[track.id]?.let { repository.restoreTrackFavorite(track, it) }
+                    if (online) {
+                        removed.forEach { repository.restoreTrackFavorite(it.toTrack(), it) }
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            removed.chunked(SQLITE_MAX_IDS_PER_QUERY).forEach { favoritesDao.addTracks(it) }
+                        }
                     }
                 },
             )
@@ -201,19 +286,24 @@ class FavoritesViewModel @Inject constructor(
         }
     }
 
+    fun queueSelected(ids: Set<Long>) {
+        viewModelScope.launch {
+            playerController.addToQueue(loadSelectedInOrder(ids))
+        }
+    }
+
     fun removeSelectedFromFavorites(ids: Set<Long>) {
-        val removed = tracks.value.filter { it.id in ids }
-        viewModelScope.launch { removeWithUndo(removed) }
+        viewModelScope.launch { removeWithUndo(ids) }
     }
 
     fun toggleDownloadForSelected(ids: Set<Long>) {
         viewModelScope.launch {
             val currentlyOffline = offlineTrackIds.value
             val allOffline = ids.isNotEmpty() && ids.all { it in currentlyOffline }
-            val selectedTracks = tracks.value.filter { it.id in ids }
             if (allOffline) {
                 ids.forEach { offlineTrackManager.removeFromOffline(it) }
             } else {
+                val selectedTracks = loadSelectedInOrder(ids)
                 offlineTrackManager.enqueueDownloads(selectedTracks.filter { it.id !in currentlyOffline })
             }
         }
@@ -227,8 +317,8 @@ fun FavoritesScreen(
     viewModel: FavoritesViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
 ) {
-    val tracks by viewModel.tracks.collectAsState()
-    val trackSources by viewModel.trackSources.collectAsState()
+    val lazyTracks = viewModel.tracks.collectAsLazyPagingItems()
+    val totalCount by viewModel.totalCount.collectAsState()
     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState()
     val offlineTrackIds by viewModel.offlineTrackIds.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
@@ -236,26 +326,20 @@ fun FavoritesScreen(
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     val message by viewModel.message.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val sort by viewModel.sort.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var searchQuery by remember { mutableStateOf("") }
-    var sort by remember { mutableStateOf(TrackSort()) }
     val listState = rememberLazyListState()
     LaunchedEffect(sort) { listState.animateScrollToItem(0) }
     val selection = rememberTrackSelection()
     val haptic = rememberHapticTick()
+    val scope = rememberCoroutineScope()
+    val hasFavorites = (totalCount ?: 0) > 0
 
     LaunchedEffect(Unit) { viewModel.refreshOnline() }
 
-    fun favoriteSourceOf(trackId: Long): FavoriteSource? {
-        if (!onlineFavoritesEnabled) return null
-        return trackSources[trackId] ?: FavoriteSource.LOCAL
-    }
-
-    val filteredTracks = (if (searchQuery.isBlank()) tracks
-        else tracks.filter {
-            it.title.contains(searchQuery, ignoreCase = true) ||
-            it.user.username.contains(searchQuery, ignoreCase = true)
-        }).applySortOption(sort)
+    fun favoriteSourceOf(row: FavoriteRow): FavoriteSource? =
+        if (onlineFavoritesEnabled) row.source else null
 
     message?.let { msg ->
         LaunchedEffect(msg) {
@@ -274,8 +358,8 @@ fun FavoritesScreen(
                     }
                 },
                 actions = {
-                    if (tracks.isNotEmpty()) {
-                        TrackSortButton(sort = sort, onSortChange = { sort = it })
+                    if (hasFavorites) {
+                        TrackSortButton(sort = sort, onSortChange = { viewModel.setSort(it) })
                     }
                 }
             )
@@ -285,10 +369,10 @@ fun FavoritesScreen(
                 selectedCount = selection.count,
                 onClear = { selection.clear() },
                 onQueueAll = {
-                    viewModel.playerController.addToQueue(filteredTracks.filter { it.id in selection.selectedIds })
+                    viewModel.queueSelected(selection.selectedIds)
                     selection.clear()
                 },
-                onSelectAll = { selection.selectAll(filteredTracks.map { it.id }) },
+                onSelectAll = { scope.launch { selection.selectAll(viewModel.filteredTrackIds()) } },
                 onFavoriteAll = {
                     viewModel.removeSelectedFromFavorites(selection.selectedIds)
                     selection.clear()
@@ -307,10 +391,10 @@ fun FavoritesScreen(
             modifier = Modifier.padding(padding),
         ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (tracks.isNotEmpty()) {
+            if (hasFavorites) {
                 SearchBarDefaults.InputField(
                     query = searchQuery,
-                    onQueryChange = { searchQuery = it },
+                    onQueryChange = { viewModel.setSearchQuery(it) },
                     onSearch = {},
                     expanded = false,
                     onExpandedChange = {},
@@ -318,7 +402,7 @@ fun FavoritesScreen(
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
+                            IconButton(onClick = { viewModel.setSearchQuery("") }) {
                                 Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.search_clear))
                             }
                         }
@@ -329,32 +413,45 @@ fun FavoritesScreen(
                 )
             }
 
-            if (filteredTracks.isEmpty()) {
-                EmptyState(
-                    icon = if (tracks.isEmpty()) Icons.Filled.FavoriteBorder else Icons.Filled.Search,
-                    text = if (tracks.isEmpty()) stringResource(R.string.favorites_empty)
-                        else stringResource(R.string.search_nothing_found),
+            val refreshing = lazyTracks.loadState.refresh is LoadState.Loading
+            when {
+                totalCount == null || (hasFavorites && lazyTracks.itemCount == 0 && refreshing) -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        LoadingIndicator()
+                    }
+                }
+                !hasFavorites -> EmptyState(
+                    icon = Icons.Filled.FavoriteBorder,
+                    text = stringResource(R.string.favorites_empty),
                 )
-            } else {
-                LazyColumn(
+                lazyTracks.itemCount == 0 -> EmptyState(
+                    icon = Icons.Filled.Search,
+                    text = stringResource(R.string.search_nothing_found),
+                )
+                else -> LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    items(filteredTracks, key = { it.id }) { track ->
+                    items(
+                        count = lazyTracks.itemCount,
+                        key = lazyTracks.itemKey { it.track.id },
+                    ) { index ->
+                        val row = lazyTracks[index] ?: return@items
+                        val track = row.track
                         val isCurrentTrack = playerState.currentTrack?.id == track.id
                         TrackRow(
                             track = track,
-                            onClick = { viewModel.playTrack(track, filteredTracks) },
+                            onClick = { viewModel.playTrack(track, index) },
                             isLoading = playerState.loadingTrackId == track.id,
                             isFavorite = true,
                             isPlaying = playerState.isPlaying && isCurrentTrack,
                             onToggleFavorite = { viewModel.toggleFavorite(track.id) },
                             onTogglePlayPause = {
                                 if (isCurrentTrack) viewModel.playerController.togglePlayPause()
-                                else viewModel.playTrack(track, filteredTracks)
+                                else viewModel.playTrack(track, index)
                             },
-                            favoriteSource = favoriteSourceOf(track.id),
+                            favoriteSource = favoriteSourceOf(row),
                             isDownloaded = track.id in offlineTrackIds,
                             isDownloading = track.id in downloadingIds,
                             onToggleDownload = { viewModel.toggleDownload(track) },

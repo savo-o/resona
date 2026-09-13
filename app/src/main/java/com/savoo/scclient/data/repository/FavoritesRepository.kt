@@ -1,5 +1,6 @@
 package com.savoo.scclient.data.repository
 
+import com.savoo.scclient.data.local.SQLITE_MAX_IDS_PER_QUERY
 import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
@@ -89,17 +90,19 @@ class FavoritesRepository @Inject constructor(
     suspend fun syncOnlineLikes(onlineTracks: List<Track>) {
         DebugLog.log(TAG, "syncOnlineLikes: reconciling ${onlineTracks.size} online likes")
         val onlineIds = onlineTracks.map { it.id }.toSet()
-        val existing = favoritesDao.getAllTracksSync().associateBy { it.trackId }
+        val existingSources = onlineIds.chunked(SQLITE_MAX_IDS_PER_QUERY)
+            .flatMap { favoritesDao.getTracksByIds(it) }
+            .associate { it.trackId to it.source }
 
         for (track in onlineTracks) {
-            val row = existing[track.id]
+            val source = existingSources[track.id]
             when {
-                row == null -> favoritesDao.addTrack(track.toFavoriteTrack(source = SOURCE_ONLINE))
-                row.source == SOURCE_LOCAL -> favoritesDao.updateTrackSource(track.id, SOURCE_BOTH)
+                source == null -> favoritesDao.addTrack(track.toFavoriteTrack(source = SOURCE_ONLINE))
+                source == SOURCE_LOCAL -> favoritesDao.updateTrackSource(track.id, SOURCE_BOTH)
             }
         }
 
-        for (row in existing.values) {
+        for (row in favoritesDao.getNonLocalTrackSources()) {
             if (row.trackId !in onlineIds) {
                 when (row.source) {
                     SOURCE_ONLINE -> favoritesDao.removeTrack(row.trackId)

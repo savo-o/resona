@@ -8,20 +8,20 @@ import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
 import android.provider.OpenableColumns
 import android.util.JsonReader
+import android.util.JsonWriter
 import android.util.JsonToken
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
+import java.io.File
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.io.InputStreamReader
+import java.io.OutputStream
+import java.io.OutputStreamWriter
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,79 +40,91 @@ class FavoritesExporter @Inject constructor(
     private val favoritesDao: FavoritesDao,
     @ApplicationContext private val context: Context,
 ) {
-    suspend fun exportToJson(): String = withContext(Dispatchers.IO) {
-        val tracks = favoritesDao.getAllTracksSync()
-        val artists = favoritesDao.getAllArtistsSync()
-        val playlists = favoritesDao.getAllPlaylistsSync()
-
-        val root = JSONObject()
-        root.put("version", 1)
-        root.put("exportedAt", java.time.Instant.now().toString())
-
-        root.put("tracks", JSONArray().apply {
-            tracks.forEach { t ->
-                put(JSONObject().apply {
-                    put("trackId", t.trackId)
-                    put("title", t.title)
-                    put("username", t.username)
-                    put("artworkUrl", t.artworkUrl ?: JSONObject.NULL)
-                    put("durationMs", t.durationMs)
-                    put("permalinkUrl", t.permalinkUrl ?: JSONObject.NULL)
-                    put("userId", t.userId)
-                    put("userAvatarUrl", t.userAvatarUrl ?: JSONObject.NULL)
-                    put("addedAt", t.addedAt)
-                })
+    suspend fun exportToFile(uri: Uri, protectExistingBackup: Boolean = false): Result<Unit> = withContext(Dispatchers.IO) {
+        val temp = File.createTempFile("favorites_export", ".json", context.cacheDir)
+        try {
+            if (protectExistingBackup && isFavoritesEmpty() && destinationHasFavorites(uri)) {
+                throw EmptyFavoritesBackupException()
             }
-        })
-
-        root.put("artists", JSONArray().apply {
-            artists.forEach { a ->
-                put(JSONObject().apply {
-                    put("artistId", a.artistId)
-                    put("username", a.username)
-                    put("fullName", a.fullName ?: JSONObject.NULL)
-                    put("avatarUrl", a.avatarUrl ?: JSONObject.NULL)
-                    put("followersCount", a.followersCount ?: JSONObject.NULL)
-                    put("permalinkUrl", a.permalinkUrl ?: JSONObject.NULL)
-                    put("addedAt", a.addedAt)
-                })
-            }
-        })
-
-        root.put("playlists", JSONArray().apply {
-            playlists.forEach { p ->
-                put(JSONObject().apply {
-                    put("playlistId", p.playlistId)
-                    put("title", p.title)
-                    put("artworkUrl", p.artworkUrl ?: JSONObject.NULL)
-                    put("trackCount", p.trackCount)
-                    put("username", p.username)
-                    put("permalinkUrl", p.permalinkUrl ?: JSONObject.NULL)
-                    put("addedAt", p.addedAt)
-                })
-            }
-        })
-
-        root.toString(2)
-    }
-
-    suspend fun exportToFile(uri: Uri, protectExistingBackup: Boolean = false): Result<Unit> = runCatching {
-        if (protectExistingBackup && isFavoritesEmpty() && destinationHasFavorites(uri)) {
-            throw EmptyFavoritesBackupException()
-        }
-        val json = exportToJson()
-        withContext(Dispatchers.IO) {
-            context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
-                out.bufferedWriter().use { it.write(json) }
-            } ?: throw IllegalStateException("Cannot open file for writing")
+            temp.outputStream().buffered().use { writeExport(it) }
+            val output = context.contentResolver.openOutputStream(uri, "wt")
+                ?: throw IllegalStateException("Cannot open file for writing")
+            output.use { out -> temp.inputStream().use { it.copyTo(out) } }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        } catch (e: OutOfMemoryError) {
+            Result.failure(IllegalStateException("Not enough memory to export favorites"))
+        } finally {
+            temp.delete()
         }
     }
 
-    private suspend fun isFavoritesEmpty(): Boolean = withContext(Dispatchers.IO) {
-        favoritesDao.getAllTracksSync().isEmpty() &&
-            favoritesDao.getAllArtistsSync().isEmpty() &&
-            favoritesDao.getAllPlaylistsSync().isEmpty()
+    private suspend fun writeExport(output: OutputStream) {
+        JsonWriter(OutputStreamWriter(output, Charsets.UTF_8)).use { writer ->
+            writer.setIndent("  ")
+            writer.beginObject()
+            writer.name("version").value(1)
+            writer.name("exportedAt").value(java.time.Instant.now().toString())
+
+            writer.name("tracks").beginArray()
+            var offset = 0
+            while (true) {
+                val page = favoritesDao.getTracksPage(EXPORT_PAGE_SIZE, offset)
+                page.forEach { t ->
+                    writer.beginObject()
+                    writer.name("trackId").value(t.trackId)
+                    writer.name("title").value(t.title)
+                    writer.name("username").value(t.username)
+                    writer.name("artworkUrl").value(t.artworkUrl)
+                    writer.name("durationMs").value(t.durationMs)
+                    writer.name("permalinkUrl").value(t.permalinkUrl)
+                    writer.name("userId").value(t.userId)
+                    writer.name("userAvatarUrl").value(t.userAvatarUrl)
+                    writer.name("addedAt").value(t.addedAt)
+                    writer.endObject()
+                }
+                if (page.size < EXPORT_PAGE_SIZE) break
+                offset += page.size
+            }
+            writer.endArray()
+
+            writer.name("artists").beginArray()
+            favoritesDao.getAllArtistsSync().forEach { a ->
+                writer.beginObject()
+                writer.name("artistId").value(a.artistId)
+                writer.name("username").value(a.username)
+                writer.name("fullName").value(a.fullName)
+                writer.name("avatarUrl").value(a.avatarUrl)
+                writer.name("followersCount").value(a.followersCount)
+                writer.name("permalinkUrl").value(a.permalinkUrl)
+                writer.name("addedAt").value(a.addedAt)
+                writer.endObject()
+            }
+            writer.endArray()
+
+            writer.name("playlists").beginArray()
+            favoritesDao.getAllPlaylistsSync().forEach { p ->
+                writer.beginObject()
+                writer.name("playlistId").value(p.playlistId)
+                writer.name("title").value(p.title)
+                writer.name("artworkUrl").value(p.artworkUrl)
+                writer.name("trackCount").value(p.trackCount.toLong())
+                writer.name("username").value(p.username)
+                writer.name("permalinkUrl").value(p.permalinkUrl)
+                writer.name("addedAt").value(p.addedAt)
+                writer.endObject()
+            }
+            writer.endArray()
+
+            writer.endObject()
+        }
     }
+
+    private suspend fun isFavoritesEmpty(): Boolean =
+        favoritesDao.trackCount() == 0 && favoritesDao.artistCount() == 0 && favoritesDao.playlistCount() == 0
 
     private suspend fun destinationHasFavorites(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -305,6 +317,7 @@ class FavoritesExporter @Inject constructor(
 }
 
 private val FAVORITE_ARRAYS = setOf("tracks", "artists", "playlists")
+private const val EXPORT_PAGE_SIZE = 500
 private const val IMPORT_BATCH_SIZE = 500
 private const val MAX_IMPORT_TEXT_CHARS = 300
 private const val MAX_IMPORT_URL_CHARS = 2048

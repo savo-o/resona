@@ -19,6 +19,10 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.google.common.util.concurrent.MoreExecutors
 import com.savoo.scclient.R
+import com.savoo.scclient.data.local.FavoriteTrackFilter
+import com.savoo.scclient.data.local.FavoriteTrackOrder
+import com.savoo.scclient.data.local.FavoriteTrackQueries
+import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.local.UnavailableTrackDao
 import com.savoo.scclient.data.model.PlayEvent
@@ -26,6 +30,7 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.UnavailableReason
 import com.savoo.scclient.data.model.UnavailableTrackEntity
 import com.savoo.scclient.data.model.restrictionReason
+import com.savoo.scclient.data.model.toTrack
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.repository.DefaultCrossfadeSeconds
@@ -103,6 +108,7 @@ class PlayerController @Inject constructor(
     private val playHistoryDao: PlayHistoryDao,
     private val settingsRepository: SettingsRepository,
     private val unavailableTrackDao: UnavailableTrackDao,
+    private val favoritesDao: FavoritesDao,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -134,6 +140,8 @@ class PlayerController @Inject constructor(
     private var queueIndex = -1
     private var currentQueueTag: String? = null
     private var playRequestId = 0L
+    private var favoritesContinuation: FavoritesContinuation? = null
+    private var extendingQueue = false
     // Snapshot of queue's order right before shuffling, so toggling shuffle off can restore it. Empty when shuffle is off.
     // Shuffling is handled entirely at this level (queue itself is reordered) rather than via ExoPlayer's native
     // shuffleModeEnabled - replaceMediaItem() turned out to internally remove+reinsert the period, which mutates
@@ -175,6 +183,11 @@ class PlayerController @Inject constructor(
         private const val SCRUB_THROTTLE_MS = 140L
         private const val UNAVAILABLE_MARK_TTL_MS = 7L * 24 * 60 * 60 * 1000
         private const val FADE_STEP_MS = 60L
+        private const val FULL_FAVORITES_QUEUE_LIMIT = 5000
+        private const val FAVORITES_QUEUE_CHUNK = 2000
+        private const val FAVORITES_QUEUE_BEFORE = 250
+        private const val QUEUE_EXTEND_THRESHOLD = 50
+        private const val KEY_FAVORITES_CONTINUATION = "favorites_continuation"
 
         // Placeholder items point at a real, always-loadable local silent file rather than an invalid URI (which used
         // to make ExoPlayer choke while probing it during buffering/look-ahead). Every placeholder gets a distinct
@@ -346,6 +359,7 @@ class PlayerController @Inject constructor(
         override fun onRepeatModeChanged(repeatMode: Int) {
             _state.update { it.copy(repeatMode = repeatMode) }
             updateQueueState()
+            maybeExtendQueue()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -357,6 +371,7 @@ class PlayerController @Inject constructor(
                 if (idx >= 0) {
                     queueIndex = idx
                     updateQueueState()
+                    maybeExtendQueue()
                 }
 
                 // replaceMediaItem() (used to swap a resolved "pending" placeholder for the real URL) fires this same
@@ -776,6 +791,7 @@ class PlayerController @Inject constructor(
             return
         }
         currentQueueTag = null
+        favoritesContinuation = null
         _state.update { it.copy(loadingTrackId = track.id) }
         val idx = queue.indexOfFirst { it.track.id == track.id }
         val idxForThisTrack = if (idx >= 0) idx else {
@@ -819,6 +835,7 @@ class PlayerController @Inject constructor(
         }
         val clampedStart = tracks.indexOfFirst { it.id == requested.id }.coerceAtLeast(0).coerceAtMost(tracks.lastIndex)
         currentQueueTag = tag
+        favoritesContinuation = null
 
         // Session-only, not persisted to prefs (unlike cycleRepeatMode()) - a queue that wants to loop
         // (e.g. the Home mix, which should feel near-endless) shouldn't silently change the user's
@@ -851,6 +868,96 @@ class PlayerController @Inject constructor(
         _state.update { it.copy(loadingTrackId = queue[queueIndex].track.id) }
         updateQueueState()
         doPlay(queue[queueIndex].track, queueIndex, ++playRequestId)
+    }
+
+    fun playFavorites(filter: FavoriteTrackFilter, index: Int, track: Track, repeatAll: Boolean = false) {
+        scope.launch {
+            val loaded = runCatching {
+                withContext(Dispatchers.IO) {
+                    val total = favoritesDao.queryCount(FavoriteTrackQueries.count(filter))
+                    if (total <= FULL_FAVORITES_QUEUE_LIMIT) {
+                        Triple(favoritesDao.queryTracks(FavoriteTrackQueries.window(filter, 0, total)), 0, false)
+                    } else {
+                        val start = (index - FAVORITES_QUEUE_BEFORE).coerceAtLeast(0)
+                        Triple(favoritesDao.queryTracks(FavoriteTrackQueries.window(filter, start, FAVORITES_QUEUE_CHUNK)), start, true)
+                    }
+                }
+            }.getOrNull()
+            val tracks = loaded?.first?.map { it.toTrack() }.orEmpty()
+            val startIndex = tracks.indexOfFirst { it.id == track.id }
+            if (loaded == null || startIndex < 0) {
+                playQueue(listOf(track), 0, repeatAll = repeatAll, tag = FAVORITES_QUEUE_TAG)
+                return@launch
+            }
+            playQueue(tracks, startIndex, repeatAll = repeatAll, tag = FAVORITES_QUEUE_TAG)
+            if (loaded.third && queue.getOrNull(queueIndex)?.track?.id == track.id) {
+                favoritesContinuation = FavoritesContinuation(
+                    filter = filter,
+                    windowStart = loaded.second,
+                    nextOffset = loaded.second + loaded.first.size,
+                )
+                maybeExtendQueue()
+            }
+        }
+    }
+
+    private fun maybeExtendQueue() {
+        val continuation = favoritesContinuation ?: return
+        if (extendingQueue || queueIndex !in queue.indices) return
+        if (queue.size - queueIndex > QUEUE_EXTEND_THRESHOLD) return
+        if (continuation.wrapping && controller?.repeatMode != Player.REPEAT_MODE_ALL) return
+        extendingQueue = true
+        scope.launch {
+            try {
+                val limit = if (continuation.wrapping) {
+                    minOf(FAVORITES_QUEUE_CHUNK, continuation.windowStart - continuation.nextOffset)
+                } else {
+                    FAVORITES_QUEUE_CHUNK
+                }
+                val rows = if (limit <= 0) emptyList() else runCatching {
+                    withContext(Dispatchers.IO) {
+                        favoritesDao.queryTracks(FavoriteTrackQueries.window(continuation.filter, continuation.nextOffset, limit))
+                    }
+                }.getOrElse {
+                    DebugLog.log(TAG, "maybeExtendQueue: load failed: $it")
+                    return@launch
+                }
+                if (favoritesContinuation !== continuation) return@launch
+
+                val nextOffset = continuation.nextOffset + rows.size
+                favoritesContinuation = when {
+                    continuation.wrapping && (rows.size < limit || nextOffset >= continuation.windowStart) -> null
+                    continuation.wrapping -> continuation.copy(nextOffset = nextOffset)
+                    rows.size < limit && continuation.windowStart == 0 -> null
+                    rows.size < limit -> continuation.copy(nextOffset = 0, wrapping = true)
+                    else -> continuation.copy(nextOffset = nextOffset)
+                }
+                appendToQueue(rows.map { it.toTrack() })
+                DebugLog.log(TAG, "maybeExtendQueue: appended ${rows.size} favorites, queue=${queue.size}, next=$favoritesContinuation")
+            } finally {
+                extendingQueue = false
+            }
+            if (favoritesContinuation != null) maybeExtendQueue()
+        }
+    }
+
+    private fun appendToQueue(sourceTracks: List<Track>) {
+        if (queue.isEmpty()) return
+        val known = queue.mapTo(HashSet()) { it.track.id }
+        val tracks = sourceTracks.filter { knownReason(it) == null && it.id !in known }
+        if (tracks.isEmpty()) return
+        val entries = wrapAll(tracks)
+        val insertIndex = queue.size
+        if (originalOrder.isNotEmpty()) {
+            originalOrder.addAll(entries)
+            val shuffled = entries.shuffled()
+            queue.addAll(shuffled)
+            controller?.addMediaItems(insertIndex, shuffled.map { buildPendingMediaItem(it.track) })
+        } else {
+            queue.addAll(entries)
+            controller?.addMediaItems(insertIndex, entries.map { buildPendingMediaItem(it.track) })
+        }
+        updateQueueState()
     }
 
     fun skipToNext() {
@@ -903,6 +1010,7 @@ class PlayerController @Inject constructor(
             originalOrder.clear()
             queueIndex = -1
             currentQueueTag = null
+            favoritesContinuation = null
             controller?.stop()
             controller?.clearMediaItems()
             flushListenSegment()
@@ -965,6 +1073,7 @@ class PlayerController @Inject constructor(
         if (queue.isEmpty()) {
             queueIndex = -1
             currentQueueTag = null
+            favoritesContinuation = null
             controller?.stop()
             controller?.clearMediaItems()
             flushListenSegment()
@@ -1210,6 +1319,12 @@ class PlayerController @Inject constructor(
             queue.forEach { queueJson.put(trackToJson(it.track)) }
             putString("queue", queueJson.toString())
             putInt("queue_index", queueIndex)
+            val continuation = favoritesContinuation
+            if (continuation == null) {
+                remove(KEY_FAVORITES_CONTINUATION)
+            } else {
+                putString(KEY_FAVORITES_CONTINUATION, continuation.toJson().toString())
+            }
             apply()
         }
     }
@@ -1249,6 +1364,8 @@ class PlayerController @Inject constructor(
                 }
                 queueIndex = queueIdx.coerceIn(0, queue.lastIndex.coerceAtLeast(0))
             }
+            favoritesContinuation = prefs.getString(KEY_FAVORITES_CONTINUATION, null)
+                ?.let { runCatching { FavoritesContinuation.fromJson(JSONObject(it)) }.getOrNull() }
             if (queue.getOrNull(queueIndex)?.track?.id != track.id) {
                 queueIndex = queue.indexOfFirst { it.track.id == track.id }
                 if (queueIndex < 0) {
@@ -1284,6 +1401,7 @@ class PlayerController @Inject constructor(
                     }
                     updateQueueState()
                     preloadAdjacent()
+                    maybeExtendQueue()
                 }
                 if (needsCaching) {
                     trackCache.cacheAudioFile(fullTrack, url)
@@ -1358,5 +1476,36 @@ class PlayerController @Inject constructor(
                 seedColorUrl = null
             }
         }
+    }
+}
+
+const val FAVORITES_QUEUE_TAG = "favorites"
+
+private data class FavoritesContinuation(
+    val filter: FavoriteTrackFilter,
+    val windowStart: Int,
+    val nextOffset: Int,
+    val wrapping: Boolean = false,
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("search", filter.search)
+        put("order", filter.order.name)
+        put("descending", filter.descending)
+        put("windowStart", windowStart)
+        put("nextOffset", nextOffset)
+        put("wrapping", wrapping)
+    }
+
+    companion object {
+        fun fromJson(json: JSONObject) = FavoritesContinuation(
+            filter = FavoriteTrackFilter(
+                search = json.optString("search"),
+                order = FavoriteTrackOrder.valueOf(json.getString("order")),
+                descending = json.optBoolean("descending"),
+            ),
+            windowStart = json.getInt("windowStart"),
+            nextOffset = json.getInt("nextOffset"),
+            wrapping = json.optBoolean("wrapping"),
+        )
     }
 }

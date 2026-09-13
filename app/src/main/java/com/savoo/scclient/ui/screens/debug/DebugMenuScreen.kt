@@ -174,9 +174,9 @@ class DebugMenuViewModel @Inject constructor(
     fun refreshCounts() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                _favoriteTracks.value = favoritesDao.getAllTracksSync().size
-                _favoriteArtists.value = favoritesDao.getAllArtistsSync().size
-                _favoritePlaylists.value = favoritesDao.getAllPlaylistsSync().size
+                _favoriteTracks.value = favoritesDao.trackCount()
+                _favoriteArtists.value = favoritesDao.artistCount()
+                _favoritePlaylists.value = favoritesDao.playlistCount()
                 _offlineTracks.value = offlineTrackManager.getTrackCount()
             }
         }
