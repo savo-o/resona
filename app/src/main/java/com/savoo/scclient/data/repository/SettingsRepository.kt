@@ -122,6 +122,7 @@ data class AppSettings(
     val autoExportUri: String? = null,
     val autoExportInterval: AutoExportInterval = AutoExportInterval.DAILY,
     val autoExportLastRunAt: Long = 0L,
+    val autoExportAccessLost: Boolean = false,
 )
 
 @Singleton
@@ -166,6 +167,7 @@ class SettingsRepository @Inject constructor(
         val AUTO_EXPORT_URI = stringPreferencesKey("auto_export_uri")
         val AUTO_EXPORT_INTERVAL = stringPreferencesKey("auto_export_interval")
         val AUTO_EXPORT_LAST_RUN_AT = longPreferencesKey("auto_export_last_run_at")
+        val AUTO_EXPORT_ACCESS_LOST = booleanPreferencesKey("auto_export_access_lost")
     }
 
     private fun hasPreExistingSettings(prefs: androidx.datastore.preferences.core.Preferences): Boolean =
@@ -242,6 +244,7 @@ class SettingsRepository @Inject constructor(
                 runCatching { AutoExportInterval.valueOf(it) }.getOrNull()
             } ?: AutoExportInterval.DAILY,
             autoExportLastRunAt = prefs[Keys.AUTO_EXPORT_LAST_RUN_AT] ?: 0L,
+            autoExportAccessLost = prefs[Keys.AUTO_EXPORT_ACCESS_LOST] ?: false,
         )
     }
 
@@ -388,6 +391,15 @@ class SettingsRepository @Inject constructor(
     suspend fun setAutoExportUri(uri: String?) {
         context.dataStore.edit {
             if (uri == null) it.remove(Keys.AUTO_EXPORT_URI) else it[Keys.AUTO_EXPORT_URI] = uri
+            it.remove(Keys.AUTO_EXPORT_ACCESS_LOST)
+        }
+    }
+
+    suspend fun markAutoExportAccessLost() {
+        context.dataStore.edit {
+            it.remove(Keys.AUTO_EXPORT_URI)
+            it[Keys.AUTO_EXPORT_ENABLED] = false
+            it[Keys.AUTO_EXPORT_ACCESS_LOST] = true
         }
     }
 

@@ -8,6 +8,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.savoo.scclient.data.repository.EmptyFavoritesBackupException
 import com.savoo.scclient.data.repository.FavoritesExporter
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.debug.DebugLog
@@ -36,7 +37,7 @@ class FavoritesAutoExportWorker @AssistedInject constructor(
         if (!settings.autoExportEnabled) return Result.success()
         val uri = settings.autoExportUri?.let(Uri::parse) ?: return Result.success()
 
-        return exporter.exportToFile(uri).fold(
+        return exporter.exportToFile(uri, protectExistingBackup = true).fold(
             onSuccess = {
                 DebugLog.log(TAG, "worker export OK -> $uri")
                 settingsRepository.setAutoExportLastRunAt(System.currentTimeMillis())
@@ -44,6 +45,7 @@ class FavoritesAutoExportWorker @AssistedInject constructor(
             },
             onFailure = {
                 DebugLog.log(TAG, "worker export failed (attempt ${runAttemptCount + 1}): $it")
+                if (it is EmptyFavoritesBackupException) return@fold Result.success()
                 if (runAttemptCount + 1 < MAX_ATTEMPTS) Result.retry() else Result.failure()
             },
         )
@@ -58,8 +60,14 @@ class AutoExportManager @Inject constructor(
 ) {
 
     suspend fun syncSchedule() {
-        val settings = settingsRepository.settings.first()
         val workManager = WorkManager.getInstance(context)
+        var settings = settingsRepository.settings.first()
+        val uri = settings.autoExportUri?.let(Uri::parse)
+        if (uri != null && !hasWriteAccess(uri)) {
+            settingsRepository.markAutoExportAccessLost()
+            DebugLog.log(TAG, "no write access to $uri, auto export turned off")
+            settings = settingsRepository.settings.first()
+        }
         if (!settings.autoExportEnabled || settings.autoExportUri == null) {
             workManager.cancelUniqueWork(WORK_NAME)
             DebugLog.log(TAG, "schedule cancelled")
@@ -81,7 +89,7 @@ class AutoExportManager @Inject constructor(
         val uri = settings.autoExportUri?.let(Uri::parse) ?: return
         val dueAt = settings.autoExportLastRunAt + TimeUnit.HOURS.toMillis(settings.autoExportInterval.hours)
         if (System.currentTimeMillis() < dueAt) return
-        exporter.exportToFile(uri)
+        exporter.exportToFile(uri, protectExistingBackup = true)
             .onSuccess {
                 DebugLog.log(TAG, "catch-up export OK -> $uri")
                 settingsRepository.setAutoExportLastRunAt(System.currentTimeMillis())
@@ -93,8 +101,11 @@ class AutoExportManager @Inject constructor(
         val settings = settingsRepository.settings.first()
         val uri = settings.autoExportUri?.let(Uri::parse)
             ?: return Result.failure(IllegalStateException("No auto export destination"))
-        return exporter.exportToFile(uri).onSuccess {
+        return exporter.exportToFile(uri, protectExistingBackup = true).onSuccess {
             settingsRepository.setAutoExportLastRunAt(System.currentTimeMillis())
         }
     }
+
+    private fun hasWriteAccess(uri: Uri): Boolean =
+        context.contentResolver.persistedUriPermissions.any { it.uri == uri && it.isWritePermission }
 }

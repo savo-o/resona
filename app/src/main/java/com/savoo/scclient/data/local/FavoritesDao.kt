@@ -20,6 +20,9 @@ interface FavoritesDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addTrack(track: FavoriteTrack)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addTracks(tracks: List<FavoriteTrack>)
+
     @Query("DELETE FROM favorites WHERE trackId = :trackId")
     suspend fun removeTrack(trackId: Long)
 
@@ -41,6 +44,9 @@ interface FavoritesDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addArtist(artist: FavoriteArtist)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addArtists(artists: List<FavoriteArtist>)
+
     @Query("DELETE FROM favorite_artists WHERE artistId = :artistId")
     suspend fun removeArtist(artistId: Long)
 
@@ -55,6 +61,9 @@ interface FavoritesDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addPlaylist(playlist: FavoritePlaylist)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addPlaylists(playlists: List<FavoritePlaylist>)
 
     @Query("DELETE FROM favorite_playlists WHERE playlistId = :playlistId")
     suspend fun removePlaylist(playlistId: Long)

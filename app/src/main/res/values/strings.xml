@@ -633,4 +633,10 @@
     <string name="custom_language_warning_skip">Skip problem strings</string>
     <string name="custom_language_warning_anyway">Load as is</string>
     <string name="custom_language_official_note">It is safer to download translations from the catalog on the official site. Files from other places can be broken or too large.</string>
+    <string name="msg_import_skipped">Skipped damaged entries: %d</string>
+    <string name="msg_auto_export_backup_kept">Your favorites are empty, so the saved copy was not overwritten</string>
+    <string name="auto_export_access_lost">The app lost access to the file. Choose the file again to keep saving a copy</string>
+    <string name="favorites_import_progress">Importing favorites: %d</string>
+    <string name="favorites_import_cancel">Cancel import</string>
+    <string name="favorites_import_already_running">Import is already running</string>
 </resources>

@@ -39,7 +39,15 @@ private fun recoverSecurePrefs(
     fileName: String,
     cause: Exception,
 ): SharedPreferences {
-    DebugLog.log(TAG, "$fileName is unreadable (${cause::class.simpleName}), resetting it")
+    DebugLog.log(TAG, "$fileName is unreadable (${cause::class.simpleName}), resetting the file")
+    context.deleteSharedPreferences(fileName)
+    try {
+        return buildSecurePrefs(context, fileName)
+    } catch (e: GeneralSecurityException) {
+        DebugLog.log(TAG, "$fileName still fails after reset (${e::class.simpleName}), dropping the master key")
+    } catch (e: IOException) {
+        DebugLog.log(TAG, "$fileName still fails after reset (${e::class.simpleName}), dropping the master key")
+    }
     context.deleteSharedPreferences(fileName)
     runCatching {
         KeyStore.getInstance(ANDROID_KEYSTORE)

@@ -169,6 +169,8 @@ import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.components.TrackSkippedBanner
 import com.savoo.scclient.ui.components.AppDivider
 import com.savoo.scclient.ui.components.BulkDownloadBanner
+import com.savoo.scclient.ui.components.FavoritesImportBanner
+import com.savoo.scclient.data.repository.FavoritesImportState
 import com.savoo.scclient.ui.components.ConfirmOfflineRemoval
 import com.savoo.scclient.ui.components.UndoAction
 import com.savoo.scclient.ui.components.UndoBanner
@@ -199,6 +201,7 @@ fun PlayerSheet(
     var skippedTrack by remember { mutableStateOf<com.savoo.scclient.player.SkippedTrack?>(null) }
     val undoAction by viewModel.undoController.current.collectAsState()
     val bulkDownload by viewModel.bulkDownload.collectAsState()
+    val favoritesImport by viewModel.favoritesImport.collectAsState()
 
     BackHandler(enabled = showFullPlayer) { showFullPlayer = false }
 
@@ -243,6 +246,19 @@ fun PlayerSheet(
                 BulkDownloadBanner(
                     progress = progress,
                     onCancel = { haptics.click(); viewModel.cancelBulkDownloads() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+        var lastFavoritesImport by remember { mutableStateOf<FavoritesImportState?>(null) }
+        favoritesImport?.let { lastFavoritesImport = it }
+        AnimatedVisibility(visible = favoritesImport != null, enter = bannerEnter, exit = bannerExit) {
+            lastFavoritesImport?.let { importState ->
+                FavoritesImportBanner(
+                    state = importState,
+                    onCancel = { haptics.click(); viewModel.cancelFavoritesImport() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),

@@ -81,9 +81,11 @@ import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.remote.ScProfile
 import com.savoo.scclient.data.remote.SoundCloudImportRepository
+import com.savoo.scclient.data.repository.EmptyFavoritesBackupException
 import com.savoo.scclient.data.repository.AppSettings
 import com.savoo.scclient.data.repository.AutoExportInterval
 import com.savoo.scclient.data.repository.FavoritesExporter
+import com.savoo.scclient.data.repository.FavoritesImportManager
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TelegramImportRepository
 import com.savoo.scclient.work.AutoExportManager
@@ -116,6 +118,7 @@ private fun displayFileName(uri: String): String =
 @HiltViewModel
 class ImportExportViewModel @Inject constructor(
     private val exporter: FavoritesExporter,
+    private val favoritesImportManager: FavoritesImportManager,
     private val scImportRepo: SoundCloudImportRepository,
     private val favoritesDao: FavoritesDao,
     private val telegramClient: TelegramClient,
@@ -261,17 +264,19 @@ class ImportExportViewModel @Inject constructor(
         viewModelScope.launch {
             autoExportManager.exportNow()
                 .onSuccess { _message.value = context.getString(R.string.msg_export_success) }
-                .onFailure { _message.value = context.getString(R.string.msg_export_failed, it.message ?: "") }
+                .onFailure {
+                    _message.value = if (it is EmptyFavoritesBackupException) {
+                        context.getString(R.string.msg_auto_export_backup_kept)
+                    } else {
+                        context.getString(R.string.msg_export_failed, it.message ?: "")
+                    }
+                }
         }
     }
 
     fun importFromFile(uri: Uri) {
-        viewModelScope.launch {
-            exporter.importFromFile(uri).onSuccess { result ->
-                _message.value = context.getString(R.string.msg_import_result, result.tracks, result.artists, result.playlists)
-            }.onFailure {
-                _message.value = context.getString(R.string.msg_import_failed, it.message ?: "")
-            }
+        if (!favoritesImportManager.start(uri)) {
+            _message.value = context.getString(R.string.favorites_import_already_running)
         }
     }
 
@@ -550,9 +555,16 @@ fun ImportExportScreen(
                         )
                         Text(
                             settings.autoExportUri?.let { displayFileName(it) }
-                                ?: stringResource(R.string.auto_export_no_file),
+                                ?: stringResource(
+                                    if (settings.autoExportAccessLost) R.string.auto_export_access_lost
+                                    else R.string.auto_export_no_file
+                                ),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (settings.autoExportUri == null && settings.autoExportAccessLost) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
                     }
                 }

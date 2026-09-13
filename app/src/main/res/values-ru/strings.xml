@@ -633,4 +633,10 @@
     <string name="custom_language_warning_skip">Пропустить проблемные строки</string>
     <string name="custom_language_warning_anyway">Загрузить как есть</string>
     <string name="custom_language_official_note">Переводы надёжнее скачивать из каталога на официальном сайте. Файлы из других мест могут оказаться битыми или слишком большими.</string>
+    <string name="msg_import_skipped">Пропущено повреждённых записей: %d</string>
+    <string name="msg_auto_export_backup_kept">Избранное пустое, поэтому сохранённая копия не перезаписана</string>
+    <string name="auto_export_access_lost">Приложение потеряло доступ к файлу. Выберите файл заново, чтобы копия снова сохранялась</string>
+    <string name="favorites_import_progress">Импорт избранного: %d</string>
+    <string name="favorites_import_cancel">Отменить импорт</string>
+    <string name="favorites_import_already_running">Импорт уже идёт</string>
 </resources>

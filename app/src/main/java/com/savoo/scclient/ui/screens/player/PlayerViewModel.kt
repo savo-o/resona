@@ -1,5 +1,6 @@
 package com.savoo.scclient.ui.screens.player
 
+import com.savoo.scclient.data.repository.FavoritesImportManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
@@ -42,6 +43,7 @@ class PlayerViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val excludedArtistDao: ExcludedArtistDao,
     val undoController: UndoController,
+    private val favoritesImportManager: FavoritesImportManager,
 ) : ViewModel() {
 
     val isFavorite = controller.state.map { it.currentTrack?.id ?: 0L }
@@ -141,6 +143,10 @@ class PlayerViewModel @Inject constructor(
     val bulkDownload = offlineTrackManager.bulkDownload
 
     fun cancelBulkDownloads() = offlineTrackManager.cancelBulkDownloads()
+
+    val favoritesImport = favoritesImportManager.state
+
+    fun cancelFavoritesImport() = favoritesImportManager.cancel()
 
     fun saveForOffline() {
         val track = controller.state.value.currentTrack ?: return
