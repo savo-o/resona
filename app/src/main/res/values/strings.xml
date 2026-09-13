@@ -231,7 +231,10 @@
     <!-- Artist / Playlist -->
     <string name="play_all">Play All</string>
     <string name="artist_tracks">Tracks</string>
-    <string name="artist_followers">%d followers</string>
+    <plurals name="followers_count">
+        <item quantity="one">%d follower</item>
+        <item quantity="other">%d followers</item>
+    </plurals>
     <string name="artist_tracks_count">%d tracks</string>
     <string name="artist_at_username">@%s</string>
     <string name="artist_id">ID: %d</string>
@@ -504,7 +507,7 @@
     <string name="badge_supporter">Supporter Badge</string>
     <string name="badge_supporter_desc">This user is a supporter of Resona.</string>
     <string name="badge_unknown">Unknown badge.</string>
-    <string name="badge_received">%1$s received the %2$s badge.</string>
+    <string name="badge_received">%1$s received the %2$s.</string>
 
     <!-- Common -->
     <string name="back">Back</string>
@@ -639,4 +642,5 @@
     <string name="favorites_import_progress">Importing favorites: %d</string>
     <string name="favorites_import_cancel">Cancel import</string>
     <string name="favorites_import_already_running">Import is already running</string>
+    <string name="badge_how_to_get">How to get it</string>
 </resources>

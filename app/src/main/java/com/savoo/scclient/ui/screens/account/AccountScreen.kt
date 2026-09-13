@@ -1,5 +1,7 @@
 package com.savoo.scclient.ui.screens.account
 
+import com.savoo.scclient.ui.components.badgeTitle
+import com.savoo.scclient.ui.components.followersCountText
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -275,7 +277,7 @@ private fun LoggedInContent(
                         "supporter" -> Icons.Filled.Star
                         else -> Icons.Filled.Verified
                     },
-                    contentDescription = badge,
+                    contentDescription = badgeTitle(badge),
                     tint = when (badge) {
                         "developer" -> MaterialTheme.colorScheme.tertiary
                         "supporter" -> MaterialTheme.colorScheme.secondary
@@ -309,7 +311,7 @@ private fun LoggedInContent(
 
         user?.followersCount?.let {
             Text(
-                text = "$it followers",
+                text = followersCountText(it),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)

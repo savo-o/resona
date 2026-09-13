@@ -84,7 +84,7 @@ fun ArtistRow(
                 )
                 user.followersCount?.let {
                     Text(
-                        text = stringResource(R.string.artist_followers, it),
+                        text = followersCountText(it),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

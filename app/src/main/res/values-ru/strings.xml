@@ -231,7 +231,12 @@
     <!-- Artist / Playlist -->
     <string name="play_all">Воспроизвести все</string>
     <string name="artist_tracks">Треки</string>
-    <string name="artist_followers">%d подписчиков</string>
+    <plurals name="followers_count">
+        <item quantity="one">%d подписчик</item>
+        <item quantity="few">%d подписчика</item>
+        <item quantity="many">%d подписчиков</item>
+        <item quantity="other">%d подписчика</item>
+    </plurals>
     <string name="artist_tracks_count">%d треков</string>
     <string name="artist_at_username">@%s</string>
     <string name="artist_id">ID: %d</string>
@@ -500,11 +505,11 @@
 
     <!-- Badges -->
     <string name="badge_developer">Значок разработчика</string>
-    <string name="badge_developer_desc">Этот пользователь - разработчик Resona.</string>
+    <string name="badge_developer_desc">Этот пользователь разрабатывает Resona.</string>
     <string name="badge_supporter">Значок сторонника</string>
     <string name="badge_supporter_desc">Этот пользователь поддерживает Resona.</string>
     <string name="badge_unknown">Неизвестный значок.</string>
-    <string name="badge_received">%1$s получил значок %2$s.</string>
+    <string name="badge_received">%2$s есть у пользователя %1$s.</string>
 
     <!-- Common -->
     <string name="back">Назад</string>
@@ -639,4 +644,5 @@
     <string name="favorites_import_progress">Импорт избранного: %d</string>
     <string name="favorites_import_cancel">Отменить импорт</string>
     <string name="favorites_import_already_running">Импорт уже идёт</string>
+    <string name="badge_how_to_get">Как получить</string>
 </resources>

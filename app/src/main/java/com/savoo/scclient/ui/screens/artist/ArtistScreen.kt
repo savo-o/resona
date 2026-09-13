@@ -1,5 +1,7 @@
 package com.savoo.scclient.ui.screens.artist
 
+import com.savoo.scclient.ui.components.badgeTitle
+import com.savoo.scclient.ui.components.followersCountText
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -437,7 +439,7 @@ private fun ArtistHeader(
                         "supporter" -> Icons.Filled.Star
                         else -> Icons.Filled.Star
                     },
-                    contentDescription = badge,
+                    contentDescription = badgeTitle(badge),
                     tint = when (badge) {
                         "developer" -> MaterialTheme.colorScheme.tertiary
                         "supporter" -> MaterialTheme.colorScheme.secondary
@@ -467,7 +469,7 @@ private fun ArtistHeader(
 
         user.followersCount?.let {
             Text(
-                text = stringResource(R.string.artist_followers, it),
+                text = followersCountText(it),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp)

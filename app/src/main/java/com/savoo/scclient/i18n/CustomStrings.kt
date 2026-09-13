@@ -3,6 +3,7 @@ package com.savoo.scclient.i18n
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.res.Resources
+import android.icu.text.PluralRules
 import android.util.Xml
 import com.savoo.scclient.debug.CrashReporter
 import com.savoo.scclient.debug.DebugLog
@@ -20,6 +21,8 @@ private const val CUSTOM_LANGUAGE = "CUSTOM"
 private const val DISABLED_FILE_NAME = "custom_strings.disabled.xml"
 private const val SAFE_MODE_NOTICE_KEY = "custom_strings_safe_mode_notice"
 private const val SAFE_MODE_CRASH_STREAK = 2
+private val PLURAL_QUANTITIES = setOf("zero", "one", "two", "few", "many", "other")
+private val PLURAL_SAMPLE_COUNTS = listOf(0, 1, 2, 5, 21, 1000)
 
 data class CustomStringsStats(val applied: Int, val unknown: Int, val total: Int)
 
@@ -41,8 +44,9 @@ class CustomStringsCheck internal constructor(
 class CustomTranslation(
     val strings: Map<Int, String>,
     val arrays: Map<Int, Array<String>>,
+    val plurals: Map<Int, Map<String, String>> = emptyMap(),
 ) {
-    val isEmpty: Boolean get() = strings.isEmpty() && arrays.isEmpty()
+    val isEmpty: Boolean get() = strings.isEmpty() && arrays.isEmpty() && plurals.isEmpty()
 
     companion object {
         val EMPTY = CustomTranslation(emptyMap(), emptyMap())
@@ -54,6 +58,7 @@ private sealed interface RawEntry {
 
     data class Str(override val name: String, val raw: String) : RawEntry
     data class Arr(override val name: String, val items: List<String>) : RawEntry
+    data class Plural(override val name: String, val items: Map<String, String>) : RawEntry
 }
 
 object CustomStrings {
@@ -102,7 +107,7 @@ object CustomStrings {
             }
             when {
                 isTooLong(context, id, entry) -> longStrings++
-                entry is RawEntry.Str && hasBrokenPlaceholders(context.resources.getString(id), unescape(entry.raw)) -> broken++
+                hasBrokenPlaceholders(context, id, entry) -> broken++
             }
         }
         CustomStringsCheck(bytes, total, unknown, longStrings, broken)
@@ -162,6 +167,7 @@ object CustomStrings {
         }
         val strings = HashMap<Int, String>()
         val arrays = HashMap<Int, Array<String>>()
+        val plurals = HashMap<Int, Map<String, String>>()
         var unknown = 0
         var total = 0
         runCatching {
@@ -173,6 +179,7 @@ object CustomStrings {
                         id == 0 -> unknown++
                         entry is RawEntry.Str -> strings[id] = unescape(entry.raw)
                         entry is RawEntry.Arr -> arrays[id] = entry.items.map(::unescape).toTypedArray()
+                        entry is RawEntry.Plural -> plurals[id] = entry.items.mapValues { unescape(it.value) }
                     }
                 }
             }
@@ -181,9 +188,9 @@ object CustomStrings {
             stats = null
             return CustomTranslation.EMPTY
         }
-        stats = CustomStringsStats(applied = strings.size + arrays.size, unknown = unknown, total = total)
-        DebugLog.log(TAG, "loaded ${strings.size} strings, ${arrays.size} arrays, $unknown unknown of $total")
-        return CustomTranslation(strings, arrays)
+        stats = CustomStringsStats(applied = strings.size + arrays.size + plurals.size, unknown = unknown, total = total)
+        DebugLog.log(TAG, "loaded ${strings.size} strings, ${arrays.size} arrays, ${plurals.size} plurals, $unknown unknown of $total")
+        return CustomTranslation(strings, arrays, plurals)
     }
 
     private fun sanitize(context: Context, bytes: ByteArray): ByteArray {
@@ -194,10 +201,9 @@ object CustomStrings {
         serializer.startTag(null, "resources")
         readEntries(ByteArrayInputStream(bytes)) { entry ->
             val id = resolveId(context, entry)
-            if (id == 0 || isTooLong(context, id, entry)) return@readEntries
+            if (id == 0 || isTooLong(context, id, entry) || hasBrokenPlaceholders(context, id, entry)) return@readEntries
             when (entry) {
                 is RawEntry.Str -> {
-                    if (hasBrokenPlaceholders(context.resources.getString(id), unescape(entry.raw))) return@readEntries
                     serializer.startTag(null, "string")
                     serializer.attribute(null, "name", entry.name)
                     serializer.text(entry.raw)
@@ -212,6 +218,17 @@ object CustomStrings {
                         serializer.endTag(null, "item")
                     }
                     serializer.endTag(null, "string-array")
+                }
+                is RawEntry.Plural -> {
+                    serializer.startTag(null, "plurals")
+                    serializer.attribute(null, "name", entry.name)
+                    entry.items.forEach { (quantity, text) ->
+                        serializer.startTag(null, "item")
+                        serializer.attribute(null, "quantity", quantity)
+                        serializer.text(text)
+                        serializer.endTag(null, "item")
+                    }
+                    serializer.endTag(null, "plurals")
                 }
             }
         }
@@ -249,6 +266,11 @@ object CustomStrings {
                         val items = readArrayItems(parser)
                         if (!name.isNullOrBlank() && items.isNotEmpty()) onEntry(RawEntry.Arr(name, items))
                     }
+                    "plurals" -> {
+                        val name = parser.getAttributeValue(null, "name")
+                        val items = readPluralItems(parser)
+                        if (!name.isNullOrBlank() && items.isNotEmpty()) onEntry(RawEntry.Plural(name, items))
+                    }
                 }
             }
             event = parser.next()
@@ -269,9 +291,41 @@ object CustomStrings {
         return items
     }
 
+    private fun readPluralItems(parser: XmlPullParser): Map<String, String> {
+        val items = LinkedHashMap<String, String>()
+        var event = parser.next()
+        while (event != XmlPullParser.END_DOCUMENT &&
+            !(event == XmlPullParser.END_TAG && parser.name == "plurals")
+        ) {
+            if (event == XmlPullParser.START_TAG && parser.name == "item") {
+                val quantity = parser.getAttributeValue(null, "quantity")
+                val text = runCatching { parser.nextText() }.getOrNull()
+                if (quantity in PLURAL_QUANTITIES && text != null) items[quantity] = text
+            }
+            event = parser.next()
+        }
+        return items
+    }
+
     private fun resolveId(context: Context, entry: RawEntry): Int {
-        val type = if (entry is RawEntry.Str) "string" else "array"
+        val type = when (entry) {
+            is RawEntry.Str -> "string"
+            is RawEntry.Arr -> "array"
+            is RawEntry.Plural -> "plurals"
+        }
         return context.resources.getIdentifier(entry.name, type, context.packageName)
+    }
+
+    private fun pluralOriginals(context: Context, id: Int): List<String> =
+        PLURAL_SAMPLE_COUNTS.mapNotNull { runCatching { context.resources.getQuantityString(id, it) }.getOrNull() }
+
+    private fun hasBrokenPlaceholders(context: Context, id: Int, entry: RawEntry): Boolean = when (entry) {
+        is RawEntry.Str -> hasBrokenPlaceholders(context.resources.getString(id), unescape(entry.raw))
+        is RawEntry.Arr -> false
+        is RawEntry.Plural -> {
+            val original = pluralOriginals(context, id).maxByOrNull { conversions(it).size }.orEmpty()
+            entry.items.values.any { hasBrokenPlaceholders(original, unescape(it)) }
+        }
     }
 
     private fun isTooLong(context: Context, id: Int, entry: RawEntry): Boolean = when (entry) {
@@ -281,6 +335,10 @@ object CustomStrings {
             entry.items.withIndex().any { (index, item) ->
                 isTooLong(originals?.getOrNull(index).orEmpty(), unescape(item))
             }
+        }
+        is RawEntry.Plural -> {
+            val original = pluralOriginals(context, id).maxByOrNull { it.length }.orEmpty()
+            entry.items.values.any { isTooLong(original, unescape(it)) }
         }
     }
 
@@ -353,6 +411,25 @@ class CustomStringsResources(
 
     override fun getText(id: Int, def: CharSequence?): CharSequence =
         translation.strings[id] ?: super.getText(id, def)
+
+    override fun getQuantityText(id: Int, quantity: Int): CharSequence =
+        customQuantityText(id, quantity) ?: super.getQuantityText(id, quantity)
+
+    override fun getQuantityString(id: Int, quantity: Int): String =
+        customQuantityText(id, quantity) ?: base.getQuantityString(id, quantity)
+
+    override fun getQuantityString(id: Int, quantity: Int, vararg formatArgs: Any?): String {
+        val custom = customQuantityText(id, quantity) ?: return base.getQuantityString(id, quantity, *formatArgs)
+        return runCatching { String.format(configuration.locales[0], custom, *formatArgs) }
+            .getOrElse { base.getQuantityString(id, quantity, *formatArgs) }
+    }
+
+    private fun customQuantityText(id: Int, quantity: Int): String? {
+        val items = translation.plurals[id] ?: return null
+        val category = runCatching { PluralRules.forLocale(configuration.locales[0]).select(quantity.toDouble()) }
+            .getOrDefault("other")
+        return items[category] ?: items["other"]
+    }
 
     override fun getStringArray(id: Int): Array<String> =
         translation.arrays[id] ?: super.getStringArray(id)

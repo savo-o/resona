@@ -1,5 +1,6 @@
 package com.savoo.scclient.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,30 +20,35 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.savoo.scclient.R
 
 data class BadgeInfo(
-    val name: String,
-    val title: String,
-    val description: String,
+    @StringRes val titleRes: Int?,
+    @StringRes val descriptionRes: Int,
     val howToGetUrl: String? = null,
 )
 
 val badgeInfoMap = mapOf(
     "developer" to BadgeInfo(
-        name = "developer",
-        title = "Developer Badge",
-        description = "This user is a developer of Resona.",
+        titleRes = R.string.badge_developer,
+        descriptionRes = R.string.badge_developer_desc,
     ),
     "supporter" to BadgeInfo(
-        name = "supporter",
-        title = "Supporter Badge",
-        description = "This user is a supporter of Resona.",
+        titleRes = R.string.badge_supporter,
+        descriptionRes = R.string.badge_supporter_desc,
         howToGetUrl = "https://t.me/resona_tg",
     ),
 )
+
+private val unknownBadgeInfo = BadgeInfo(titleRes = null, descriptionRes = R.string.badge_unknown)
+
+@Composable
+fun badgeTitle(badge: String): String =
+    badgeInfoMap[badge]?.titleRes?.let { stringResource(it) } ?: badge
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,7 +59,7 @@ fun BadgeBottomSheet(
     onOpenUrl: (String) -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState()
-    val info = badgeInfoMap[badge] ?: BadgeInfo(badge, badge, "Unknown badge.")
+    val info = badgeInfoMap[badge] ?: unknownBadgeInfo
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -66,7 +72,7 @@ fun BadgeBottomSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = info.title,
+                text = badgeTitle(badge),
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center,
             )
@@ -74,7 +80,7 @@ fun BadgeBottomSheet(
             Spacer(Modifier.height(12.dp))
 
             Text(
-                text = "$profileName received the ${info.name} badge.",
+                text = stringResource(R.string.badge_received, profileName, badgeTitle(badge)),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -83,7 +89,7 @@ fun BadgeBottomSheet(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                text = info.description,
+                text = stringResource(info.descriptionRes),
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -101,7 +107,7 @@ fun BadgeBottomSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "How to get it",
+                        text = stringResource(R.string.badge_how_to_get),
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )
