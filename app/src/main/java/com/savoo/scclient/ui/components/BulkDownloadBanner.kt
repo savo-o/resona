@@ -14,11 +14,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.savoo.scclient.R
+import com.savoo.scclient.player.BULK_PARALLEL_WORKERS
 import com.savoo.scclient.player.BulkDownloadProgress
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -38,6 +42,7 @@ import com.savoo.scclient.player.BulkDownloadProgress
 fun BulkDownloadBanner(
     progress: BulkDownloadProgress,
     onCancel: () -> Unit,
+    onToggleParallel: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val animatedFraction by animateFloatAsState(
@@ -67,7 +72,7 @@ fun BulkDownloadBanner(
                         if (progress.isFinished) {
                             stringResource(R.string.bulk_download_done, progress.completed - progress.failed, progress.total)
                         } else {
-                            stringResource(R.string.bulk_download_progress, (progress.completed + 1).coerceAtMost(progress.total), progress.total)
+                            stringResource(R.string.bulk_download_progress, progress.inProgress, progress.total)
                         },
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 1,
@@ -75,7 +80,7 @@ fun BulkDownloadBanner(
                     )
                     val subtitle = when {
                         progress.failed > 0 -> stringResource(R.string.bulk_download_failed, progress.failed)
-                        !progress.isFinished -> progress.currentTitle
+                        !progress.isFinished -> progress.active.values.joinToString(", ") { it.title }.ifBlank { null }
                         else -> null
                     }
                     if (subtitle != null) {
@@ -91,6 +96,23 @@ fun BulkDownloadBanner(
                 if (progress.isFinished) {
                     Spacer(Modifier.height(48.dp))
                 } else {
+                    IconToggleButton(
+                        checked = progress.parallel,
+                        onCheckedChange = onToggleParallel,
+                        colors = IconButtonDefaults.iconToggleButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            checkedContentColor = MaterialTheme.colorScheme.primary,
+                        ),
+                    ) {
+                        Icon(
+                            Icons.Filled.Bolt,
+                            contentDescription = if (progress.parallel) {
+                                stringResource(R.string.bulk_download_parallel_off)
+                            } else {
+                                stringResource(R.string.bulk_download_parallel_on, BULK_PARALLEL_WORKERS)
+                            },
+                        )
+                    }
                     IconButton(onClick = onCancel) {
                         Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.bulk_download_cancel))
                     }

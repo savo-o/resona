@@ -17,7 +17,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
@@ -30,6 +29,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import retrofit2.HttpException
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -37,16 +37,28 @@ import javax.inject.Singleton
 import kotlin.math.abs
 
 private const val BULK_DONE_VISIBLE_MS = 3000L
+const val BULK_PARALLEL_WORKERS = 3
+private const val BULK_START_SPACING_MS = 700L
+private const val BULK_RATE_LIMIT_BACKOFF_MS = 5000L
+
+class RateLimitedException(message: String) : Exception(message)
+
+data class ActiveBulkDownload(
+    val title: String,
+    val fraction: Float = 0f,
+)
 
 data class BulkDownloadProgress(
     val total: Int,
     val completed: Int = 0,
     val failed: Int = 0,
-    val currentTitle: String? = null,
-    val currentFraction: Float = 0f,
+    val active: Map<Long, ActiveBulkDownload> = emptyMap(),
+    val parallel: Boolean = false,
 ) {
     val isFinished: Boolean get() = completed >= total
-    val fraction: Float get() = if (total <= 0) 1f else ((completed + currentFraction) / total).coerceIn(0f, 1f)
+    val currentTitle: String? get() = active.values.firstOrNull()?.title
+    val inProgress: Int get() = (completed + active.size.coerceAtLeast(1)).coerceAtMost(total)
+    val fraction: Float get() = if (total <= 0) 1f else ((completed + active.values.sumOf { it.fraction.toDouble() }.toFloat()) / total).coerceIn(0f, 1f)
 }
 
 @Singleton
@@ -62,6 +74,8 @@ class OfflineTrackManager @Inject constructor(
 
     private val localFolderPrefs = context.getSharedPreferences("offline_local_folders", Context.MODE_PRIVATE)
     private val watchedFolderUrisKey = "watched_folder_uris"
+    private val downloadPrefs = context.getSharedPreferences("offline_downloads", Context.MODE_PRIVATE)
+    private val parallelKey = "bulk_parallel"
 
     private val artworkRepairDone = AtomicBoolean(false)
     private val repairScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -74,6 +88,11 @@ class OfflineTrackManager @Inject constructor(
     private val bulkQueue = ArrayDeque<Track>()
     private var bulkWorkerRunning = false
     private var bulkJob: Job? = null
+    private var bulkWorkers = 0
+    private var bulkParallel = downloadPrefs.getBoolean(parallelKey, false)
+    private var bulkRateLimited = false
+    private var bulkNextStartAt = 0L
+    private val bulkRetriedIds = HashSet<Long>()
 
     private val _bulkDownload = MutableStateFlow<BulkDownloadProgress?>(null)
     val bulkDownload = _bulkDownload.asStateFlow()
@@ -86,12 +105,27 @@ class OfflineTrackManager @Inject constructor(
             bulkQueue.addAll(fresh)
             if (bulkWorkerRunning) {
                 _bulkDownload.update { it?.copy(total = it.total + fresh.size) }
+                launchBulkWorkersLocked()
             } else {
                 bulkJob?.cancel()
-                _bulkDownload.value = BulkDownloadProgress(total = fresh.size)
+                bulkRateLimited = false
+                bulkRetriedIds.clear()
+                _bulkDownload.value = BulkDownloadProgress(total = fresh.size, parallel = bulkParallel)
                 bulkWorkerRunning = true
-                bulkJob = downloadScope.launch { runBulkQueue() }
+                bulkWorkers = 0
+                bulkJob = SupervisorJob(downloadScope.coroutineContext.job)
+                launchBulkWorkersLocked()
             }
+        }
+    }
+
+    fun setBulkParallel(enabled: Boolean) {
+        synchronized(bulkLock) {
+            bulkParallel = enabled
+            bulkRateLimited = false
+            downloadPrefs.edit().putBoolean(parallelKey, enabled).apply()
+            _bulkDownload.update { it?.copy(parallel = enabled) }
+            if (bulkWorkerRunning) launchBulkWorkersLocked()
         }
     }
 
@@ -101,25 +135,69 @@ class OfflineTrackManager @Inject constructor(
             bulkJob?.cancel()
             bulkJob = null
             bulkWorkerRunning = false
+            bulkWorkers = 0
             _bulkDownload.value = null
         }
     }
 
-    private suspend fun runBulkQueue() {
-        val job = currentCoroutineContext().job
+    private fun launchBulkWorkersLocked() {
+        val job = bulkJob ?: return
+        if (!job.isActive) return
+        val limit = bulkWorkerLimitLocked()
+        while (bulkWorkers < limit && bulkWorkers < bulkQueue.size) {
+            bulkWorkers++
+            CoroutineScope(job + Dispatchers.IO).launch { runBulkWorker(job) }
+        }
+    }
+
+    private fun bulkWorkerLimitLocked(): Int =
+        if (bulkParallel && !bulkRateLimited) BULK_PARALLEL_WORKERS else 1
+
+    private suspend fun runBulkWorker(job: Job) {
         while (true) {
+            var startDelayMs = 0L
             val next = synchronized(bulkLock) {
                 if (!job.isActive) return
-                val track = bulkQueue.removeFirstOrNull()
+                val limit = bulkWorkerLimitLocked()
+                val track = if (bulkWorkers > limit) null else bulkQueue.removeFirstOrNull()
                 if (track == null) {
-                    bulkWorkerRunning = false
+                    bulkWorkers--
+                    if (bulkWorkers == 0 && bulkQueue.isEmpty()) {
+                        bulkWorkerRunning = false
+                        downloadScope.launch { hideFinishedBulk(job) }
+                    }
                 } else {
-                    _bulkDownload.update { it?.copy(currentTitle = track.title, currentFraction = 0f) }
+                    val now = System.currentTimeMillis()
+                    val startAt = maxOf(now, bulkNextStartAt)
+                    startDelayMs = startAt - now
+                    bulkNextStartAt = startAt + BULK_START_SPACING_MS
+                    _bulkDownload.update { it?.copy(active = it.active + (track.id to ActiveBulkDownload(track.title))) }
                 }
                 track
-            } ?: break
+            } ?: return
+            if (startDelayMs > 0) delay(startDelayMs)
             val result = saveForOffline(next) { fraction ->
-                if (job.isActive) _bulkDownload.update { it?.copy(currentFraction = fraction) }
+                if (job.isActive) {
+                    _bulkDownload.update { progress ->
+                        val current = progress?.active?.get(next.id) ?: return@update progress
+                        progress.copy(active = progress.active + (next.id to current.copy(fraction = fraction)))
+                    }
+                }
+            }
+            if (result.exceptionOrNull() is RateLimitedException) {
+                val retry = synchronized(bulkLock) {
+                    if (!job.isActive) return
+                    bulkRateLimited = true
+                    bulkNextStartAt = System.currentTimeMillis() + BULK_RATE_LIMIT_BACKOFF_MS
+                    _bulkDownload.update { it?.copy(parallel = false, active = it.active - next.id) }
+                    if (bulkRetriedIds.add(next.id)) {
+                        bulkQueue.addFirst(next)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                if (retry) continue
             }
             synchronized(bulkLock) {
                 if (job.isActive) {
@@ -127,15 +205,21 @@ class OfflineTrackManager @Inject constructor(
                         it?.copy(
                             completed = it.completed + 1,
                             failed = it.failed + if (result.isFailure) 1 else 0,
-                            currentFraction = 0f,
+                            active = it.active - next.id,
                         )
                     }
                 }
             }
         }
+    }
+
+    private suspend fun hideFinishedBulk(job: Job) {
         delay(BULK_DONE_VISIBLE_MS)
         synchronized(bulkLock) {
-            if (!bulkWorkerRunning && job.isActive) _bulkDownload.value = null
+            if (!bulkWorkerRunning && bulkJob === job && job.isActive) {
+                _bulkDownload.value = null
+                job.cancel()
+            }
         }
     }
 
@@ -180,7 +264,9 @@ class OfflineTrackManager @Inject constructor(
             audioFile.delete()
 
             val fullTrack = if (track.media == null) {
-                runCatching { trackRepository.getTrack(track.id) }.getOrNull() ?: track
+                runCatching { trackRepository.getTrack(track.id) }
+                    .onFailure { if (it.isRateLimit()) throw RateLimitedException("Rate limited by SoundCloud") }
+                    .getOrNull() ?: track
             } else track
 
             fullTrack.restrictionReason()?.let { reason ->
@@ -188,13 +274,18 @@ class OfflineTrackManager @Inject constructor(
                 return@withContext Result.failure(Exception("Track is restricted by SoundCloud ($reason)"))
             }
 
-            val stream = trackRepository.resolvePlayableStream(fullTrack)
+            val stream = runCatching { trackRepository.resolvePlayableStream(fullTrack) }
+                .onFailure { if (it.isRateLimit()) throw RateLimitedException("Rate limited by SoundCloud") }
+                .getOrThrow()
                 ?: return@withContext Result.failure(Exception("Cannot resolve track URL"))
             if (stream.isHls) return@withContext Result.failure(Exception("Track has no downloadable stream"))
 
             val tmpAudioFile = File(offlineDir, "${track.id}.mp3.tmp")
             val request = Request.Builder().url(stream.url).build()
             httpClient.newCall(request).execute().use { response ->
+                if (response.code == 429) {
+                    return@withContext Result.failure(RateLimitedException("Download rate limited: 429"))
+                }
                 if (!response.isSuccessful) {
                     return@withContext Result.failure(Exception("Download failed: ${response.code}"))
                 }
@@ -256,6 +347,9 @@ class OfflineTrackManager @Inject constructor(
             _downloadingTrackIds.update { it - track.id }
         }
     }
+
+    private fun Throwable.isRateLimit(): Boolean =
+        this is RateLimitedException || (this is HttpException && code() == 429)
 
     suspend fun removeFromOffline(trackId: Long): Result<Unit> = withContext(Dispatchers.IO) {
         try {

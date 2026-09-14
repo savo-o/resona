@@ -16,9 +16,11 @@ class ClientIdProvider @Inject constructor(
     @PlainHttpClient private val plainClient: OkHttpClient,
 ) {
     private val mutex = Mutex()
+    @Volatile private var lastRefreshAttemptAt = 0L
 
     companion object {
         private const val KEY_CLIENT_ID = "sc_client_id"
+        private const val MIN_REFRESH_INTERVAL_MS = 5 * 60 * 1000L
         private val APP_JS_REGEX = Regex("""src="(https://a-v2\.sndcdn\.com/assets/[^"]+\.js)"""")
         private val CLIENT_ID_REGEX = Regex("""client_id[=:]"?([a-zA-Z0-9]{32})"?""")
     }
@@ -31,7 +33,12 @@ class ClientIdProvider @Inject constructor(
         prefs.edit().putString(KEY_CLIENT_ID, id).apply()
     }
 
-    suspend fun refresh(): String = mutex.withLock {
+    suspend fun refresh(force: Boolean = false): String = mutex.withLock {
+        val now = System.currentTimeMillis()
+        if (!force && lastRefreshAttemptAt != 0L && now - lastRefreshAttemptAt < MIN_REFRESH_INTERVAL_MS) {
+            return@withLock cachedOrFallback()
+        }
+        lastRefreshAttemptAt = now
         runCatching {
             val homepage = plainClient.newCall(
                 Request.Builder().url("https://soundcloud.com").build()

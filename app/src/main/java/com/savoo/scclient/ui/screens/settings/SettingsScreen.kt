@@ -349,7 +349,7 @@ class SettingsViewModel @Inject constructor(
     fun refreshClientId(onDone: () -> Unit) {
         viewModelScope.launch {
             _isRefreshingClientId.value = true
-            withContext(Dispatchers.IO) { clientIdProvider.refresh() }
+            withContext(Dispatchers.IO) { clientIdProvider.refresh(force = true) }
             _isRefreshingClientId.value = false
             onDone()
         }

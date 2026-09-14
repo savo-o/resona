@@ -60,14 +60,19 @@ class PlayerViewModel @Inject constructor(
         .flatMapLatest { id -> offlineTrackManager.isOfflineTrack(id) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val lyrics = controller.state.map { it.currentTrack }
-        .distinctUntilChanged { old, new -> old?.id == new?.id }
-        .flatMapLatest { track ->
-            flow {
-                emit(null)
-                if (track != null) emit(lyricsRepository.getLyrics(track))
-            }
-        }
+    private val currentTrackId = controller.state.map { it.currentTrack?.id }.distinctUntilChanged()
+
+    val lyrics = combine(
+        currentTrackId,
+        controller.state.map { it.currentTrack }
+            .distinctUntilChanged { old, new -> old?.id == new?.id }
+            .flatMapLatest { track ->
+                flow {
+                    emit(null)
+                    if (track != null) emit(track.id to lyricsRepository.getLyrics(track))
+                }
+            },
+    ) { trackId, loaded -> loaded?.takeIf { it.first == trackId }?.second }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val lyricsOffsetMs = settingsRepository.settings.map { it.lyricsOffsetMs }
@@ -143,6 +148,8 @@ class PlayerViewModel @Inject constructor(
     val bulkDownload = offlineTrackManager.bulkDownload
 
     fun cancelBulkDownloads() = offlineTrackManager.cancelBulkDownloads()
+
+    fun setBulkParallel(enabled: Boolean) = offlineTrackManager.setBulkParallel(enabled)
 
     val favoritesImport = favoritesImportManager.state
 

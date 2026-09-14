@@ -11,7 +11,10 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.remote.GeniusApi
 import com.savoo.scclient.data.remote.KugouApi
 import com.savoo.scclient.data.remote.LyricsApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
@@ -52,17 +55,22 @@ class LyricsRepository @Inject constructor(
             return result
         }
 
-        val synced = fetchSyncedFrom(provider, track)
-        if (synced != null) {
-            cache[track.id to provider] = synced
-            withContext(Dispatchers.IO) { lyricsCacheDao.upsert(synced.toEntity(track.id, provider)) }
-            return synced
+        val outcome = fetchSyncedFrom(provider, track)
+        currentCoroutineContext().ensureActive()
+        if (outcome is FetchOutcome.Found && outcome.result is LyricsResult.Synced) {
+            store(track.id, provider, outcome.result)
+            return outcome.result
         }
 
-        if (cachedEntity?.type == "PLAIN") {
+        if (cachedEntity?.type == "PLAIN" && cachedEntity.source != "Genius") {
             val result = cachedEntity.toResult()
             cache[track.id to provider] = result
             return result
+        }
+
+        if (outcome is FetchOutcome.Found) {
+            store(track.id, provider, outcome.result)
+            return outcome.result
         }
 
         val fallback = if (settingsRepository.settings.first().geniusFallbackEnabled) {
@@ -70,11 +78,23 @@ class LyricsRepository @Inject constructor(
         } else {
             null
         }
+        currentCoroutineContext().ensureActive()
         val result = fallback ?: LyricsResult.NotFound
 
-        cache[track.id to provider] = result
-        withContext(Dispatchers.IO) { lyricsCacheDao.upsert(result.toEntity(track.id, provider)) }
+        if (outcome is FetchOutcome.Failed) return result
+        store(track.id, provider, result)
         return result
+    }
+
+    private suspend fun store(trackId: Long, provider: LyricsProvider, result: LyricsResult) {
+        cache[trackId to provider] = result
+        withContext(Dispatchers.IO) { lyricsCacheDao.upsert(result.toEntity(trackId, provider)) }
+    }
+
+    private sealed interface FetchOutcome {
+        data class Found(val result: LyricsResult) : FetchOutcome
+        data object Missing : FetchOutcome
+        data object Failed : FetchOutcome
     }
 
     private fun LyricsResult.toEntity(trackId: Long, provider: LyricsProvider): LyricsCacheEntity = when (this) {
@@ -96,7 +116,7 @@ class LyricsRepository @Inject constructor(
         "[%02d:%02d.%02d]%s".format(minutes, seconds, hundredths, line.text)
     }
 
-    private suspend fun fetchSyncedFrom(provider: LyricsProvider, track: Track): LyricsResult? {
+    private suspend fun fetchSyncedFrom(provider: LyricsProvider, track: Track): FetchOutcome {
         val outcome = withContext(Dispatchers.IO) {
             runCatching {
                 when (provider) {
@@ -105,7 +125,11 @@ class LyricsRepository @Inject constructor(
                 }
             }
         }
-        return outcome.getOrNull()
+        outcome.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        return outcome.fold(
+            onSuccess = { result -> result?.let { FetchOutcome.Found(it) } ?: FetchOutcome.Missing },
+            onFailure = { FetchOutcome.Failed },
+        )
     }
 
     private suspend fun fetchFromLrcLib(track: Track): LyricsResult? {
@@ -115,33 +139,43 @@ class LyricsRepository @Inject constructor(
 
         val info = analyzeTitle(track)
         var plainFallback: LyricsResult.Plain? = null
+        val seenIds = HashSet<Long>()
 
-        for (artist in info.artistCandidates) {
-            val candidates = api.search(
-                trackName = info.cleanTitle,
-                artistName = artist,
-            ).filter { it.instrumental != true }
+        fun consider(candidates: List<LyricsSearchResult>): LyricsResult.Synced? {
+            val usable = candidates.filter { it.instrumental != true && withinTolerance(it) }
+            usable.forEach { it.id?.let(seenIds::add) }
 
-            candidates
+            usable
                 .filter { !it.syncedLyrics.isNullOrBlank() }
-                .minByOrNull { abs((it.duration ?: 0.0) - durationSec) }
-                ?.takeIf(::withinTolerance)
-                ?.syncedLyrics
-                ?.let { parseLrc(it) }
-                ?.takeIf { it.isNotEmpty() }
+                .sortedBy { abs((it.duration ?: 0.0) - durationSec) }
+                .firstNotNullOfOrNull { candidate -> parseLrc(candidate.syncedLyrics!!).takeIf { it.isNotEmpty() } }
                 ?.let { return LyricsResult.Synced(it) }
 
             if (plainFallback == null) {
-                candidates
+                usable
                     .filter { !it.plainLyrics.isNullOrBlank() }
                     .minByOrNull { abs((it.duration ?: 0.0) - durationSec) }
-                    ?.takeIf(::withinTolerance)
                     ?.plainLyrics
                     ?.trim()
                     ?.takeIf { it.isNotBlank() }
                     ?.let { plainFallback = LyricsResult.Plain(it, "LRCLIB") }
             }
+            return null
         }
+
+        for (artist in info.artistCandidates) {
+            consider(api.search(trackName = info.cleanTitle, artistName = artist))?.let { return it }
+        }
+
+        for (artist in info.artistCandidates) {
+            consider(api.searchQuery("$artist ${info.cleanTitle}"))?.let { return it }
+        }
+
+        val byTitle = api.searchByTitle(info.cleanTitle)
+            .filter { candidate -> info.artistCandidates.any { looselyMatches(candidate.artistName.orEmpty(), it) } }
+            .filter { it.id == null || it.id !in seenIds }
+        consider(byTitle)?.let { return it }
+
         return plainFallback
     }
 
@@ -203,21 +237,23 @@ class LyricsRepository @Inject constructor(
     }
 
     private suspend fun fetchFromGenius(track: Track): String? = withContext(Dispatchers.IO) {
-        runCatching {
+        val outcome = runCatching {
             val info = analyzeTitle(track)
             for (artist in info.artistCandidates) {
                 val query = "$artist ${info.cleanTitle}"
                 val searchBody = geniusApi.search(query).use { it.string() }
-                val songUrl = findGeniusSongUrl(searchBody, artist) ?: continue
+                val songUrl = findGeniusSongUrl(searchBody, artist, info.cleanTitle) ?: continue
                 val html = geniusApi.fetchPage(songUrl).use { it.string() }
                 val lyrics = extractGeniusLyrics(html)
                 if (!lyrics.isNullOrBlank()) return@runCatching lyrics
             }
             null
-        }.getOrNull()
+        }
+        outcome.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        outcome.getOrNull()
     }
 
-    private fun findGeniusSongUrl(searchJson: String, artistName: String): String? {
+    private fun findGeniusSongUrl(searchJson: String, artistName: String, title: String): String? {
         val sections = JSONObject(searchJson).getJSONObject("response").getJSONArray("sections")
         for (i in 0 until sections.length()) {
             val hits = sections.getJSONObject(i).optJSONArray("hits") ?: continue
@@ -226,7 +262,9 @@ class LyricsRepository @Inject constructor(
                 if (hit.optString("type") != "song") continue
                 val result = hit.getJSONObject("result")
                 val hitArtist = result.optJSONObject("primary_artist")?.optString("name").orEmpty()
-                if (hitArtist.isNotBlank() && !artistLooselyMatches(hitArtist, artistName)) continue
+                if (hitArtist.isNotBlank() && !looselyMatches(hitArtist, artistName)) continue
+                val hitTitle = result.optString("title")
+                if (!looselyMatches(hitTitle, title)) continue
                 val url = result.optString("url")
                 if (url.isNotBlank()) return url
             }
@@ -234,11 +272,14 @@ class LyricsRepository @Inject constructor(
         return null
     }
 
-    private fun artistLooselyMatches(a: String, b: String): Boolean {
-        val an = a.lowercase().trim()
-        val bn = b.lowercase().trim()
+    private fun looselyMatches(a: String, b: String): Boolean {
+        val an = normalizeForMatch(a)
+        val bn = normalizeForMatch(b)
         return an.isNotBlank() && bn.isNotBlank() && (an.contains(bn) || bn.contains(an))
     }
+
+    private fun normalizeForMatch(value: String): String =
+        value.lowercase().filter { it.isLetterOrDigit() }
 
     private fun extractGeniusLyrics(html: String): String? {
         val containers = Jsoup.parse(html).select("div[data-lyrics-container=true]")
@@ -286,6 +327,7 @@ class LyricsRepository @Inject constructor(
         val cleaned = working
             .replace(Regex("""[(\[][^)\]]*[)\]]"""), "")
             .replace(Regex("""(?i)\b(feat|ft)\.?.*$"""), "")
+            .replace(Regex("""(?i)\s+prod\.?\s.*$"""), "")
             .trim()
             .ifBlank { track.title.trim() }
 

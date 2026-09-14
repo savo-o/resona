@@ -11,4 +11,10 @@ interface LyricsApi {
         @Query("track_name") trackName: String,
         @Query("artist_name") artistName: String,
     ): List<LyricsSearchResult>
+
+    @GET("api/search")
+    suspend fun searchQuery(@Query("q") query: String): List<LyricsSearchResult>
+
+    @GET("api/search")
+    suspend fun searchByTitle(@Query("track_name") trackName: String): List<LyricsSearchResult>
 }

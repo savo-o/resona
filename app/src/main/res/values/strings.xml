@@ -182,6 +182,7 @@
     <string name="player_repeat">Repeat</string>
     <string name="player_lyrics">Lyrics</string>
     <string name="player_lyrics_none_found">No lyrics found for this track</string>
+    <string name="player_lyrics_back_to_current">Current line</string>
     <string name="player_lyrics_source">Lyrics via %s</string>
     <string name="player_lyrics_offset_earlier">Shift lyrics earlier</string>
     <string name="player_lyrics_offset_later">Shift lyrics later</string>
@@ -583,6 +584,8 @@
     <string name="bulk_download_done">Downloaded %1$d of %2$d</string>
     <string name="bulk_download_failed">Failed: %1$d</string>
     <string name="bulk_download_cancel">Cancel downloads</string>
+    <string name="bulk_download_parallel_on">Download %1$d tracks at once</string>
+    <string name="bulk_download_parallel_off">Download one track at a time</string>
     <string name="settings_dividers">Dividers</string>
     <string name="settings_dividers_desc">Lines between items in settings, menus and the mini player</string>
     <string name="settings_dividers_hidden">Off</string>

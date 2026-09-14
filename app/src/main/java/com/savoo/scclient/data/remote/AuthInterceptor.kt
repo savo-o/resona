@@ -41,8 +41,9 @@ class AuthInterceptor @Inject constructor(
         var response = chain.proceed(requestBuilder.build())
 
         if (response.code == 401 || response.code == 403) {
-            response.close()
             val freshClientId = runBlocking { clientIdProvider.refresh() }
+            if (freshClientId == clientId) return response
+            response.close()
             val retried = original.newBuilder()
                 .url(
                     original.url.newBuilder()

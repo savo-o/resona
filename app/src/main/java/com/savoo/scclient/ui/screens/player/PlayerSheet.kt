@@ -4,10 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -29,6 +31,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -65,6 +68,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
@@ -103,6 +107,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -229,12 +234,18 @@ fun PlayerSheet(
     }
 
     Column {
-        val bannerEnter = fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
+        val bannerEnter = expandVertically(
+            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+            expandFrom = Alignment.Bottom,
+        ) + fadeIn(spring(stiffness = Spring.StiffnessMedium)) +
             slideInVertically(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
                 initialOffsetY = { -it / 2 },
             )
-        val bannerExit = fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
+        val bannerExit = shrinkVertically(
+            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+            shrinkTowards = Alignment.Bottom,
+        ) + fadeOut(spring(stiffness = Spring.StiffnessMedium)) +
             slideOutVertically(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
                 targetOffsetY = { -it / 2 },
@@ -246,6 +257,7 @@ fun PlayerSheet(
                 BulkDownloadBanner(
                     progress = progress,
                     onCancel = { haptics.click(); viewModel.cancelBulkDownloads() },
+                    onToggleParallel = { haptics.click(); viewModel.setBulkParallel(it) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -1808,6 +1820,8 @@ private fun LyricsView(
                         val listState = rememberLazyListState()
                         val lineHeights = remember(lines) { mutableStateMapOf<Int, Int>() }
                         var previousIndex by remember(lines) { mutableStateOf(-1) }
+                        var userBrowsing by remember(lines) { mutableStateOf(false) }
+                        val scope = rememberCoroutineScope()
                         val viewportPx = with(LocalDensity.current) { maxHeight.toPx() }
                         val targetIndex = activeIndex.coerceIn(0, lines.lastIndex.coerceAtLeast(0))
                         val lineHeightPx = lineHeights[targetIndex] ?: 0
@@ -1815,10 +1829,24 @@ private fun LyricsView(
                         // Jump straight to wherever playback already is when a new track's lyrics arrive - the player
                         // screen can stay open across track changes and lyrics can be opened mid-song, and without this
                         // the list either kept the previous track's scroll offset or sat at the top until the next line.
+                        LaunchedEffect(listState) {
+                            listState.interactionSource.interactions.collect { interaction ->
+                                if (interaction is DragInteraction.Start) userBrowsing = true
+                            }
+                        }
+
+                        fun centerOffset(): Int {
+                            val targetTop = ((viewportPx - lineHeightPx) / 2f).coerceAtLeast(0f)
+                            return (viewportPx * 0.5f - targetTop).roundToInt()
+                        }
+
                         LaunchedEffect(targetIndex, lines, viewportPx, lineHeightPx) {
                             if (lines.isEmpty()) return@LaunchedEffect
-                            val targetTop = ((viewportPx - lineHeightPx) / 2f).coerceAtLeast(0f)
-                            val scrollOffset = (viewportPx * 0.5f - targetTop).roundToInt()
+                            if (userBrowsing && previousIndex != -1) {
+                                previousIndex = targetIndex
+                                return@LaunchedEffect
+                            }
+                            val scrollOffset = centerOffset()
                             if (previousIndex == -1 || previousIndex == targetIndex) {
                                 listState.scrollToItem(targetIndex, scrollOffset)
                             } else {
@@ -1840,9 +1868,51 @@ private fun LyricsView(
                                     isPast = index < activeIndex,
                                     onColor = onColor,
                                     mutedColor = mutedColor,
-                                    onClick = { onSeek(line.timeMs) },
+                                    onClick = {
+                                        userBrowsing = false
+                                        onSeek(line.timeMs)
+                                    },
                                     onHeightChanged = { lineHeights[index] = it },
                                 )
+                            }
+                        }
+
+                        val activeAbove by remember(listState, targetIndex) {
+                            derivedStateOf { listState.firstVisibleItemIndex > targetIndex }
+                        }
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = userBrowsing,
+                            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                            exit = fadeOut() + scaleOut(targetScale = 0.8f),
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                        ) {
+                            val haptic = rememberHapticTick()
+                            Surface(
+                                onClick = {
+                                    haptic()
+                                    userBrowsing = false
+                                    scope.launch { listState.animateScrollToItem(targetIndex, centerOffset()) }
+                                },
+                                shape = RoundedCornerShape(50),
+                                color = surfaceColor.copy(alpha = 0.95f),
+                                contentColor = onColor,
+                                shadowElevation = 4.dp,
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 10.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
+                                ) {
+                                    Icon(
+                                        if (activeAbove) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        stringResource(R.string.player_lyrics_back_to_current),
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                                }
                             }
                         }
                     }

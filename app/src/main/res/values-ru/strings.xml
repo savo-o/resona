@@ -182,6 +182,7 @@
     <string name="player_repeat">Повтор</string>
     <string name="player_lyrics">Текст песни</string>
     <string name="player_lyrics_none_found">Текст для этого трека не найден</string>
+    <string name="player_lyrics_back_to_current">К текущей строке</string>
     <string name="player_lyrics_source">Текст с %s</string>
     <string name="player_lyrics_offset_earlier">Сдвинуть текст раньше</string>
     <string name="player_lyrics_offset_later">Сдвинуть текст позже</string>
@@ -585,6 +586,8 @@
     <string name="bulk_download_done">Скачано: %1$d из %2$d</string>
     <string name="bulk_download_failed">Не удалось скачать: %1$d</string>
     <string name="bulk_download_cancel">Отменить скачивание</string>
+    <string name="bulk_download_parallel_on">Скачивать по %1$d трека одновременно</string>
+    <string name="bulk_download_parallel_off">Скачивать по одному треку</string>
     <string name="settings_dividers">Разделители</string>
     <string name="settings_dividers_desc">Линии между пунктами в настройках, меню и мини-плеере</string>
     <string name="settings_dividers_hidden">Нет</string>
