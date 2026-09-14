@@ -75,6 +75,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
@@ -367,8 +368,8 @@ fun PlayerSheet(
             pixelGlowEnabled = viewModel.pixelGlowEnabled.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
-            lyricsOffsetMs = viewModel.lyricsOffsetMs.collectAsState().value,
-            onAdjustLyricsOffset = { viewModel.adjustLyricsOffset(it) },
+            lyricsSync = viewModel.lyricsSyncState.collectAsState().value,
+            onLyricsSyncAction = { viewModel.onLyricsSyncAction(it) },
             onDismiss = { showFullPlayer = false },
             onTogglePlay = { viewModel.controller.togglePlayPause() },
             onScrubStart = { viewModel.controller.beginScrub() },
@@ -407,8 +408,8 @@ private fun FullPlayerSheet(
     onDismissCustomizeHint: () -> Unit,
     lyrics: LyricsResult?,
     activeLyricsLine: Int,
-    lyricsOffsetMs: Long,
-    onAdjustLyricsOffset: (Long) -> Unit,
+    lyricsSync: LyricsSyncState,
+    onLyricsSyncAction: (LyricsSyncAction) -> Unit,
     onDismiss: () -> Unit,
     onTogglePlay: () -> Unit,
     onScrubStart: () -> Unit,
@@ -450,8 +451,8 @@ private fun FullPlayerSheet(
                 backgroundStyle = backgroundStyle,
                 lyrics = lyrics,
                 activeLyricsLine = activeLyricsLine,
-                lyricsOffsetMs = lyricsOffsetMs,
-                onAdjustLyricsOffset = onAdjustLyricsOffset,
+                lyricsSync = lyricsSync,
+                onLyricsSyncAction = onLyricsSyncAction,
                 onCollapse = onDismiss,
                 onTogglePlay = onTogglePlay,
                 onScrubStart = onScrubStart,
@@ -484,8 +485,8 @@ private fun FullPlayerSheet(
             onDismissCustomizeHint = onDismissCustomizeHint,
             lyrics = lyrics,
             activeLyricsLine = activeLyricsLine,
-            lyricsOffsetMs = lyricsOffsetMs,
-            onAdjustLyricsOffset = onAdjustLyricsOffset,
+            lyricsSync = lyricsSync,
+            onLyricsSyncAction = onLyricsSyncAction,
             onCollapse = onDismiss,
             onTogglePlay = onTogglePlay,
             onScrubStart = onScrubStart,
@@ -853,8 +854,8 @@ private fun PixelPlayerContent(
     onDismissCustomizeHint: () -> Unit = {},
     lyrics: LyricsResult?,
     activeLyricsLine: Int,
-    lyricsOffsetMs: Long,
-    onAdjustLyricsOffset: (Long) -> Unit,
+    lyricsSync: LyricsSyncState,
+    onLyricsSyncAction: (LyricsSyncAction) -> Unit,
     onCollapse: () -> Unit,
     onTogglePlay: () -> Unit,
     onScrubStart: () -> Unit,
@@ -936,8 +937,8 @@ private fun PixelPlayerContent(
                 result = lyrics,
                 activeIndex = activeLyricsLine,
                 onSeek = onSeek,
-                offsetMs = lyricsOffsetMs,
-                onAdjustOffset = onAdjustLyricsOffset,
+                sync = lyricsSync,
+                onSyncAction = onLyricsSyncAction,
                 accent = palette.accent,
                 onColor = palette.onBackground,
                 mutedColor = palette.onBackgroundMuted,
@@ -949,8 +950,8 @@ private fun PixelPlayerContent(
                 result = lyrics,
                 activeIndex = activeLyricsLine,
                 onSeek = onSeek,
-                offsetMs = lyricsOffsetMs,
-                onAdjustOffset = onAdjustLyricsOffset,
+                sync = lyricsSync,
+                onSyncAction = onLyricsSyncAction,
                 accent = palette.accent,
                 onColor = palette.onBackground,
                 mutedColor = palette.onBackgroundMuted,
@@ -1720,8 +1721,8 @@ private fun PlayerLyricsScreen(
     result: LyricsResult?,
     activeIndex: Int,
     onSeek: (Long) -> Unit,
-    offsetMs: Long,
-    onAdjustOffset: (Long) -> Unit,
+    sync: LyricsSyncState,
+    onSyncAction: (LyricsSyncAction) -> Unit,
     accent: Color,
     onColor: Color,
     mutedColor: Color,
@@ -1745,8 +1746,8 @@ private fun PlayerLyricsScreen(
                     result = result,
                     activeIndex = activeIndex,
                     onSeek = onSeek,
-                    offsetMs = offsetMs,
-                    onAdjustOffset = onAdjustOffset,
+                    sync = sync,
+                    onSyncAction = onSyncAction,
                     accent = accent,
                     onColor = onColor,
                     mutedColor = mutedColor,
@@ -1765,8 +1766,8 @@ private fun LyricsView(
     result: LyricsResult?,
     activeIndex: Int,
     onSeek: (Long) -> Unit,
-    offsetMs: Long,
-    onAdjustOffset: (Long) -> Unit,
+    sync: LyricsSyncState,
+    onSyncAction: (LyricsSyncAction) -> Unit,
     accent: Color,
     onColor: Color,
     mutedColor: Color,
@@ -1806,14 +1807,13 @@ private fun LyricsView(
             is LyricsResult.Synced -> {
                 val lines = result.lines
                 Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Community-sourced lyrics timing can be off by a fixed amount for a given track; this lets the
-                    // user nudge it back in sync instead of just living with words landing early or late.
-                    LyricsOffsetControl(
-                        offsetMs = offsetMs,
-                        onAdjustOffset = onAdjustOffset,
+                    LyricsSyncControls(
+                        state = sync,
+                        onAction = onSyncAction,
                         mutedColor = mutedColor,
                         surfaceColor = surfaceColor,
-                        modifier = Modifier.padding(top = offsetControlTopPadding, bottom = 4.dp),
+                        accent = accent,
+                        modifier = Modifier.padding(top = offsetControlTopPadding, bottom = 4.dp, start = 16.dp, end = 16.dp),
                     )
                     BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                         val listState = rememberLazyListState()
@@ -1923,29 +1923,145 @@ private fun LyricsView(
 }
 
 @Composable
-private fun LyricsOffsetControl(
-    offsetMs: Long,
-    onAdjustOffset: (Long) -> Unit,
+private fun LyricsSyncControls(
+    state: LyricsSyncState,
+    onAction: (LyricsSyncAction) -> Unit,
     mutedColor: Color,
     surfaceColor: Color,
+    accent: Color,
     modifier: Modifier = Modifier,
 ) {
     val haptic = rememberHapticTick()
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val adjusted = !state.sync.isDefault
+    val manuallyAdjusted = state.sync != state.automatic
+    val offsetText = "%+.1fs".format(state.sync.offsetMs / 1000f)
+    val driftText = stringResource(R.string.player_lyrics_drift_value, state.sync.driftMsPerMin / 1000f)
+
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(surfaceColor.copy(alpha = 0.9f))
+                .clickable { haptic(); expanded = !expanded }
+                .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        ) {
+            Icon(
+                Icons.Filled.Tune,
+                contentDescription = null,
+                tint = if (manuallyAdjusted) accent else mutedColor,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = when {
+                    !adjusted -> stringResource(R.string.player_lyrics_sync)
+                    state.sync.driftMsPerMin == 0L -> offsetText
+                    state.sync.offsetMs == 0L -> driftText
+                    else -> "$offsetText · $driftText"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = mutedColor,
+            )
+            Icon(
+                if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = mutedColor,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LyricsLabeledStepper(
+                        label = stringResource(R.string.player_lyrics_offset_label),
+                        value = offsetText,
+                        decreaseDescription = stringResource(R.string.player_lyrics_offset_later),
+                        increaseDescription = stringResource(R.string.player_lyrics_offset_earlier),
+                        onDecrease = { haptic(); onAction(LyricsSyncAction.AdjustOffset(-LYRICS_OFFSET_STEP_MS)) },
+                        onIncrease = { haptic(); onAction(LyricsSyncAction.AdjustOffset(LYRICS_OFFSET_STEP_MS)) },
+                        onReset = if (state.sync.offsetMs != state.automatic.offsetMs) ({ haptic(); onAction(LyricsSyncAction.ResetOffset) }) else null,
+                        mutedColor = mutedColor,
+                        surfaceColor = surfaceColor,
+                    )
+                    LyricsLabeledStepper(
+                        label = stringResource(R.string.player_lyrics_drift_label),
+                        value = driftText,
+                        decreaseDescription = stringResource(R.string.player_lyrics_drift_slower),
+                        increaseDescription = stringResource(R.string.player_lyrics_drift_faster),
+                        onDecrease = { haptic(); onAction(LyricsSyncAction.AdjustDrift(-LYRICS_DRIFT_STEP_MS_PER_MIN)) },
+                        onIncrease = { haptic(); onAction(LyricsSyncAction.AdjustDrift(LYRICS_DRIFT_STEP_MS_PER_MIN)) },
+                        onReset = if (state.sync.driftMsPerMin != state.automatic.driftMsPerMin) ({ haptic(); onAction(LyricsSyncAction.ResetDrift) }) else null,
+                        mutedColor = mutedColor,
+                        surfaceColor = surfaceColor,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LyricsLabeledStepper(
+    label: String,
+    value: String,
+    decreaseDescription: String,
+    increaseDescription: String,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+    onReset: (() -> Unit)?,
+    mutedColor: Color,
+    surfaceColor: Color,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = mutedColor.copy(alpha = 0.8f))
+        Spacer(Modifier.height(4.dp))
+        LyricsStepper(
+            value = value,
+            decreaseDescription = decreaseDescription,
+            increaseDescription = increaseDescription,
+            onDecrease = onDecrease,
+            onIncrease = onIncrease,
+            onReset = onReset,
+            mutedColor = mutedColor,
+            surfaceColor = surfaceColor,
+        )
+    }
+}
+
+@Composable
+private fun LyricsStepper(
+    value: String,
+    decreaseDescription: String,
+    increaseDescription: String,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+    onReset: (() -> Unit)?,
+    mutedColor: Color,
+    surfaceColor: Color,
+) {
     Surface(
         color = surfaceColor.copy(alpha = 0.9f),
         contentColor = mutedColor,
         shape = RoundedCornerShape(50),
-        modifier = modifier,
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
-            IconButton(onClick = { haptic(); onAdjustOffset(-500L) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.player_lyrics_offset_earlier), modifier = Modifier.size(18.dp))
+            IconButton(onClick = onDecrease, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Filled.Remove, contentDescription = decreaseDescription, modifier = Modifier.size(18.dp))
             }
             Text(
-                text = "%+.1fs".format(offsetMs / 1000f),
+                text = value,
                 style = MaterialTheme.typography.labelMedium,
                 color = mutedColor,
                 modifier = Modifier
@@ -1953,15 +2069,18 @@ private fun LyricsOffsetControl(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        enabled = offsetMs != 0L,
-                    ) { haptic(); onAdjustOffset(-offsetMs) },
+                        enabled = onReset != null,
+                    ) { onReset?.invoke() },
             )
-            IconButton(onClick = { haptic(); onAdjustOffset(500L) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.player_lyrics_offset_later), modifier = Modifier.size(18.dp))
+            IconButton(onClick = onIncrease, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Filled.Add, contentDescription = increaseDescription, modifier = Modifier.size(18.dp))
             }
         }
     }
 }
+
+private const val LYRICS_OFFSET_STEP_MS = 500L
+private const val LYRICS_DRIFT_STEP_MS_PER_MIN = 100L
 
 @Composable
 private fun LyricsLineItem(
@@ -2044,8 +2163,8 @@ private fun ClassicPlayerContent(
     backgroundStyle: PlayerBackgroundStyle,
     lyrics: LyricsResult?,
     activeLyricsLine: Int,
-    lyricsOffsetMs: Long,
-    onAdjustLyricsOffset: (Long) -> Unit,
+    lyricsSync: LyricsSyncState,
+    onLyricsSyncAction: (LyricsSyncAction) -> Unit,
     onCollapse: () -> Unit,
     onTogglePlay: () -> Unit,
     onScrubStart: () -> Unit,
@@ -2169,8 +2288,8 @@ private fun ClassicPlayerContent(
                 result = lyrics,
                 activeIndex = activeLyricsLine,
                 onSeek = onSeek,
-                offsetMs = lyricsOffsetMs,
-                onAdjustOffset = onAdjustLyricsOffset,
+                sync = lyricsSync,
+                onSyncAction = onLyricsSyncAction,
                 accent = accent,
                 onColor = palette.on,
                 mutedColor = palette.onMuted,
@@ -2182,8 +2301,8 @@ private fun ClassicPlayerContent(
                 result = lyrics,
                 activeIndex = activeLyricsLine,
                 onSeek = onSeek,
-                offsetMs = lyricsOffsetMs,
-                onAdjustOffset = onAdjustLyricsOffset,
+                sync = lyricsSync,
+                onSyncAction = onLyricsSyncAction,
                 accent = accent,
                 onColor = palette.on,
                 mutedColor = palette.onMuted,

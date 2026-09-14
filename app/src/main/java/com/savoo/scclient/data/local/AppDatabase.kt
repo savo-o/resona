@@ -12,14 +12,15 @@ import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.favoriteTextKey
 import com.savoo.scclient.data.model.LyricsCacheEntity
+import com.savoo.scclient.data.model.LyricsSyncEntity
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.TelegramImportRecord
 import com.savoo.scclient.data.model.UnavailableTrackEntity
 
 @Database(
-    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class, LyricsCacheEntity::class, UnavailableTrackEntity::class],
-    version = 13,
+    entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class, LyricsCacheEntity::class, UnavailableTrackEntity::class, LyricsSyncEntity::class],
+    version = 14,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playHistoryDao(): PlayHistoryDao
     abstract fun excludedArtistDao(): ExcludedArtistDao
     abstract fun lyricsCacheDao(): LyricsCacheDao
+    abstract fun lyricsSyncDao(): LyricsSyncDao
     abstract fun unavailableTrackDao(): UnavailableTrackDao
 
     companion object {
@@ -218,9 +220,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS lyrics_sync (
+                        trackId INTEGER NOT NULL,
+                        provider TEXT NOT NULL,
+                        offsetMs INTEGER NOT NULL,
+                        driftMsPerMin INTEGER NOT NULL,
+                        title TEXT,
+                        artist TEXT,
+                        trackDurationMs INTEGER,
+                        lyricsDurationMs INTEGER,
+                        lastLineMs INTEGER,
+                        updatedAt INTEGER NOT NULL,
+                        PRIMARY KEY(trackId, provider)
+                    )
+                """)
+                db.execSQL("ALTER TABLE lyrics_cache ADD COLUMN sourceDurationMs INTEGER")
+                db.execSQL("DELETE FROM lyrics_cache WHERE provider != 'LRCLIB'")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .build()
     }
 }

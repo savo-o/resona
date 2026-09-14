@@ -12,6 +12,8 @@ import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.LyricsResult
+import com.savoo.scclient.data.model.LyricsSync
+import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.LyricsRepository
 import com.savoo.scclient.data.repository.SeekBarStyle
@@ -22,14 +24,18 @@ import com.savoo.scclient.ui.components.UndoAction
 import com.savoo.scclient.ui.components.UndoController
 import com.savoo.scclient.ui.screens.home.HomeViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 @UnstableApi
@@ -75,8 +81,30 @@ class PlayerViewModel @Inject constructor(
     ) { trackId, loaded -> loaded?.takeIf { it.first == trackId }?.second }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val lyricsOffsetMs = settingsRepository.settings.map { it.lyricsOffsetMs }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
+    private val lyricsTrackDurationMs = controller.state
+        .map { state -> state.currentTrack?.durationMs?.takeIf { it > 0L } ?: state.durationMs.takeIf { it > 0L } }
+        .distinctUntilChanged()
+
+    private val automaticLyricsSync = combine(currentTrackId, lyrics, lyricsTrackDurationMs) { trackId, result, durationMs ->
+        trackId to LyricsSync.automatic(durationMs, (result as? LyricsResult.Synced)?.sourceDurationMs)
+    }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null to LyricsSync())
+
+    private val storedLyricsSync = currentTrackId
+        .flatMapLatest { trackId -> trackId?.let { id -> lyricsRepository.observeSync(id).map { id to it } } ?: flowOf(null) }
+
+    private val pendingLyricsSync = MutableStateFlow<Pair<Long, LyricsSync>?>(null)
+    private val lyricsSyncWriteLock = Mutex()
+
+    private val lyricsSync = combine(currentTrackId, storedLyricsSync, automaticLyricsSync, pendingLyricsSync) { trackId, stored, automatic, pending ->
+        val auto = automatic.second.takeIf { automatic.first == trackId } ?: LyricsSync()
+        val sync = pending?.takeIf { it.first == trackId }?.second
+            ?: stored?.takeIf { it.first == trackId }?.second?.let { LyricsSync(it.offsetMs, it.driftMsPerMin) }
+            ?: auto
+        LyricsSyncState(sync = sync, automatic = auto)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LyricsSyncState())
+
+    val lyricsSyncState = lyricsSync
 
     val seekBarStyle = settingsRepository.settings.map { it.seekBarStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SeekBarStyle.CLASSIC)
@@ -100,15 +128,36 @@ class PlayerViewModel @Inject constructor(
     val playerBackgroundStyle = settingsRepository.settings.map { it.playerBackgroundStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB)
 
-    val activeLyricsLine = combine(controller.state, lyrics, lyricsOffsetMs) { state, result, offsetMs ->
+    val activeLyricsLine = combine(controller.state, lyrics, lyricsSync) { state, result, syncState ->
         val lines = (result as? LyricsResult.Synced)?.lines
         if (lines.isNullOrEmpty()) -1
-        else lines.indexOfLast { it.timeMs <= state.positionMs + 200 + offsetMs }
+        else {
+            val lyricsTimeMs = syncState.sync.lyricsTimeAt(state.positionMs) + 200
+            lines.indexOfLast { it.timeMs <= lyricsTimeMs }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), -1)
 
-    fun adjustLyricsOffset(deltaMs: Long) {
+    fun onLyricsSyncAction(action: LyricsSyncAction) {
+        val track = controller.state.value.currentTrack ?: return
+        val current = lyricsSync.value.sync
+        val automatic = lyricsSync.value.automatic
+        when (action) {
+            is LyricsSyncAction.AdjustOffset -> saveLyricsSync(track, current.withOffset(current.offsetMs + action.deltaMs))
+            LyricsSyncAction.ResetOffset -> saveLyricsSync(track, current.withOffset(automatic.offsetMs))
+            is LyricsSyncAction.AdjustDrift -> saveLyricsSync(track, current.withDrift(current.driftMsPerMin + action.deltaMsPerMin))
+            LyricsSyncAction.ResetDrift -> saveLyricsSync(track, current.withDrift(automatic.driftMsPerMin))
+        }
+    }
+
+    private fun saveLyricsSync(track: Track, sync: LyricsSync) {
+        val syncedLyrics = lyrics.value as? LyricsResult.Synced
+        val automatic = lyricsSync.value.automatic
+        val trackDurationMs = track.durationMs.takeIf { it > 0L } ?: controller.state.value.durationMs.takeIf { it > 0L }
+        pendingLyricsSync.value = track.id to sync
         viewModelScope.launch {
-            settingsRepository.setLyricsOffsetMs(lyricsOffsetMs.value + deltaMs)
+            lyricsSyncWriteLock.withLock {
+                lyricsRepository.saveSync(track, trackDurationMs, sync, automatic, syncedLyrics)
+            }
         }
     }
 

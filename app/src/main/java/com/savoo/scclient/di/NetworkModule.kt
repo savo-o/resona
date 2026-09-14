@@ -6,6 +6,7 @@ import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.LyricsCacheDao
+import com.savoo.scclient.data.local.LyricsSyncDao
 import com.savoo.scclient.data.local.OfflineDao
 import com.savoo.scclient.data.local.PlayHistoryDao
 import com.savoo.scclient.data.local.TelegramImportDao
@@ -14,7 +15,6 @@ import com.savoo.scclient.data.remote.AuthInterceptor
 import com.savoo.scclient.data.remote.ConnectivityEventBus
 import com.savoo.scclient.data.remote.GeniusApi
 import com.savoo.scclient.data.remote.GitHubReleaseApi
-import com.savoo.scclient.data.remote.KugouApi
 import com.savoo.scclient.data.remote.LyricsApi
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.savoo.scclient.debug.DebugLog
@@ -45,10 +45,6 @@ annotation class LyricsRetrofit
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class GitHubRetrofit
-
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class KugouRetrofit
 
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
@@ -174,21 +170,6 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    @KugouRetrofit
-    fun provideKugouRetrofit(@PlainHttpClient client: OkHttpClient, moshi: Moshi): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("https://kugou.com/")
-            .client(client)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
-
-    @Provides
-    @Singleton
-    fun provideKugouApi(@KugouRetrofit retrofit: Retrofit): KugouApi =
-        retrofit.create(KugouApi::class.java)
-
-    @Provides
-    @Singleton
     @GeniusRetrofit
     fun provideGeniusRetrofit(@PlainHttpClient client: OkHttpClient): Retrofit {
         val uaClient = client.newBuilder()
@@ -234,6 +215,9 @@ object NetworkModule {
 
     @Provides
     fun provideLyricsCacheDao(db: AppDatabase): LyricsCacheDao = db.lyricsCacheDao()
+
+    @Provides
+    fun provideLyricsSyncDao(db: AppDatabase): LyricsSyncDao = db.lyricsSyncDao()
 
     @Provides
     fun provideUnavailableTrackDao(db: AppDatabase): UnavailableTrackDao = db.unavailableTrackDao()

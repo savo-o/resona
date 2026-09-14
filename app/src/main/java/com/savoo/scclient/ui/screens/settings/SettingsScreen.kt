@@ -45,6 +45,7 @@ import com.savoo.scclient.i18n.CustomStrings
 import com.savoo.scclient.i18n.CustomStringsCheck
 import com.savoo.scclient.i18n.CustomStringsStats
 import com.savoo.scclient.i18n.CustomStringsTooLargeException
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -59,6 +60,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.TopAppBar
@@ -98,7 +100,6 @@ import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.LanguageOption
-import com.savoo.scclient.data.repository.LyricsProvider
 import com.savoo.scclient.data.repository.DividerStyle
 import com.savoo.scclient.data.repository.DrmTrackHiding
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
@@ -186,7 +187,6 @@ class SettingsViewModel @Inject constructor(
     fun setCrossfadeEnabled(value: Boolean) = viewModelScope.launch { repository.setCrossfadeEnabled(value) }
     fun setPauseForOtherApps(value: Boolean) = viewModelScope.launch { repository.setPauseForOtherApps(value) }
     fun setSeekBarStyle(style: SeekBarStyle) = viewModelScope.launch { repository.setSeekBarStyle(style) }
-    fun setLyricsProvider(provider: LyricsProvider) = viewModelScope.launch { repository.setLyricsProvider(provider) }
     fun setGeniusFallbackEnabled(value: Boolean) = viewModelScope.launch { repository.setGeniusFallbackEnabled(value) }
     fun setCustomSeedColor(color: Color) = viewModelScope.launch { repository.setCustomSeedColor(color) }
     fun setHomeSections(sections: List<HomeSectionConfig>) = viewModelScope.launch { repository.setHomeSections(sections) }
@@ -434,6 +434,7 @@ fun SettingsScreen(
     val updateCheckState by viewModel.updateCheckState.collectAsState()
     val isRefreshingClientId by viewModel.isRefreshingClientId.collectAsState()
     var showAbout by remember { mutableStateOf(false) }
+    var showKeepAndroidOpen by remember { mutableStateOf(false) }
     var showEula by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -840,39 +841,6 @@ fun SettingsScreen(
                     )
                 }
                 SettingsDivider()
-                Text(
-                    stringResource(R.string.settings_lyrics_provider),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp),
-                )
-                run {
-                    val providers = LyricsProvider.entries
-                    val providerLabelResIds = listOf(R.string.settings_lyrics_provider_lrclib, R.string.settings_lyrics_provider_kugou)
-                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        providers.forEachIndexed { index, provider ->
-                            val shapes = when (index) {
-                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                providers.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                            }
-                            ToggleButton(
-                                checked = settings.lyricsProvider == provider,
-                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setLyricsProvider(provider) } },
-                                modifier = Modifier.weight(1f),
-                                shapes = shapes,
-                            ) {
-                                Text(stringResource(providerLabelResIds[index]), style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    }
-                }
-                Text(
-                    stringResource(R.string.settings_lyrics_provider_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
-                )
                 SwitchItem(
                     title = stringResource(R.string.settings_lyrics_genius_fallback),
                     subtitle = stringResource(R.string.settings_lyrics_genius_fallback_desc),
@@ -1238,34 +1206,30 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            haptic()
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://keepandroidopen.org/")))
-                        }
+                        .clickable { haptic(); showKeepAndroidOpen = true }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.Top,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         Icons.Filled.Public,
                         contentDescription = null,
-                        modifier = Modifier.size(22.dp).padding(top = 2.dp),
+                        modifier = Modifier.size(22.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.settings_keep_android_open_title), style = MaterialTheme.typography.bodyLarge)
-                        Spacer(Modifier.height(4.dp))
                         Text(
-                            stringResource(R.string.settings_keep_android_open_desc),
+                            stringResource(R.string.settings_keep_android_open_summary),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
                     Icon(
-                        Icons.Filled.OpenInNew,
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp).padding(top = 3.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -1338,6 +1302,27 @@ fun SettingsScreen(
 
     if (showEula) {
         EulaBottomSheet(onDismiss = { showEula = false })
+    }
+
+    if (showKeepAndroidOpen) {
+        AlertDialog(
+            onDismissRequest = { showKeepAndroidOpen = false },
+            title = { Text(stringResource(R.string.settings_keep_android_open_title)) },
+            text = { Text(stringResource(R.string.settings_keep_android_open_desc)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showKeepAndroidOpen = false
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://keepandroidopen.org/")))
+                }) {
+                    Text(stringResource(R.string.settings_keep_android_open_learn_more))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showKeepAndroidOpen = false }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+        )
     }
 }
 

@@ -1,23 +1,23 @@
 package com.savoo.scclient.data.repository
 
-import android.util.Base64
 import com.savoo.scclient.data.local.LyricsCacheDao
-import com.savoo.scclient.data.model.KugouLyricsCandidate
+import com.savoo.scclient.data.local.LyricsSyncDao
 import com.savoo.scclient.data.model.LyricsCacheEntity
 import com.savoo.scclient.data.model.LyricsLine
 import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.model.LyricsSearchResult
+import com.savoo.scclient.data.model.LyricsSync
+import com.savoo.scclient.data.model.LyricsSyncEntity
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.remote.GeniusApi
-import com.savoo.scclient.data.remote.KugouApi
 import com.savoo.scclient.data.remote.LyricsApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import okhttp3.HttpUrl
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
@@ -30,46 +30,48 @@ import kotlin.math.abs
 @Singleton
 class LyricsRepository @Inject constructor(
     private val api: LyricsApi,
-    private val kugouApi: KugouApi,
     private val geniusApi: GeniusApi,
     private val lyricsCacheDao: LyricsCacheDao,
+    private val lyricsSyncDao: LyricsSyncDao,
     private val settingsRepository: SettingsRepository,
 ) {
-    private val cache = mutableMapOf<Pair<Long, LyricsProvider>, LyricsResult>()
+    private val cache = mutableMapOf<Long, LyricsResult>()
     private val lrcTagRegex = Regex("""\[(\d{2}):(\d{2})(?:[.:](\d{1,3}))?]""")
     private val maxDurationDriftSec = 3.0
-    // Kugou/QQ Music-sourced LRC embeds credit info as real timed lines rather than [ti:]/[ar:] tags -
-    // these aren't lyrics and would otherwise show up as the first few "lines" of the song.
     private val creditLineRegex = Regex(
-        """(?i)^(lyrics\s*by|composed\s*by|arranged\s*by|produced\s*by|written\s*by|词|曲|编曲|制作人|出品|监制|混音|母带|作词|作曲)\s*[:：]"""
+        """(?i)^(lyrics\s*by|composed\s*by|arranged\s*by|produced\s*by|written\s*by)\s*[:：]"""
     )
 
     suspend fun getLyrics(track: Track): LyricsResult {
-        val provider = settingsRepository.settings.first().lyricsProvider
-        cache[track.id to provider]?.let { return it }
+        cache[track.id]?.let { return it }
 
-        val cachedEntity = withContext(Dispatchers.IO) { lyricsCacheDao.get(track.id, provider.name) }
-        if (cachedEntity?.type == "SYNCED") {
-            val result = cachedEntity.toResult()
-            cache[track.id to provider] = result
-            return result
+        val cachedEntity = withContext(Dispatchers.IO) { lyricsCacheDao.get(track.id, PROVIDER) }
+        val cachedSynced = cachedEntity?.takeIf { it.type == "SYNCED" }?.toResult() as? LyricsResult.Synced
+        if (cachedSynced != null && cachedSynced.sourceDurationMs != null) {
+            cache[track.id] = cachedSynced
+            return cachedSynced
         }
 
-        val outcome = fetchSyncedFrom(provider, track)
+        val outcome = fetchSynced(track)
         currentCoroutineContext().ensureActive()
         if (outcome is FetchOutcome.Found && outcome.result is LyricsResult.Synced) {
-            store(track.id, provider, outcome.result)
+            store(track.id, outcome.result)
             return outcome.result
+        }
+
+        if (cachedSynced != null) {
+            cache[track.id] = cachedSynced
+            return cachedSynced
         }
 
         if (cachedEntity?.type == "PLAIN" && cachedEntity.source != "Genius") {
             val result = cachedEntity.toResult()
-            cache[track.id to provider] = result
+            cache[track.id] = result
             return result
         }
 
         if (outcome is FetchOutcome.Found) {
-            store(track.id, provider, outcome.result)
+            store(track.id, outcome.result)
             return outcome.result
         }
 
@@ -82,13 +84,41 @@ class LyricsRepository @Inject constructor(
         val result = fallback ?: LyricsResult.NotFound
 
         if (outcome is FetchOutcome.Failed) return result
-        store(track.id, provider, result)
+        store(track.id, result)
         return result
     }
 
-    private suspend fun store(trackId: Long, provider: LyricsProvider, result: LyricsResult) {
-        cache[trackId to provider] = result
-        withContext(Dispatchers.IO) { lyricsCacheDao.upsert(result.toEntity(trackId, provider)) }
+    fun observeSync(trackId: Long): Flow<LyricsSyncEntity?> = lyricsSyncDao.observe(trackId, PROVIDER)
+
+    suspend fun saveSync(
+        track: Track,
+        trackDurationMs: Long?,
+        sync: LyricsSync,
+        automatic: LyricsSync,
+        lyrics: LyricsResult.Synced?,
+    ) = withContext(Dispatchers.IO) {
+        if (sync == automatic) {
+            lyricsSyncDao.delete(track.id, PROVIDER)
+        } else {
+            lyricsSyncDao.upsert(
+                LyricsSyncEntity(
+                    trackId = track.id,
+                    provider = PROVIDER,
+                    offsetMs = sync.offsetMs,
+                    driftMsPerMin = sync.driftMsPerMin,
+                    title = track.title,
+                    artist = track.user.username,
+                    trackDurationMs = trackDurationMs,
+                    lyricsDurationMs = lyrics?.sourceDurationMs,
+                    lastLineMs = lyrics?.lines?.lastOrNull()?.timeMs,
+                )
+            )
+        }
+    }
+
+    private suspend fun store(trackId: Long, result: LyricsResult) {
+        cache[trackId] = result
+        withContext(Dispatchers.IO) { lyricsCacheDao.upsert(result.toEntity(trackId)) }
     }
 
     private sealed interface FetchOutcome {
@@ -97,14 +127,14 @@ class LyricsRepository @Inject constructor(
         data object Failed : FetchOutcome
     }
 
-    private fun LyricsResult.toEntity(trackId: Long, provider: LyricsProvider): LyricsCacheEntity = when (this) {
-        is LyricsResult.Synced -> LyricsCacheEntity(trackId, provider.name, "SYNCED", toLrc(lines), null)
-        is LyricsResult.Plain -> LyricsCacheEntity(trackId, provider.name, "PLAIN", text, source)
-        LyricsResult.NotFound -> LyricsCacheEntity(trackId, provider.name, "NOT_FOUND", null, null)
+    private fun LyricsResult.toEntity(trackId: Long): LyricsCacheEntity = when (this) {
+        is LyricsResult.Synced -> LyricsCacheEntity(trackId, PROVIDER, "SYNCED", toLrc(lines), null, sourceDurationMs)
+        is LyricsResult.Plain -> LyricsCacheEntity(trackId, PROVIDER, "PLAIN", text, source)
+        LyricsResult.NotFound -> LyricsCacheEntity(trackId, PROVIDER, "NOT_FOUND", null, null)
     }
 
     private fun LyricsCacheEntity.toResult(): LyricsResult = when (type) {
-        "SYNCED" -> content?.let { parseLrc(it) }?.takeIf { it.isNotEmpty() }?.let { LyricsResult.Synced(it) } ?: LyricsResult.NotFound
+        "SYNCED" -> content?.let { parseLrc(it) }?.takeIf { it.isNotEmpty() }?.let { LyricsResult.Synced(it, sourceDurationMs) } ?: LyricsResult.NotFound
         "PLAIN" -> content?.takeIf { it.isNotBlank() }?.let { LyricsResult.Plain(it, source ?: "LRCLIB") } ?: LyricsResult.NotFound
         else -> LyricsResult.NotFound
     }
@@ -116,15 +146,8 @@ class LyricsRepository @Inject constructor(
         "[%02d:%02d.%02d]%s".format(minutes, seconds, hundredths, line.text)
     }
 
-    private suspend fun fetchSyncedFrom(provider: LyricsProvider, track: Track): FetchOutcome {
-        val outcome = withContext(Dispatchers.IO) {
-            runCatching {
-                when (provider) {
-                    LyricsProvider.LRCLIB -> fetchFromLrcLib(track)
-                    LyricsProvider.KUGOU -> fetchFromKugou(track)
-                }
-            }
-        }
+    private suspend fun fetchSynced(track: Track): FetchOutcome {
+        val outcome = withContext(Dispatchers.IO) { runCatching { fetchFromLrcLib(track) } }
         outcome.exceptionOrNull()?.let { if (it is CancellationException) throw it }
         return outcome.fold(
             onSuccess = { result -> result?.let { FetchOutcome.Found(it) } ?: FetchOutcome.Missing },
@@ -148,8 +171,11 @@ class LyricsRepository @Inject constructor(
             usable
                 .filter { !it.syncedLyrics.isNullOrBlank() }
                 .sortedBy { abs((it.duration ?: 0.0) - durationSec) }
-                .firstNotNullOfOrNull { candidate -> parseLrc(candidate.syncedLyrics!!).takeIf { it.isNotEmpty() } }
-                ?.let { return LyricsResult.Synced(it) }
+                .firstNotNullOfOrNull { candidate ->
+                    parseLrc(candidate.syncedLyrics!!).takeIf { it.isNotEmpty() }
+                        ?.let { LyricsResult.Synced(it, candidate.duration?.let { seconds -> Math.round(seconds * 1000) }) }
+                }
+                ?.let { return it }
 
             if (plainFallback == null) {
                 usable
@@ -177,63 +203,6 @@ class LyricsRepository @Inject constructor(
         consider(byTitle)?.let { return it }
 
         return plainFallback
-    }
-
-    private suspend fun fetchFromKugou(track: Track): LyricsResult? {
-        val info = analyzeTitle(track)
-        val title = info.cleanTitle
-        val durationSec = (track.durationMs / 1000.0)
-
-        for (artist in info.artistCandidates) {
-            val searchUrl = HttpUrl.Builder()
-                .scheme("https").host("songsearch.kugou.com").addPathSegment("song_search_v2")
-                .addQueryParameter("keyword", "$artist $title")
-                .addQueryParameter("page", "1")
-                .addQueryParameter("pagesize", "10")
-                .addQueryParameter("userid", "-1")
-                .addQueryParameter("clientver", "")
-                .addQueryParameter("platform", "WebFilter")
-                .addQueryParameter("filter", "2")
-                .addQueryParameter("iscorrection", "1")
-                .addQueryParameter("privilege_filter", "0")
-                .build()
-            val songs = kugouApi.searchSong(searchUrl.toString()).data?.lists.orEmpty()
-            val song = songs
-                .filter { !it.fileHash.isNullOrBlank() }
-                .minByOrNull { abs((it.duration ?: 0) - durationSec) }
-                ?.takeIf { abs((it.duration ?: 0) - durationSec) <= maxDurationDriftSec }
-                ?: continue
-
-            val lyricsSearchUrl = HttpUrl.Builder()
-                .scheme("https").host("krcs.kugou.com").addPathSegment("search")
-                .addQueryParameter("ver", "1")
-                .addQueryParameter("man", "yes")
-                .addQueryParameter("client", "mobi")
-                .addQueryParameter("keyword", "$artist - $title")
-                .addQueryParameter("duration", track.durationMs.toString())
-                .addQueryParameter("hash", song.fileHash!!)
-                .build()
-            val candidate = kugouApi.searchLyrics(lyricsSearchUrl.toString()).candidates
-                .filter { !it.id.isNullOrBlank() && !it.accesskey.isNullOrBlank() }
-                .firstWithinDurationTolerance(track.durationMs)
-                ?: continue
-
-            val downloadUrl = HttpUrl.Builder()
-                .scheme("https").host("krcs.kugou.com").addPathSegment("download")
-                .addQueryParameter("ver", "1")
-                .addQueryParameter("client", "mobi")
-                .addQueryParameter("id", candidate.id!!)
-                .addQueryParameter("accesskey", candidate.accesskey!!)
-                .addQueryParameter("fmt", "lrc")
-                .addQueryParameter("charset", "utf8")
-                .build()
-            val encoded = kugouApi.downloadLyrics(downloadUrl.toString()).content ?: continue
-            val decoded = String(Base64.decode(encoded, Base64.DEFAULT), Charsets.UTF_8)
-            val selfIdLines = setOf("$title - $artist".lowercase(), "$artist - $title".lowercase())
-            val lines = parseLrc(decoded).filterNot { it.text.lowercase() in selfIdLines }
-            if (lines.isNotEmpty()) return LyricsResult.Synced(lines)
-        }
-        return null
     }
 
     private suspend fun fetchFromGenius(track: Track): String? = withContext(Dispatchers.IO) {
@@ -303,9 +272,6 @@ class LyricsRepository @Inject constructor(
         return sb.toString()
     }
 
-    private fun List<KugouLyricsCandidate>.firstWithinDurationTolerance(trackDurationMs: Long): KugouLyricsCandidate? =
-        firstOrNull { it.duration == null || abs(it.duration - trackDurationMs) <= maxDurationDriftSec * 1000 }
-
     private data class TitleInfo(val cleanTitle: String, val artistCandidates: List<String>)
 
     private fun analyzeTitle(track: Track): TitleInfo {
@@ -360,4 +326,8 @@ class LyricsRepository @Inject constructor(
             }
             .sortedBy { it.timeMs }
             .toList()
+
+    private companion object {
+        const val PROVIDER = "LRCLIB"
+    }
 }

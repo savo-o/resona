@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.savoo.scclient.ui.components.AppDivider
@@ -66,6 +67,7 @@ import com.savoo.scclient.BuildConfig
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.local.LyricsSyncDao
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.debug.ScreenshotModeState
@@ -97,6 +99,7 @@ class DebugMenuViewModel @Inject constructor(
     private val offlineTrackManager: OfflineTrackManager,
     private val database: AppDatabase,
     private val playerController: PlayerController,
+    private val lyricsSyncDao: LyricsSyncDao,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -151,6 +154,32 @@ class DebugMenuViewModel @Inject constructor(
         val clipboard = context.getSystemService(ClipboardManager::class.java)
         clipboard?.setPrimaryClip(ClipData.newPlainText("Resona trace log", DebugLog.asText()))
     }
+
+    val lyricsSyncCount = lyricsSyncDao.count()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    fun copyLyricsSyncCsv(onDone: () -> Unit) {
+        viewModelScope.launch {
+            val rows = withContext(Dispatchers.IO) { lyricsSyncDao.all() }
+            val csv = buildString {
+                appendLine("trackId,provider,title,artist,trackDurationMs,lyricsDurationMs,lastLineMs,offsetMs,driftMsPerMin,updatedAt")
+                rows.forEach { row ->
+                    appendLine(
+                        listOf(
+                            row.trackId, row.provider, csvCell(row.title), csvCell(row.artist),
+                            row.trackDurationMs ?: "", row.lyricsDurationMs ?: "", row.lastLineMs ?: "",
+                            row.offsetMs, row.driftMsPerMin, row.updatedAt,
+                        ).joinToString(",")
+                    )
+                }
+            }
+            val clipboard = context.getSystemService(ClipboardManager::class.java)
+            clipboard?.setPrimaryClip(ClipData.newPlainText("Resona lyrics sync", csv))
+            onDone()
+        }
+    }
+
+    private fun csvCell(value: String?): String = "\"" + value.orEmpty().replace("\"", "\"\"") + "\""
 
     private val _clientId = MutableStateFlow(clientIdProvider.cachedOrFallback())
     val clientId = _clientId.asStateFlow()
@@ -256,6 +285,7 @@ fun DebugMenuScreen(
     val favoriteArtists by viewModel.favoriteArtists.collectAsState()
     val favoritePlaylists by viewModel.favoritePlaylists.collectAsState()
     val offlineTracks by viewModel.offlineTracks.collectAsState()
+    val lyricsSyncCount by viewModel.lyricsSyncCount.collectAsState()
     val traceEntries by viewModel.traceEntries.collectAsState()
     val verboseNetworkLogging by viewModel.verboseNetworkLogging.collectAsState()
     val screenshotModeEnabled by viewModel.screenshotModeEnabled.collectAsState()
@@ -414,6 +444,39 @@ fun DebugMenuScreen(
                     }
                     TextButton(onClick = { throw RuntimeException("Test crash triggered from Debug Menu") }) {
                         Text(stringResource(R.string.debug_menu_test_crash))
+                    }
+                }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_menu_lyrics_sync)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Lyrics,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.debug_menu_lyrics_sync_count, lyricsSyncCount), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.debug_menu_lyrics_sync_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            viewModel.copyLyricsSyncCsv {
+                                scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.debug_menu_report_copied)) }
+                            }
+                        },
+                        enabled = lyricsSyncCount > 0,
+                    ) {
+                        Text(stringResource(R.string.debug_menu_copy))
                     }
                 }
             }

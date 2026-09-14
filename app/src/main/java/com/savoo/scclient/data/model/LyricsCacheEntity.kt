@@ -9,5 +9,6 @@ data class LyricsCacheEntity(
     val type: String,
     val content: String?,
     val source: String?,
+    val sourceDurationMs: Long? = null,
     val fetchedAt: Long = System.currentTimeMillis(),
 )
