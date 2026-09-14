@@ -74,8 +74,6 @@ class OfflineTrackManager @Inject constructor(
 
     private val localFolderPrefs = context.getSharedPreferences("offline_local_folders", Context.MODE_PRIVATE)
     private val watchedFolderUrisKey = "watched_folder_uris"
-    private val downloadPrefs = context.getSharedPreferences("offline_downloads", Context.MODE_PRIVATE)
-    private val parallelKey = "bulk_parallel"
 
     private val artworkRepairDone = AtomicBoolean(false)
     private val repairScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -89,7 +87,7 @@ class OfflineTrackManager @Inject constructor(
     private var bulkWorkerRunning = false
     private var bulkJob: Job? = null
     private var bulkWorkers = 0
-    private var bulkParallel = downloadPrefs.getBoolean(parallelKey, false)
+    private var bulkParallel = false
     private var bulkRateLimited = false
     private var bulkNextStartAt = 0L
     private val bulkRetriedIds = HashSet<Long>()
@@ -123,7 +121,6 @@ class OfflineTrackManager @Inject constructor(
         synchronized(bulkLock) {
             bulkParallel = enabled
             bulkRateLimited = false
-            downloadPrefs.edit().putBoolean(parallelKey, enabled).apply()
             _bulkDownload.update { it?.copy(parallel = enabled) }
             if (bulkWorkerRunning) launchBulkWorkersLocked()
         }

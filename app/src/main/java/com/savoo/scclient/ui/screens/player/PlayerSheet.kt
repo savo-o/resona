@@ -257,7 +257,6 @@ fun PlayerSheet(
                 BulkDownloadBanner(
                     progress = progress,
                     onCancel = { haptics.click(); viewModel.cancelBulkDownloads() },
-                    onToggleParallel = { haptics.click(); viewModel.setBulkParallel(it) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),

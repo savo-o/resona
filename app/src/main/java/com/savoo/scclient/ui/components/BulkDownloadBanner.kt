@@ -42,7 +42,7 @@ import com.savoo.scclient.player.BulkDownloadProgress
 fun BulkDownloadBanner(
     progress: BulkDownloadProgress,
     onCancel: () -> Unit,
-    onToggleParallel: (Boolean) -> Unit,
+    onToggleParallel: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val animatedFraction by animateFloatAsState(
@@ -96,7 +96,7 @@ fun BulkDownloadBanner(
                 if (progress.isFinished) {
                     Spacer(Modifier.height(48.dp))
                 } else {
-                    IconToggleButton(
+                    if (onToggleParallel != null) IconToggleButton(
                         checked = progress.parallel,
                         onCheckedChange = onToggleParallel,
                         colors = IconButtonDefaults.iconToggleButtonColors(
