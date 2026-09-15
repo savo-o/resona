@@ -15,6 +15,7 @@ import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.SettingsRepository
@@ -268,13 +269,39 @@ class HomeViewModel @Inject constructor(
                         favoritesDao.filterFavoriteTrackIds(artistTracks.map { it.id }).toSet()
                     }.getOrDefault(emptySet())
                     artistTracks
-                        .filterNot { it.id in knownTrackIds || it.id in alreadyFavorite }
+                        .filterNot { it.id in knownTrackIds || it.id in alreadyFavorite || isExcluded(it) || it.restrictionReason() != null }
                         .shuffled()
                         .take(5)
                 }
             }.awaitAll()
         }.flatten().distinctBy { it.id }.take(DISCOVERY_TRACK_CAP)
-        android.util.Log.d(TAG, "buildMix: discovery=${discovery.size} localPool=${localPool.size}")
+        // SoundCloud's own "related" for tracks the user actually listens to. Artist discovery above
+        // can only ever return more of the same artists; this is the only source in the mix that can
+        // surface someone the user has never heard.
+        val relatedSeeds = weightedSample(localPool, RELATED_SEED_SAMPLE) { affinity.trackWeight(it) }
+        val related = coroutineScope {
+            relatedSeeds.map { seed ->
+                async {
+                    val relatedTracks = runCatching {
+                        withTimeoutOrNull(ARTIST_FETCH_TIMEOUT_MS) { trackRepository.getRelatedTracksPage(seed.id) }
+                    }
+                        .onFailure { android.util.Log.w(TAG, "buildMix: getRelatedTracksPage(${seed.id}) failed: $it") }
+                        .getOrNull()
+                        .orEmpty()
+                    val alreadyFavorite = runCatching {
+                        favoritesDao.filterFavoriteTrackIds(relatedTracks.map { it.id }).toSet()
+                    }.getOrDefault(emptySet())
+                    relatedTracks
+                        .filterNot {
+                            it.id in knownTrackIds || it.id in alreadyFavorite || isExcluded(it) ||
+                                it.user.id in excludedArtistIds || it.restrictionReason() != null
+                        }
+                        .shuffled()
+                        .take(RELATED_TRACKS_PER_SEED)
+                }
+            }.awaitAll()
+        }.flatten().distinctBy { it.id }.take(RELATED_TRACK_CAP)
+        android.util.Log.d(TAG, "buildMix: discovery=${discovery.size} related=${related.size} localPool=${localPool.size}")
 
         // Capped so a large favorites/downloads library can't drown out discovery by sheer count -
         // without this, a user with hundreds of local tracks would get a mix that's still ~90% local
@@ -284,7 +311,7 @@ class HomeViewModel @Inject constructor(
         } else {
             localPool
         }
-        val pool = (cappedLocalPool.shuffled() + discovery).distinctBy { it.id }
+        val pool = (cappedLocalPool.shuffled() + discovery + related).distinctBy { it.id }
         if (pool.isEmpty()) emptyList() else weightedSample(pool, pool.size) { affinity.trackWeight(it) }
     }
 
@@ -345,6 +372,9 @@ class HomeViewModel @Inject constructor(
         private const val GENRE_WEIGHT = 0.3
         private const val DISCOVERY_ARTIST_SAMPLE = 14
         private const val DISCOVERY_TRACK_CAP = 45
+        private const val RELATED_SEED_SAMPLE = 8
+        private const val RELATED_TRACKS_PER_SEED = 4
+        private const val RELATED_TRACK_CAP = 30
         private const val MAX_LOCAL_POOL_TRACKS = 40
         private const val HOME_FAVORITES_PREVIEW = 10
         private const val MIX_FAVORITES_SAMPLE = 400

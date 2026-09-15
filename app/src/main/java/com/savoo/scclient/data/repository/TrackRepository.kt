@@ -116,6 +116,9 @@ class TrackRepository @Inject constructor(
     suspend fun getUserTracksPage(userId: Long, limit: Int = 20): List<Track> =
         api.getUserTracks(userId, limit = limit).collection
 
+    suspend fun getRelatedTracksPage(trackId: Long, limit: Int = RELATED_PAGE_SIZE): List<Track> =
+        api.getRelatedTracks(trackId, limit = limit).collection
+
     suspend fun getPlaylist(id: Long): Playlist = api.getPlaylist(id)
 
     suspend fun getCharts(limit: Int = 50): List<Track> =
@@ -143,5 +146,6 @@ class TrackRepository @Inject constructor(
 
     companion object {
         const val SEARCH_PAGE_SIZE = 25
+        const val RELATED_PAGE_SIZE = 15
     }
 }

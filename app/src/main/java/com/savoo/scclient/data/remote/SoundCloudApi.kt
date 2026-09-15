@@ -85,6 +85,13 @@ interface SoundCloudApi {
         @Query("offset") offset: Int = 0,
     ): SearchResponse<Track>
 
+    @GET("tracks/{id}/related")
+    suspend fun getRelatedTracks(
+        @Path("id") id: Long,
+        @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0,
+    ): SearchResponse<Track>
+
     @GET("playlists/{id}")
     suspend fun getPlaylist(@Path("id") id: Long): Playlist
 
