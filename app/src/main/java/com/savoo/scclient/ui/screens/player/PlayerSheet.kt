@@ -129,12 +129,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.Density
-import androidx.compose.ui.graphics.PathMeasure
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -162,6 +156,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.repository.AppBackgroundMode
+import com.savoo.scclient.data.repository.ArtworkShape
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
 import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
@@ -172,6 +167,8 @@ import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.theme.buildPixelScheme
 import com.savoo.scclient.ui.components.TrackArtwork
+import com.savoo.scclient.ui.components.artworkProgressRing
+import com.savoo.scclient.ui.components.rememberArtworkShape
 import com.savoo.scclient.ui.components.TrackSkippedBanner
 import com.savoo.scclient.ui.components.AppDivider
 import com.savoo.scclient.ui.components.BulkDownloadBanner
@@ -366,6 +363,7 @@ fun PlayerSheet(
             onDismissCustomizeHint = { viewModel.dismissPlayerHint() },
             backgroundStyle = viewModel.playerBackgroundStyle.collectAsState().value,
             pixelGlowEnabled = viewModel.pixelGlowEnabled.collectAsState().value,
+            artworkShape = viewModel.artworkShape.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsSync = viewModel.lyricsSyncState.collectAsState().value,
@@ -404,6 +402,7 @@ private fun FullPlayerSheet(
     backgroundMode: AppBackgroundMode,
     backgroundStyle: PlayerBackgroundStyle,
     pixelGlowEnabled: Boolean,
+    artworkShape: ArtworkShape,
     showCustomizeHint: Boolean,
     onDismissCustomizeHint: () -> Unit,
     lyrics: LyricsResult?,
@@ -449,6 +448,7 @@ private fun FullPlayerSheet(
                 glowColor = glowColor,
                 seekBarStyle = seekBarStyle,
                 backgroundStyle = backgroundStyle,
+                artworkShape = artworkShape,
                 lyrics = lyrics,
                 activeLyricsLine = activeLyricsLine,
                 lyricsSync = lyricsSync,
@@ -481,6 +481,7 @@ private fun FullPlayerSheet(
             seekBarStyle = seekBarStyle,
             glowColor = glowColor,
             showGlow = pixelGlowEnabled,
+            artworkShape = artworkShape,
             showCustomizeHint = showCustomizeHint,
             onDismissCustomizeHint = onDismissCustomizeHint,
             lyrics = lyrics,
@@ -589,50 +590,6 @@ private fun rememberPixelPalette(glowColor: Color?, artworkOnly: Boolean): Pixel
 
 private fun Color.tone(amount: Float, towards: Color): Color = lerp(this, towards, amount)
 
-private const val BlobAmplitude = 0.055f
-private const val BlobBumps = 8
-private const val BlobPhase = 0f
-
-// Shared by BlobShape's clip outline and the artwork's progress ring, so the ring traces the exact
-// same wobbly contour as the artwork clip, just at a bigger size (and, for the ring, rotated to
-// start at the top like a clock).
-private fun buildBlobPath(
-    size: Size,
-    amplitude: Float = BlobAmplitude,
-    bumps: Int = BlobBumps,
-    phase: Float = BlobPhase,
-    startAngleOffset: Float = 0f,
-): Path {
-    val path = Path()
-    val cx = size.width / 2f
-    val cy = size.height / 2f
-    // Divided by (1 + amplitude) so the outward bumps (sin peak = 1) top out exactly at the
-    // box's own half-size instead of overshooting it - otherwise the clip cuts the bumps flush
-    // with the box edge, showing as flattened, "eaten-away" notches instead of a smooth curve.
-    val baseR = minOf(size.width, size.height) / 2f / (1f + amplitude)
-    val segments = 128
-    for (i in 0..segments) {
-        val t = i.toFloat() / segments
-        val theta = startAngleOffset + t * 2f * Math.PI.toFloat()
-        val r = baseR * (1f + amplitude * sin(bumps * theta + phase))
-        val x = cx + r * cos(theta)
-        val y = cy + r * sin(theta)
-        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-    }
-    path.close()
-    return path
-}
-
-private class BlobShape(
-    private val amplitude: Float = BlobAmplitude,
-    private val bumps: Int = BlobBumps,
-    private val phase: Float = BlobPhase,
-) : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        return Outline.Generic(buildBlobPath(size, amplitude, bumps, phase))
-    }
-}
-
 @Composable
 private fun PixelArtwork(
     artworkUrl: String?,
@@ -642,9 +599,10 @@ private fun PixelArtwork(
     glowColor: Color?,
     showGlow: Boolean,
     isPlaying: Boolean,
+    artworkShape: ArtworkShape,
     modifier: Modifier = Modifier,
 ) {
-    val blobShape = remember { BlobShape() }
+    val shape = rememberArtworkShape(artworkShape)
     val ringColor = palette.accent
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
@@ -664,27 +622,16 @@ private fun PixelArtwork(
             TrackArtwork(
                 artworkUrl = artworkUrl,
                 contentDescription = null,
-                shape = blobShape,
+                shape = shape,
                 modifier = Modifier
                     .fillMaxSize()
                     .offset { IntOffset(slideOffsetX.value.roundToInt(), 0) },
             )
-            Canvas(modifier = Modifier.requiredSize(ringSize)) {
-                val strokePx = ringStroke.toPx()
-                val inset = strokePx / 2f
-                val pathBox = Size(size.width - strokePx, size.height - strokePx)
-                val ringPath = buildBlobPath(pathBox, startAngleOffset = -(Math.PI / 2).toFloat())
-                ringPath.translate(Offset(inset, inset))
-
-                val measure = PathMeasure()
-                measure.setPath(ringPath, forceClosed = true)
-                val progressPath = Path()
-                measure.getSegment(0f, measure.length * animatedProgress, progressPath, startWithMoveTo = true)
-
-                val strokeStyle = Stroke(strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                drawPath(ringPath, color = ringColor.copy(alpha = 0.25f), style = strokeStyle)
-                drawPath(progressPath, color = ringColor, style = strokeStyle)
-            }
+            Box(
+                modifier = Modifier
+                    .requiredSize(ringSize)
+                    .artworkProgressRing(shape, { animatedProgress }, ringColor, ringStroke),
+            )
         }
     }
 }
@@ -850,6 +797,7 @@ private fun PixelPlayerContent(
     seekBarStyle: SeekBarStyle,
     glowColor: Color?,
     showGlow: Boolean,
+    artworkShape: ArtworkShape,
     showCustomizeHint: Boolean = false,
     onDismissCustomizeHint: () -> Unit = {},
     lyrics: LyricsResult?,
@@ -1078,6 +1026,7 @@ private fun PixelPlayerContent(
                             slideOffsetX = slideOffset,
                             glowColor = glowColor,
                             showGlow = showGlow,
+                            artworkShape = artworkShape,
                             isPlaying = state.isPlaying,
                             modifier = Modifier
                                 .size(artSize)
@@ -2161,6 +2110,7 @@ private fun ClassicPlayerContent(
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
     backgroundStyle: PlayerBackgroundStyle,
+    artworkShape: ArtworkShape,
     lyrics: LyricsResult?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
@@ -2416,6 +2366,7 @@ private fun ClassicPlayerContent(
                             } else 0f,
                             slideOffsetX = slideOffset,
                             style = backgroundStyle,
+                            artworkShape = artworkShape,
                             modifier = Modifier
                                 .size(artSize)
                                 .align(Alignment.BottomCenter),
@@ -2787,6 +2738,7 @@ private fun ArtworkOrb(
     progress: Float,
     slideOffsetX: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
     style: com.savoo.scclient.data.repository.PlayerBackgroundStyle = com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB,
+    artworkShape: ArtworkShape = ArtworkShape.BLOB,
     modifier: Modifier = Modifier,
 ) {
     val fallback = MaterialTheme.colorScheme.primary
@@ -2801,7 +2753,7 @@ private fun ArtworkOrb(
         label = "orbColorA",
     )
 
-    val blobShape = remember { BlobShape() }
+    val blobShape = rememberArtworkShape(artworkShape)
     val ringColor = orbA.tone(0.45f, Color.White)
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
@@ -2850,22 +2802,11 @@ private fun ArtworkOrb(
                     .fillMaxSize()
                     .offset { IntOffset(slideOffsetX.value.roundToInt(), 0) },
             )
-            Canvas(modifier = Modifier.requiredSize(ringSize)) {
-                val strokePx = ringStroke.toPx()
-                val inset = strokePx / 2f
-                val pathBox = Size(size.width - strokePx, size.height - strokePx)
-                val ringPath = buildBlobPath(pathBox, startAngleOffset = -(Math.PI / 2).toFloat())
-                ringPath.translate(Offset(inset, inset))
-
-                val measure = PathMeasure()
-                measure.setPath(ringPath, forceClosed = true)
-                val progressPath = Path()
-                measure.getSegment(0f, measure.length * animatedProgress, progressPath, startWithMoveTo = true)
-
-                val strokeStyle = Stroke(strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                drawPath(ringPath, color = ringColor.copy(alpha = 0.25f), style = strokeStyle)
-                drawPath(progressPath, color = ringColor, style = strokeStyle)
-            }
+            Box(
+                modifier = Modifier
+                    .requiredSize(ringSize)
+                    .artworkProgressRing(blobShape, { animatedProgress }, ringColor, ringStroke),
+            )
         }
     }
 }

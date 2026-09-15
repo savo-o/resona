@@ -42,6 +42,8 @@ enum class SeekBarStyle { CLASSIC, WAVY }
 
 enum class PlayerBackgroundStyle { ORB, BLURRED_ARTWORK, MINIMAL }
 
+enum class ArtworkShape { BLOB, CIRCLE, SQUARE, COOKIE_9, COOKIE_12, CLOVER_4, CLOVER_8, SUNNY, SOFT_BURST, FLOWER, PUFFY_DIAMOND, HEART }
+
 enum class PlayerStyle { CLASSIC, PIXEL }
 
 enum class AppBackgroundMode { DYNAMIC, DEFAULT, CUSTOM, PLAYER_ONLY }
@@ -105,6 +107,7 @@ data class AppSettings(
     val customSeedColor: Color = OrangeSeed.Primary,
     val homeSections: List<HomeSectionConfig> = DefaultHomeSections,
     val playerBackgroundStyle: PlayerBackgroundStyle = PlayerBackgroundStyle.ORB,
+    val artworkShape: ArtworkShape = ArtworkShape.BLOB,
     val playerStyle: PlayerStyle = PlayerStyle.PIXEL,
     val backgroundMode: AppBackgroundMode = AppBackgroundMode.DYNAMIC,
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
@@ -148,6 +151,7 @@ class SettingsRepository @Inject constructor(
         val CUSTOM_SEED_COLOR = intPreferencesKey("custom_seed_color")
         val HOME_SECTIONS = stringPreferencesKey("home_sections")
         val PLAYER_BACKGROUND_STYLE = stringPreferencesKey("player_background_style")
+        val ARTWORK_SHAPE = stringPreferencesKey("artwork_shape")
         val PLAYER_STYLE = stringPreferencesKey("player_style")
         val BACKGROUND_MODE = stringPreferencesKey("background_mode")
         val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
@@ -205,6 +209,7 @@ class SettingsRepository @Inject constructor(
             homeSections = parseHomeSections(prefs[Keys.HOME_SECTIONS]),
             // BLURRED_ARTWORK is hidden from the picker (kept working in code, just not offered as a
             // choice) - coerce anyone still holding it from before back to the default.
+            artworkShape = prefs[Keys.ARTWORK_SHAPE]?.let { runCatching { ArtworkShape.valueOf(it) }.getOrNull() } ?: ArtworkShape.BLOB,
             playerBackgroundStyle = (prefs[Keys.PLAYER_BACKGROUND_STYLE]?.let {
                 runCatching { PlayerBackgroundStyle.valueOf(it) }.getOrNull()
             } ?: PlayerBackgroundStyle.ORB).let {
@@ -332,6 +337,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setHomeSections(sections: List<HomeSectionConfig>) {
         context.dataStore.edit { it[Keys.HOME_SECTIONS] = serializeHomeSections(sections) }
+    }
+
+    suspend fun setArtworkShape(shape: ArtworkShape) {
+        context.dataStore.edit { it[Keys.ARTWORK_SHAPE] = shape.name }
     }
 
     suspend fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) {

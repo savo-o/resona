@@ -20,7 +20,7 @@ import com.savoo.scclient.data.model.UnavailableTrackEntity
 
 @Database(
     entities = [FavoriteTrack::class, FavoriteArtist::class, FavoritePlaylist::class, OfflineTrack::class, TelegramImportRecord::class, PlayEvent::class, ExcludedMixArtist::class, LyricsCacheEntity::class, UnavailableTrackEntity::class, LyricsSyncEntity::class],
-    version = 14,
+    version = 15,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritesDao(): FavoritesDao
@@ -220,31 +220,70 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val LYRICS_SYNC_COLUMNS = listOf(
+            "trackId", "provider", "offsetMs", "driftMsPerMin", "title", "artist",
+            "trackDurationMs", "lyricsDurationMs", "lastLineMs", "updatedAt",
+        )
+
+        private fun createLyricsSyncTable(db: SupportSQLiteDatabase, name: String) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS $name (
+                    trackId INTEGER NOT NULL,
+                    provider TEXT NOT NULL,
+                    offsetMs INTEGER NOT NULL,
+                    driftMsPerMin INTEGER NOT NULL,
+                    title TEXT,
+                    artist TEXT,
+                    trackDurationMs INTEGER,
+                    lyricsDurationMs INTEGER,
+                    lastLineMs INTEGER,
+                    updatedAt INTEGER NOT NULL,
+                    PRIMARY KEY(trackId, provider)
+                )
+            """)
+        }
+
+        private fun columnsOf(db: SupportSQLiteDatabase, table: String): Set<String> =
+            db.query("PRAGMA table_info(`$table`)").use { cursor ->
+                val nameIndex = cursor.getColumnIndexOrThrow("name")
+                buildSet { while (cursor.moveToNext()) add(cursor.getString(nameIndex)) }
+            }
+
         private val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS lyrics_sync (
-                        trackId INTEGER NOT NULL,
-                        provider TEXT NOT NULL,
-                        offsetMs INTEGER NOT NULL,
-                        driftMsPerMin INTEGER NOT NULL,
-                        title TEXT,
-                        artist TEXT,
-                        trackDurationMs INTEGER,
-                        lyricsDurationMs INTEGER,
-                        lastLineMs INTEGER,
-                        updatedAt INTEGER NOT NULL,
-                        PRIMARY KEY(trackId, provider)
-                    )
-                """)
+                createLyricsSyncTable(db, "lyrics_sync")
                 db.execSQL("ALTER TABLE lyrics_cache ADD COLUMN sourceDurationMs INTEGER")
                 db.execSQL("DELETE FROM lyrics_cache WHERE provider != 'LRCLIB'")
             }
         }
 
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if ("sourceDurationMs" !in columnsOf(db, "lyrics_cache")) {
+                    db.execSQL("ALTER TABLE lyrics_cache ADD COLUMN sourceDurationMs INTEGER")
+                }
+                db.execSQL("DELETE FROM lyrics_cache WHERE provider != 'LRCLIB'")
+
+                val existing = columnsOf(db, "lyrics_sync")
+                db.execSQL("DROP TABLE IF EXISTS lyrics_sync_new")
+                createLyricsSyncTable(db, "lyrics_sync_new")
+                val required = listOf("trackId", "provider", "offsetMs", "driftMsPerMin")
+                if (existing.containsAll(required)) {
+                    val copied = LYRICS_SYNC_COLUMNS.filter { it in existing && it != "updatedAt" }
+                    val updatedAt = if ("updatedAt" in existing) "COALESCE(updatedAt, 0)" else "0"
+                    db.execSQL(
+                        "INSERT OR REPLACE INTO lyrics_sync_new (${copied.joinToString()}, updatedAt) " +
+                            "SELECT ${copied.joinToString()}, $updatedAt FROM lyrics_sync WHERE provider = 'LRCLIB'"
+                    )
+                }
+                db.execSQL("DROP TABLE IF EXISTS lyrics_sync")
+                db.execSQL("ALTER TABLE lyrics_sync_new RENAME TO lyrics_sync")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .build()
     }
 }

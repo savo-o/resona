@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.ButtonGroup
@@ -47,14 +49,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.savoo.scclient.R
 import com.savoo.scclient.data.repository.AppBackgroundMode
+import com.savoo.scclient.data.repository.ArtworkShape
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.DividerStyle
@@ -63,7 +70,11 @@ import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
 import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
+import com.savoo.scclient.ui.components.MorphingArtworkShape
 import com.savoo.scclient.ui.components.SwitchItem
+import com.savoo.scclient.ui.components.artworkProgressRing
+import com.savoo.scclient.ui.components.polygon
+import com.savoo.scclient.ui.components.rememberArtworkShape
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.theme.AppColorTheme
 
@@ -168,6 +179,85 @@ private fun CustomColorPicker(color: Color, onColorChange: (Color) -> Unit) {
             onValueChangeFinished = { commit() },
             valueRange = 0.1f..1f,
         )
+    }
+}
+
+private fun ArtworkShape.labelRes(): Int = when (this) {
+    ArtworkShape.BLOB -> R.string.artwork_shape_blob
+    ArtworkShape.CIRCLE -> R.string.artwork_shape_circle
+    ArtworkShape.SQUARE -> R.string.artwork_shape_square
+    ArtworkShape.COOKIE_9 -> R.string.artwork_shape_cookie_9
+    ArtworkShape.COOKIE_12 -> R.string.artwork_shape_cookie_12
+    ArtworkShape.CLOVER_4 -> R.string.artwork_shape_clover_4
+    ArtworkShape.CLOVER_8 -> R.string.artwork_shape_clover_8
+    ArtworkShape.SUNNY -> R.string.artwork_shape_sunny
+    ArtworkShape.SOFT_BURST -> R.string.artwork_shape_soft_burst
+    ArtworkShape.FLOWER -> R.string.artwork_shape_flower
+    ArtworkShape.PUFFY_DIAMOND -> R.string.artwork_shape_puffy_diamond
+    ArtworkShape.HEART -> R.string.artwork_shape_heart
+}
+
+@Composable
+private fun ArtworkShapePreview(shape: ArtworkShape) {
+    val clip = rememberArtworkShape(shape)
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(top = 28.dp, bottom = 20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(136.dp)
+                .clip(clip)
+                .background(Brush.linearGradient(listOf(scheme.primary, scheme.tertiary))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.MusicNote,
+                contentDescription = null,
+                tint = scheme.onPrimary,
+                modifier = Modifier.size(44.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .requiredSize(136.dp + 24.dp)
+                .artworkProgressRing(clip, { 0.62f }, scheme.primary, 3.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ArtworkShapePicker(selected: ArtworkShape, onSelect: (ArtworkShape) -> Unit) {
+    val haptic = rememberHapticTick()
+    val scheme = MaterialTheme.colorScheme
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ArtworkShape.entries.forEach { shape ->
+            val isSelected = shape == selected
+            val clip = remember(shape) {
+                val polygon = shape.polygon().normalized()
+                MorphingArtworkShape(androidx.graphics.shapes.Morph(polygon, polygon), 1f)
+            }
+            val description = stringResource(shape.labelRes())
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(clip)
+                    .background(if (isSelected) scheme.primary else scheme.surfaceContainerHighest)
+                    .clickable(onClickLabel = description) { haptic(); onSelect(shape) }
+                    .semantics { contentDescription = description; this.selected = isSelected },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isSelected) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = scheme.onPrimary, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
     }
 }
 
@@ -485,6 +575,11 @@ fun CustomizationScreen(
                         )
                     }
                 }
+            }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_artwork_shape)) {
+                ArtworkShapePreview(settings.artworkShape)
+                ArtworkShapePicker(selected = settings.artworkShape, onSelect = { viewModel.setArtworkShape(it) })
             }
 
             if (settings.playerStyle == PlayerStyle.CLASSIC) {

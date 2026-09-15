@@ -125,6 +125,9 @@ class PlayerViewModel @Inject constructor(
     val playerStyle = settingsRepository.settings.map { it.playerStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.PlayerStyle.PIXEL)
 
+    val artworkShape = settingsRepository.settings.map { it.artworkShape }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.ArtworkShape.BLOB)
+
     val playerBackgroundStyle = settingsRepository.settings.map { it.playerBackgroundStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB)
 
