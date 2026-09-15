@@ -108,6 +108,7 @@ data class AppSettings(
     val homeSections: List<HomeSectionConfig> = DefaultHomeSections,
     val playerBackgroundStyle: PlayerBackgroundStyle = PlayerBackgroundStyle.ORB,
     val artworkShape: ArtworkShape = ArtworkShape.BLOB,
+    val artworkRingEnabled: Boolean = true,
     val playerStyle: PlayerStyle = PlayerStyle.PIXEL,
     val backgroundMode: AppBackgroundMode = AppBackgroundMode.DYNAMIC,
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
@@ -152,6 +153,7 @@ class SettingsRepository @Inject constructor(
         val HOME_SECTIONS = stringPreferencesKey("home_sections")
         val PLAYER_BACKGROUND_STYLE = stringPreferencesKey("player_background_style")
         val ARTWORK_SHAPE = stringPreferencesKey("artwork_shape")
+        val ARTWORK_RING_ENABLED = booleanPreferencesKey("artwork_ring_enabled")
         val PLAYER_STYLE = stringPreferencesKey("player_style")
         val BACKGROUND_MODE = stringPreferencesKey("background_mode")
         val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
@@ -209,6 +211,7 @@ class SettingsRepository @Inject constructor(
             homeSections = parseHomeSections(prefs[Keys.HOME_SECTIONS]),
             // BLURRED_ARTWORK is hidden from the picker (kept working in code, just not offered as a
             // choice) - coerce anyone still holding it from before back to the default.
+            artworkRingEnabled = prefs[Keys.ARTWORK_RING_ENABLED] ?: true,
             artworkShape = prefs[Keys.ARTWORK_SHAPE]?.let { runCatching { ArtworkShape.valueOf(it) }.getOrNull() } ?: ArtworkShape.BLOB,
             playerBackgroundStyle = (prefs[Keys.PLAYER_BACKGROUND_STYLE]?.let {
                 runCatching { PlayerBackgroundStyle.valueOf(it) }.getOrNull()
@@ -337,6 +340,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setHomeSections(sections: List<HomeSectionConfig>) {
         context.dataStore.edit { it[Keys.HOME_SECTIONS] = serializeHomeSections(sections) }
+    }
+
+    suspend fun setArtworkRingEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.ARTWORK_RING_ENABLED] = value }
     }
 
     suspend fun setArtworkShape(shape: ArtworkShape) {

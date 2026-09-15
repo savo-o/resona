@@ -309,6 +309,8 @@
     <string name="settings_player_background_blurred">Размытие</string>
     <string name="settings_player_background_minimal">Минимализм</string>
     <string name="settings_artwork_shape">Форма обложки</string>
+    <string name="settings_artwork_ring">Обводка обложки</string>
+    <string name="settings_artwork_ring_desc">Показывать прогресс трека обводкой вокруг обложки</string>
     <string name="artwork_shape_blob">Волна</string>
     <string name="artwork_shape_circle">Круг</string>
     <string name="artwork_shape_square">Квадрат</string>

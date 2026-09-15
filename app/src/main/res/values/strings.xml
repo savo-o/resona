@@ -307,6 +307,8 @@
     <string name="settings_player_background_blurred">Blurred</string>
     <string name="settings_player_background_minimal">Minimal</string>
     <string name="settings_artwork_shape">Artwork shape</string>
+    <string name="settings_artwork_ring">Artwork outline</string>
+    <string name="settings_artwork_ring_desc">Show track progress as an outline around the artwork</string>
     <string name="artwork_shape_blob">Wave</string>
     <string name="artwork_shape_circle">Circle</string>
     <string name="artwork_shape_square">Square</string>

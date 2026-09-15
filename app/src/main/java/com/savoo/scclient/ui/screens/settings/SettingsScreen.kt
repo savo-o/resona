@@ -191,6 +191,7 @@ class SettingsViewModel @Inject constructor(
     fun setCustomSeedColor(color: Color) = viewModelScope.launch { repository.setCustomSeedColor(color) }
     fun setHomeSections(sections: List<HomeSectionConfig>) = viewModelScope.launch { repository.setHomeSections(sections) }
     fun setPlayerBackgroundStyle(style: PlayerBackgroundStyle) = viewModelScope.launch { repository.setPlayerBackgroundStyle(style) }
+    fun setArtworkRingEnabled(value: Boolean) = viewModelScope.launch { repository.setArtworkRingEnabled(value) }
     fun setArtworkShape(shape: com.savoo.scclient.data.repository.ArtworkShape) = viewModelScope.launch { repository.setArtworkShape(shape) }
     fun setDividerStyle(style: DividerStyle) = viewModelScope.launch { repository.setDividerStyle(style) }
     fun setDrmTrackHiding(mode: DrmTrackHiding) = viewModelScope.launch { repository.setDrmTrackHiding(mode) }

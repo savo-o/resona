@@ -364,6 +364,7 @@ fun PlayerSheet(
             backgroundStyle = viewModel.playerBackgroundStyle.collectAsState().value,
             pixelGlowEnabled = viewModel.pixelGlowEnabled.collectAsState().value,
             artworkShape = viewModel.artworkShape.collectAsState().value,
+            artworkRingEnabled = viewModel.artworkRingEnabled.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsSync = viewModel.lyricsSyncState.collectAsState().value,
@@ -403,6 +404,7 @@ private fun FullPlayerSheet(
     backgroundStyle: PlayerBackgroundStyle,
     pixelGlowEnabled: Boolean,
     artworkShape: ArtworkShape,
+    artworkRingEnabled: Boolean,
     showCustomizeHint: Boolean,
     onDismissCustomizeHint: () -> Unit,
     lyrics: LyricsResult?,
@@ -449,6 +451,7 @@ private fun FullPlayerSheet(
                 seekBarStyle = seekBarStyle,
                 backgroundStyle = backgroundStyle,
                 artworkShape = artworkShape,
+                artworkRingEnabled = artworkRingEnabled,
                 lyrics = lyrics,
                 activeLyricsLine = activeLyricsLine,
                 lyricsSync = lyricsSync,
@@ -482,6 +485,7 @@ private fun FullPlayerSheet(
             glowColor = glowColor,
             showGlow = pixelGlowEnabled,
             artworkShape = artworkShape,
+            artworkRingEnabled = artworkRingEnabled,
             showCustomizeHint = showCustomizeHint,
             onDismissCustomizeHint = onDismissCustomizeHint,
             lyrics = lyrics,
@@ -600,6 +604,7 @@ private fun PixelArtwork(
     showGlow: Boolean,
     isPlaying: Boolean,
     artworkShape: ArtworkShape,
+    artworkRingEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val shape = rememberArtworkShape(artworkShape)
@@ -627,11 +632,13 @@ private fun PixelArtwork(
                     .fillMaxSize()
                     .offset { IntOffset(slideOffsetX.value.roundToInt(), 0) },
             )
-            Box(
-                modifier = Modifier
-                    .requiredSize(ringSize)
-                    .artworkProgressRing(shape, { animatedProgress }, ringColor, ringStroke),
-            )
+            if (artworkRingEnabled) {
+                Box(
+                    modifier = Modifier
+                        .requiredSize(ringSize)
+                        .artworkProgressRing(shape, { animatedProgress }, ringColor, ringStroke),
+                )
+            }
         }
     }
 }
@@ -798,6 +805,7 @@ private fun PixelPlayerContent(
     glowColor: Color?,
     showGlow: Boolean,
     artworkShape: ArtworkShape,
+    artworkRingEnabled: Boolean,
     showCustomizeHint: Boolean = false,
     onDismissCustomizeHint: () -> Unit = {},
     lyrics: LyricsResult?,
@@ -1027,6 +1035,7 @@ private fun PixelPlayerContent(
                             glowColor = glowColor,
                             showGlow = showGlow,
                             artworkShape = artworkShape,
+                            artworkRingEnabled = artworkRingEnabled,
                             isPlaying = state.isPlaying,
                             modifier = Modifier
                                 .size(artSize)
@@ -2111,6 +2120,7 @@ private fun ClassicPlayerContent(
     seekBarStyle: SeekBarStyle,
     backgroundStyle: PlayerBackgroundStyle,
     artworkShape: ArtworkShape,
+    artworkRingEnabled: Boolean,
     lyrics: LyricsResult?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
@@ -2367,6 +2377,7 @@ private fun ClassicPlayerContent(
                             slideOffsetX = slideOffset,
                             style = backgroundStyle,
                             artworkShape = artworkShape,
+                            artworkRingEnabled = artworkRingEnabled,
                             modifier = Modifier
                                 .size(artSize)
                                 .align(Alignment.BottomCenter),
@@ -2739,6 +2750,7 @@ private fun ArtworkOrb(
     slideOffsetX: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
     style: com.savoo.scclient.data.repository.PlayerBackgroundStyle = com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB,
     artworkShape: ArtworkShape = ArtworkShape.BLOB,
+    artworkRingEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val fallback = MaterialTheme.colorScheme.primary
@@ -2802,11 +2814,13 @@ private fun ArtworkOrb(
                     .fillMaxSize()
                     .offset { IntOffset(slideOffsetX.value.roundToInt(), 0) },
             )
-            Box(
-                modifier = Modifier
-                    .requiredSize(ringSize)
-                    .artworkProgressRing(blobShape, { animatedProgress }, ringColor, ringStroke),
-            )
+            if (artworkRingEnabled) {
+                Box(
+                    modifier = Modifier
+                        .requiredSize(ringSize)
+                        .artworkProgressRing(blobShape, { animatedProgress }, ringColor, ringStroke),
+                )
+            }
         }
     }
 }

@@ -198,7 +198,7 @@ private fun ArtworkShape.labelRes(): Int = when (this) {
 }
 
 @Composable
-private fun ArtworkShapePreview(shape: ArtworkShape) {
+private fun ArtworkShapePreview(shape: ArtworkShape, ringEnabled: Boolean) {
     val clip = rememberArtworkShape(shape)
     val scheme = MaterialTheme.colorScheme
     Box(
@@ -219,11 +219,13 @@ private fun ArtworkShapePreview(shape: ArtworkShape) {
                 modifier = Modifier.size(44.dp),
             )
         }
-        Box(
-            modifier = Modifier
-                .requiredSize(136.dp + 24.dp)
-                .artworkProgressRing(clip, { 0.62f }, scheme.primary, 3.dp),
-        )
+        if (ringEnabled) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(136.dp + 24.dp)
+                    .artworkProgressRing(clip, { 0.62f }, scheme.primary, 3.dp),
+            )
+        }
     }
 }
 
@@ -578,8 +580,14 @@ fun CustomizationScreen(
             }
 
             SettingsSectionCard(title = stringResource(R.string.settings_artwork_shape)) {
-                ArtworkShapePreview(settings.artworkShape)
+                ArtworkShapePreview(settings.artworkShape, settings.artworkRingEnabled)
                 ArtworkShapePicker(selected = settings.artworkShape, onSelect = { viewModel.setArtworkShape(it) })
+                SwitchItem(
+                    title = stringResource(R.string.settings_artwork_ring),
+                    subtitle = stringResource(R.string.settings_artwork_ring_desc),
+                    checked = settings.artworkRingEnabled,
+                    onCheckedChange = { viewModel.setArtworkRingEnabled(it) },
+                )
             }
 
             if (settings.playerStyle == PlayerStyle.CLASSIC) {
