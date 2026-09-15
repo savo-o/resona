@@ -281,9 +281,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val ALL_MIGRATIONS: Array<Migration> = arrayOf(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+            MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
+        )
+
+        const val DATABASE_NAME = "scclient.db"
+
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "scclient.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+            Room.databaseBuilder(context, AppDatabase::class.java, DATABASE_NAME)
+                .addMigrations(*ALL_MIGRATIONS)
                 .build()
     }
 }

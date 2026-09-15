@@ -102,8 +102,21 @@ android {
         resources.excludes.add("/META-INF/{AL2.0,LGPL2.1}")
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     sourceSets.getByName("main") {
         assets.srcDir(copyStringsTemplate)
+    }
+    sourceSets.getByName("debug") {
+        assets.srcDir("$projectDir/schemas")
+    }
+}
+
+kapt {
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 }
 
@@ -166,4 +179,9 @@ dependencies {
     kapt(libs.androidx.hilt.compiler)
 
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.androidx.test.core)
 }

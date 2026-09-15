@@ -55,6 +55,15 @@ jobs:
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "version_code=$((CANARY_VERSION_CODE_BASE + GITHUB_RUN_NUMBER))" >> "$GITHUB_OUTPUT"
 
+      - name: Cache Robolectric Android images
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('gradle/libs.versions.toml') }}
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
       - name: Build canary APKs
         run: ./gradlew assembleCanary --no-daemon -PappVersionCode=${{ steps.vars.outputs.version_code }}
 

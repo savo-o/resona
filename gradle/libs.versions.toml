@@ -14,6 +14,9 @@ okhttp = "4.12.0"
 moshi = "1.15.1"
 media3 = "1.5.0"
 room = "2.6.1"
+junit = "4.13.2"
+robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
 coil = "2.7.0"
 datastore = "1.1.1"
 securityCrypto = "1.1.0-alpha06"
@@ -61,6 +64,10 @@ room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }
+room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
 paging-runtime = { group = "androidx.paging", name = "paging-runtime-ktx", version.ref = "paging" }
 paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
 
