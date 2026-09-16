@@ -365,6 +365,7 @@ fun PlayerSheet(
             pixelGlowEnabled = viewModel.pixelGlowEnabled.collectAsState().value,
             artworkShape = viewModel.artworkShape.collectAsState().value,
             artworkRingEnabled = viewModel.artworkRingEnabled.collectAsState().value,
+            artworkScale = viewModel.artworkScale.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsSync = viewModel.lyricsSyncState.collectAsState().value,
@@ -405,6 +406,7 @@ private fun FullPlayerSheet(
     pixelGlowEnabled: Boolean,
     artworkShape: ArtworkShape,
     artworkRingEnabled: Boolean,
+    artworkScale: Float,
     showCustomizeHint: Boolean,
     onDismissCustomizeHint: () -> Unit,
     lyrics: LyricsResult?,
@@ -452,6 +454,7 @@ private fun FullPlayerSheet(
                 backgroundStyle = backgroundStyle,
                 artworkShape = artworkShape,
                 artworkRingEnabled = artworkRingEnabled,
+                artworkScale = artworkScale,
                 lyrics = lyrics,
                 activeLyricsLine = activeLyricsLine,
                 lyricsSync = lyricsSync,
@@ -486,6 +489,7 @@ private fun FullPlayerSheet(
             showGlow = pixelGlowEnabled,
             artworkShape = artworkShape,
             artworkRingEnabled = artworkRingEnabled,
+            artworkScale = artworkScale,
             showCustomizeHint = showCustomizeHint,
             onDismissCustomizeHint = onDismissCustomizeHint,
             lyrics = lyrics,
@@ -806,6 +810,7 @@ private fun PixelPlayerContent(
     showGlow: Boolean,
     artworkShape: ArtworkShape,
     artworkRingEnabled: Boolean,
+    artworkScale: Float,
     showCustomizeHint: Boolean = false,
     onDismissCustomizeHint: () -> Unit = {},
     lyrics: LyricsResult?,
@@ -1024,7 +1029,7 @@ private fun PixelPlayerContent(
                             .fillMaxWidth()
                             .padding(bottom = if (compact) 4.dp else 34.dp),
                     ) {
-                        val artSize = (minOf(maxWidth, maxHeight) - 20.dp).coerceAtLeast(0.dp)
+                        val artSize = ((minOf(maxWidth, maxHeight) - 20.dp) * artworkScale).coerceAtLeast(0.dp)
                         PixelArtwork(
                             artworkUrl = state.currentTrack?.artworkUrl,
                             progress = if (state.durationMs > 0) {
@@ -1038,7 +1043,7 @@ private fun PixelPlayerContent(
                             artworkRingEnabled = artworkRingEnabled,
                             isPlaying = state.isPlaying,
                             modifier = Modifier
-                                .size(artSize)
+                                .requiredSize(artSize)
                                 .align(Alignment.BottomCenter),
                         )
                     }
@@ -2121,6 +2126,7 @@ private fun ClassicPlayerContent(
     backgroundStyle: PlayerBackgroundStyle,
     artworkShape: ArtworkShape,
     artworkRingEnabled: Boolean,
+    artworkScale: Float,
     lyrics: LyricsResult?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
@@ -2366,7 +2372,7 @@ private fun ClassicPlayerContent(
                             .fillMaxWidth()
                             .padding(bottom = if (compact) 4.dp else 20.dp),
                     ) {
-                        val artSize = minOf(maxWidth * 0.92f, maxHeight).coerceAtLeast(0.dp)
+                        val artSize = (minOf(maxWidth * 0.92f, maxHeight) * artworkScale).coerceAtLeast(0.dp)
                         ArtworkOrb(
                             artworkUrl = state.currentTrack?.artworkUrl,
                             glowColor = glowColor,
@@ -2379,7 +2385,7 @@ private fun ClassicPlayerContent(
                             artworkShape = artworkShape,
                             artworkRingEnabled = artworkRingEnabled,
                             modifier = Modifier
-                                .size(artSize)
+                                .requiredSize(artSize)
                                 .align(Alignment.BottomCenter),
                         )
                     }

@@ -188,6 +188,7 @@ fun ResonaTheme(
     overrideSeedColor: Color? = null,
     tintSurfaces: Boolean = false,
     customBackground: Color? = null,
+    fontRoundness: Int? = null,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -229,7 +230,7 @@ fun ResonaTheme(
     MaterialExpressiveTheme(
         colorScheme = colorScheme,
         motionScheme = MotionScheme.expressive(),
-        typography = rememberSCTypography(),
+        typography = rememberSCTypography(fontRoundness),
         content = content
     )
 }

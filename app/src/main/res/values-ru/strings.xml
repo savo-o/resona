@@ -308,7 +308,15 @@
     <string name="settings_player_background_orb">Орб</string>
     <string name="settings_player_background_blurred">Размытие</string>
     <string name="settings_player_background_minimal">Минимализм</string>
+    <string name="settings_font">Шрифт</string>
+    <string name="settings_font_roundness">Закруглённый шрифт</string>
+    <string name="settings_font_roundness_desc">Сглаживает углы шрифта Google Sans Flex. Кириллица использует свой шрифт и не меняется</string>
+    <string name="settings_font_roundness_level">Закругление</string>
+    <string name="settings_font_roundness_format">%d%%</string>
+    <string name="settings_font_sample">Resona · Playback 123</string>
     <string name="settings_artwork_shape">Форма обложки</string>
+    <string name="settings_artwork_size">Размер обложки</string>
+    <string name="settings_artwork_size_format">%d%%</string>
     <string name="settings_artwork_ring">Обводка обложки</string>
     <string name="settings_artwork_ring_desc">Показывать прогресс трека обводкой вокруг обложки</string>
     <string name="artwork_shape_blob">Волна</string>
@@ -396,7 +404,7 @@
     <string name="update_dialog_title_canary">Доступна новая Canary-сборка</string>
     <string name="update_dialog_message_canary">Доступна более новая Canary-сборка.</string>
     <string name="update_dialog_later">Позже</string>
-    <string name="crash_dialog_title">Resona упало в прошлый раз</string>
+    <string name="crash_dialog_title">Resona упала в прошлый раз</string>
     <string name="crash_dialog_message">Вот что удалось зафиксировать перед сбоем. Можно скопировать это как отчёт об ошибке.</string>
     <string name="crash_dialog_dismiss">Закрыть</string>
     <string name="update_dialog_open_github">Открыть GitHub</string>

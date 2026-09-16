@@ -67,6 +67,10 @@ import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.DividerStyle
 import com.savoo.scclient.data.repository.HomeSection
 import com.savoo.scclient.data.repository.HomeSectionConfig
+import com.savoo.scclient.data.repository.MaxArtworkScalePercent
+import com.savoo.scclient.data.repository.MinArtworkScalePercent
+import com.savoo.scclient.data.repository.MaxFontRoundness
+import com.savoo.scclient.data.repository.MinFontRoundness
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
 import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
@@ -76,6 +80,7 @@ import com.savoo.scclient.ui.components.artworkProgressRing
 import com.savoo.scclient.ui.components.polygon
 import com.savoo.scclient.ui.components.rememberArtworkShape
 import com.savoo.scclient.ui.haptics.rememberHapticTick
+import kotlin.math.roundToInt
 import com.savoo.scclient.ui.theme.AppColorTheme
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -579,9 +584,71 @@ fun CustomizationScreen(
                 }
             }
 
+            SettingsSectionCard(title = stringResource(R.string.settings_font)) {
+                SwitchItem(
+                    title = stringResource(R.string.settings_font_roundness),
+                    subtitle = stringResource(R.string.settings_font_roundness_desc),
+                    checked = settings.fontRoundnessEnabled,
+                    onCheckedChange = { viewModel.setFontRoundnessEnabled(it) },
+                )
+                if (settings.fontRoundnessEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.settings_font_roundness_level),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            stringResource(R.string.settings_font_roundness_format, settings.fontRoundness),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Slider(
+                        value = settings.fontRoundness.toFloat(),
+                        onValueChange = { viewModel.setFontRoundness(it.roundToInt()) },
+                        onValueChangeFinished = { haptic() },
+                        valueRange = MinFontRoundness.toFloat()..MaxFontRoundness.toFloat(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    )
+                    Text(
+                        stringResource(R.string.settings_font_sample),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    )
+                }
+            }
+
             SettingsSectionCard(title = stringResource(R.string.settings_artwork_shape)) {
                 ArtworkShapePreview(settings.artworkShape, settings.artworkRingEnabled)
                 ArtworkShapePicker(selected = settings.artworkShape, onSelect = { viewModel.setArtworkShape(it) })
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.settings_artwork_size),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        stringResource(R.string.settings_artwork_size_format, settings.artworkScalePercent),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                Slider(
+                    value = settings.artworkScalePercent.toFloat(),
+                    onValueChange = { viewModel.setArtworkScalePercent(it.roundToInt()) },
+                    onValueChangeFinished = { haptic() },
+                    valueRange = MinArtworkScalePercent.toFloat()..MaxArtworkScalePercent.toFloat(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                )
                 SwitchItem(
                     title = stringResource(R.string.settings_artwork_ring),
                     subtitle = stringResource(R.string.settings_artwork_ring_desc),

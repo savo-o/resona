@@ -42,6 +42,14 @@ enum class SeekBarStyle { CLASSIC, WAVY }
 
 enum class PlayerBackgroundStyle { ORB, BLURRED_ARTWORK, MINIMAL }
 
+const val MinArtworkScalePercent = 60
+const val MaxArtworkScalePercent = 130
+const val DefaultArtworkScalePercent = 100
+
+const val MinFontRoundness = 0
+const val MaxFontRoundness = 100
+const val DefaultFontRoundness = 50
+
 enum class ArtworkShape { BLOB, CIRCLE, SQUARE, COOKIE_9, COOKIE_12, CLOVER_4, CLOVER_8, SUNNY, SOFT_BURST, FLOWER, PUFFY_DIAMOND, HEART }
 
 enum class PlayerStyle { CLASSIC, PIXEL }
@@ -109,6 +117,9 @@ data class AppSettings(
     val playerBackgroundStyle: PlayerBackgroundStyle = PlayerBackgroundStyle.ORB,
     val artworkShape: ArtworkShape = ArtworkShape.BLOB,
     val artworkRingEnabled: Boolean = true,
+    val artworkScalePercent: Int = DefaultArtworkScalePercent,
+    val fontRoundnessEnabled: Boolean = false,
+    val fontRoundness: Int = DefaultFontRoundness,
     val playerStyle: PlayerStyle = PlayerStyle.PIXEL,
     val backgroundMode: AppBackgroundMode = AppBackgroundMode.DYNAMIC,
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
@@ -154,6 +165,9 @@ class SettingsRepository @Inject constructor(
         val PLAYER_BACKGROUND_STYLE = stringPreferencesKey("player_background_style")
         val ARTWORK_SHAPE = stringPreferencesKey("artwork_shape")
         val ARTWORK_RING_ENABLED = booleanPreferencesKey("artwork_ring_enabled")
+        val ARTWORK_SCALE_PERCENT = intPreferencesKey("artwork_scale_percent")
+        val FONT_ROUNDNESS_ENABLED = booleanPreferencesKey("font_roundness_enabled")
+        val FONT_ROUNDNESS = intPreferencesKey("font_roundness")
         val PLAYER_STYLE = stringPreferencesKey("player_style")
         val BACKGROUND_MODE = stringPreferencesKey("background_mode")
         val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
@@ -212,6 +226,9 @@ class SettingsRepository @Inject constructor(
             // BLURRED_ARTWORK is hidden from the picker (kept working in code, just not offered as a
             // choice) - coerce anyone still holding it from before back to the default.
             artworkRingEnabled = prefs[Keys.ARTWORK_RING_ENABLED] ?: true,
+            artworkScalePercent = (prefs[Keys.ARTWORK_SCALE_PERCENT] ?: DefaultArtworkScalePercent).coerceIn(MinArtworkScalePercent, MaxArtworkScalePercent),
+            fontRoundnessEnabled = prefs[Keys.FONT_ROUNDNESS_ENABLED] ?: false,
+            fontRoundness = (prefs[Keys.FONT_ROUNDNESS] ?: DefaultFontRoundness).coerceIn(MinFontRoundness, MaxFontRoundness),
             artworkShape = prefs[Keys.ARTWORK_SHAPE]?.let { runCatching { ArtworkShape.valueOf(it) }.getOrNull() } ?: ArtworkShape.BLOB,
             playerBackgroundStyle = (prefs[Keys.PLAYER_BACKGROUND_STYLE]?.let {
                 runCatching { PlayerBackgroundStyle.valueOf(it) }.getOrNull()
@@ -340,6 +357,18 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setHomeSections(sections: List<HomeSectionConfig>) {
         context.dataStore.edit { it[Keys.HOME_SECTIONS] = serializeHomeSections(sections) }
+    }
+
+    suspend fun setArtworkScalePercent(value: Int) {
+        context.dataStore.edit { it[Keys.ARTWORK_SCALE_PERCENT] = value.coerceIn(MinArtworkScalePercent, MaxArtworkScalePercent) }
+    }
+
+    suspend fun setFontRoundnessEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.FONT_ROUNDNESS_ENABLED] = value }
+    }
+
+    suspend fun setFontRoundness(value: Int) {
+        context.dataStore.edit { it[Keys.FONT_ROUNDNESS] = value.coerceIn(MinFontRoundness, MaxFontRoundness) }
     }
 
     suspend fun setArtworkRingEnabled(value: Boolean) {

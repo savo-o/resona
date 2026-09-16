@@ -197,6 +197,7 @@ class MainActivity : ComponentActivity() {
                 },
                 tintSurfaces = pixelWash,
                 customBackground = customBackground,
+                fontRoundness = settings.fontRoundness.takeIf { settings.fontRoundnessEnabled },
             ) {
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.savoo.scclient.ui.haptics.LocalHapticsEnabled provides settings.hapticsEnabled,

@@ -306,7 +306,15 @@
     <string name="settings_player_background_orb">Orb</string>
     <string name="settings_player_background_blurred">Blurred</string>
     <string name="settings_player_background_minimal">Minimal</string>
+    <string name="settings_font">Font</string>
+    <string name="settings_font_roundness">Rounded font</string>
+    <string name="settings_font_roundness_desc">Softens the corners of Google Sans Flex. Cyrillic text keeps its own font and does not change</string>
+    <string name="settings_font_roundness_level">Roundness</string>
+    <string name="settings_font_roundness_format">%d%%</string>
+    <string name="settings_font_sample">Resona · Playback 123</string>
     <string name="settings_artwork_shape">Artwork shape</string>
+    <string name="settings_artwork_size">Artwork size</string>
+    <string name="settings_artwork_size_format">%d%%</string>
     <string name="settings_artwork_ring">Artwork outline</string>
     <string name="settings_artwork_ring_desc">Show track progress as an outline around the artwork</string>
     <string name="artwork_shape_blob">Wave</string>

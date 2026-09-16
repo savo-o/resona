@@ -28,18 +28,38 @@ private fun typefaceWithCyrillicFallback(context: Context, primaryResId: Int, fa
     return ResourcesCompat.getFont(context, primaryResId) ?: Typeface.DEFAULT
 }
 
-private class ScFonts(context: Context) {
-    val light = FontFamily(typefaceWithCyrillicFallback(context, R.font.google_sans_flex_light, R.font.montserrat_light))
-    val regular = FontFamily(typefaceWithCyrillicFallback(context, R.font.google_sans_flex_regular, R.font.montserrat_regular))
-    val medium = FontFamily(typefaceWithCyrillicFallback(context, R.font.google_sans_flex_medium, R.font.montserrat_medium))
-    val semiBold = FontFamily(typefaceWithCyrillicFallback(context, R.font.google_sans_flex_semibold, R.font.montserrat_semibold))
-    val bold = FontFamily(typefaceWithCyrillicFallback(context, R.font.google_sans_flex_bold, R.font.montserrat_bold))
+private fun roundedTypeface(context: Context, roundness: Int, weight: Int, fallbackResId: Int): Typeface? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+    return try {
+        val primary = PlatformFontFamily.Builder(
+            PlatformFont.Builder(context.resources, R.font.google_sans_flex_variable)
+                .setFontVariationSettings("'wght' $weight,'ROND' $roundness")
+                .build()
+        ).build()
+        val fallback = PlatformFontFamily.Builder(PlatformFont.Builder(context.resources, fallbackResId).build()).build()
+        Typeface.CustomFallbackBuilder(primary).addCustomFallback(fallback).build()
+    } catch (_: Exception) {
+        null
+    }
+}
+
+private class ScFonts(private val context: Context, private val roundness: Int?) {
+    private fun family(staticResId: Int, fallbackResId: Int, weight: Int): FontFamily {
+        val rounded = roundness?.let { roundedTypeface(context, it, weight, fallbackResId) }
+        return FontFamily(rounded ?: typefaceWithCyrillicFallback(context, staticResId, fallbackResId))
+    }
+
+    val light = family(R.font.google_sans_flex_light, R.font.montserrat_light, 300)
+    val regular = family(R.font.google_sans_flex_regular, R.font.montserrat_regular, 400)
+    val medium = family(R.font.google_sans_flex_medium, R.font.montserrat_medium, 500)
+    val semiBold = family(R.font.google_sans_flex_semibold, R.font.montserrat_semibold, 600)
+    val bold = family(R.font.google_sans_flex_bold, R.font.montserrat_bold, 700)
 }
 
 @Composable
-fun rememberSCTypography(): Typography {
+fun rememberSCTypography(fontRoundness: Int? = null): Typography {
     val context = LocalContext.current
-    val fonts = remember { ScFonts(context) }
+    val fonts = remember(fontRoundness) { ScFonts(context, fontRoundness) }
     return remember(fonts) {
         Typography(
             displayLarge = TextStyle(fontFamily = fonts.bold, fontWeight = FontWeight.Bold, fontSize = 56.sp, lineHeight = 64.sp),
