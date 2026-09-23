@@ -913,6 +913,7 @@ private fun PixelPlayerContent(
             },
             onPosted = { comment -> pinnedComment = comment },
             onDismiss = { showComments = false },
+            onUserClick = { id -> showComments = false; onArtistClick(id) },
         )
     }
 
@@ -1090,7 +1091,7 @@ private fun PixelPlayerContent(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(bottom = if (compact) 4.dp else 34.dp),
+                            .padding(bottom = if (compact) 4.dp else 12.dp),
                     ) {
                         val artSize = ((minOf(maxWidth, maxHeight) - 20.dp) * artworkScale).coerceAtLeast(0.dp)
                         PixelArtwork(
@@ -1111,7 +1112,7 @@ private fun PixelPlayerContent(
                         )
                     }
 
-                    Spacer(Modifier.height(if (compact) 4.dp else 22.dp))
+                    Spacer(Modifier.height(if (compact) 4.dp else 16.dp))
 
                     if (!compact || isMixPlaying) state.currentTrack?.let { track ->
                         Row(
@@ -1236,7 +1237,7 @@ private fun PixelPlayerContent(
                 surfaceColor = palette.surface,
                 highlighted = pinnedComment != null && pinnedComment?.id == activeComment?.id,
                 onClick = { showComments = true },
-                modifier = Modifier.padding(bottom = 4.dp),
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
             )
 
             AdaptivePlayerSeek(
@@ -2437,6 +2438,7 @@ private fun ClassicPlayerContent(
             },
             onPosted = { comment -> pinnedComment = comment },
             onDismiss = { showComments = false },
+            onUserClick = { id -> showComments = false; onArtistClick(id) },
         )
     }
 
@@ -2804,7 +2806,7 @@ private fun ClassicPlayerContent(
                 surfaceColor = palette.card,
                 highlighted = pinnedComment != null && pinnedComment?.id == activeComment?.id,
                 onClick = { showComments = true },
-                modifier = Modifier.padding(bottom = 4.dp),
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
             )
 
             AdaptivePlayerSeek(

@@ -30,6 +30,7 @@ captures/
 
 # Kotlin
 *.kotlin_module
+.kotlin/
 
 # Generated
 *.hprof

@@ -13,11 +13,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -217,6 +219,7 @@ fun TimedCommentsSheet(
     onSelect: (TrackComment) -> Unit,
     onPosted: (TrackComment) -> Unit,
     onDismiss: () -> Unit,
+    onUserClick: (Long) -> Unit = {},
 ) {
     val haptic = rememberHapticTick()
     val context = LocalContext.current
@@ -238,125 +241,133 @@ fun TimedCommentsSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Text(
-            pluralStringResource(R.plurals.player_comments_count, comments.size, comments.size),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
-        )
-        PlayerInfoBanner(
-            message = banner,
-            onHide = { banner = null },
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
-        )
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            items(comments, key = { it.id }) { comment ->
-                val isHighlighted = highlightedId == comment.id
-                val rowColor by animateColorAsState(
-                    targetValue = if (isHighlighted) accent.copy(alpha = 0.2f) else Color.Transparent,
-                    animationSpec = tween(if (isHighlighted) 120 else 900),
-                    label = "commentHighlight",
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().heightIn(max = maxHeight * 0.92f)) {
+                Text(
+                    pluralStringResource(R.plurals.player_comments_count, comments.size, comments.size),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
                 )
-                LaunchedEffect(isHighlighted) {
-                    if (isHighlighted) {
-                        kotlinx.coroutines.delay(1_800)
-                        if (highlightedId == comment.id) highlightedId = null
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(rowColor)
-                        .clickable {
-                            haptic()
-                            highlightedId = comment.id
-                            onSelect(comment)
-                        }
-                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                PlayerInfoBanner(
+                    message = banner,
+                    onHide = { banner = null },
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+                )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    CommentAvatar(comment, accent, 34.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                comment.user.username,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                formatTime(comment.timestampMs ?: 0L),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = accent,
-                            )
-                        }
-                        Text(
-                            comment.body.trim(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    items(comments, key = { it.id }) { comment ->
+                        val isHighlighted = highlightedId == comment.id
+                        val rowColor by animateColorAsState(
+                            targetValue = if (isHighlighted) accent.copy(alpha = 0.2f) else Color.Transparent,
+                            animationSpec = tween(if (isHighlighted) 120 else 900),
+                            label = "commentHighlight",
                         )
-                    }
-                }
-            }
-        }
-
-        if (canComment) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 24.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
-            ) {
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = { draft = it },
-                    enabled = !sending,
-                    singleLine = true,
-                    shape = RoundedCornerShape(50),
-                    placeholder = {
-                        Text(stringResource(R.string.player_comment_hint, formatTime(draftPositionMs)))
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = {
-                        haptic()
-                        sending = true
-                        scope.launch {
-                            val posted = onSubmit(draft, draftPositionMs)
-                            sending = false
-                            if (posted != null) {
-                                draft = ""
-                                highlightedId = posted.id
-                                banner = context.getString(R.string.player_comment_sent)
-                                onPosted(posted)
-                            } else {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    context.getString(R.string.player_comment_failed),
-                                    android.widget.Toast.LENGTH_SHORT,
-                                ).show()
+                        LaunchedEffect(isHighlighted) {
+                            if (isHighlighted) {
+                                kotlinx.coroutines.delay(1_800)
+                                if (highlightedId == comment.id) highlightedId = null
                             }
                         }
-                    },
-                    enabled = !sending && draft.isNotBlank(),
-                ) {
-                    if (sending) {
-                        LoadingIndicator(modifier = Modifier.size(20.dp))
-                    } else {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.player_comment_send))
+                        Row(
+                            verticalAlignment = Alignment.Top,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(rowColor)
+                                .clickable {
+                                    haptic()
+                                    highlightedId = comment.id
+                                    onSelect(comment)
+                                }
+                                .padding(horizontal = 24.dp, vertical = 10.dp),
+                        ) {
+                            val openProfile = Modifier.clickable(enabled = comment.user.id != 0L) {
+                                haptic()
+                                onUserClick(comment.user.id)
+                            }
+                            CommentAvatar(comment, accent, 34.dp, openProfile)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        comment.user.username,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false).then(openProfile),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        formatTime(comment.timestampMs ?: 0L),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = accent,
+                                    )
+                                }
+                                Text(
+                                    comment.body.trim(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (canComment) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 24.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+                    ) {
+                        OutlinedTextField(
+                            value = draft,
+                            onValueChange = { draft = it },
+                            enabled = !sending,
+                            singleLine = true,
+                            shape = RoundedCornerShape(50),
+                            placeholder = {
+                                Text(stringResource(R.string.player_comment_hint, formatTime(draftPositionMs)))
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                haptic()
+                                sending = true
+                                scope.launch {
+                                    val posted = onSubmit(draft, draftPositionMs)
+                                    sending = false
+                                    if (posted != null) {
+                                        draft = ""
+                                        highlightedId = posted.id
+                                        banner = context.getString(R.string.player_comment_sent)
+                                        onPosted(posted)
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            context.getString(R.string.player_comment_failed),
+                                            android.widget.Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                }
+                            },
+                            enabled = !sending && draft.isNotBlank(),
+                        ) {
+                            if (sending) {
+                                LoadingIndicator(modifier = Modifier.size(20.dp))
+                            } else {
+                                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.player_comment_send))
+                            }
+                        }
                     }
                 }
             }
@@ -365,12 +376,13 @@ fun TimedCommentsSheet(
 }
 
 @Composable
-private fun CommentAvatar(comment: TrackComment, accent: Color, size: Dp) {
+private fun CommentAvatar(comment: TrackComment, accent: Color, size: Dp, modifier: Modifier = Modifier) {
     Box(
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .background(accent.copy(alpha = 0.18f)),
+            .background(accent.copy(alpha = 0.18f))
+            .then(modifier),
         contentAlignment = Alignment.Center,
     ) {
         val avatar = comment.user.avatarUrl
