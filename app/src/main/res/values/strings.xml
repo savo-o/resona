@@ -585,6 +585,7 @@
     <string name="easter_egg_press_me">Press me</string>
     <string name="easter_egg_launch">Launch</string>
     <string name="easter_egg_gravity">Gravity</string>
+    <string name="easter_egg_party">Okay, this one does something</string>
 
     <!-- Badges -->
     <string name="badge_developer">Developer Badge</string>

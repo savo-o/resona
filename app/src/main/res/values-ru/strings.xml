@@ -593,6 +593,7 @@
     <string name="easter_egg_press_me">Нажмите на меня</string>
     <string name="easter_egg_launch">Запуск</string>
     <string name="easter_egg_gravity">Гравитация</string>
+    <string name="easter_egg_party">А вот это уже кое-что делает</string>
 
     <!-- Badges -->
     <string name="badge_developer">Значок разработчика</string>
