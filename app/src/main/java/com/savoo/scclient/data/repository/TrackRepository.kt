@@ -4,6 +4,7 @@ import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.SearchResponse
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.savoo.scclient.data.remote.WebViewApiBridge
@@ -120,6 +121,32 @@ class TrackRepository @Inject constructor(
         api.getRelatedTracks(trackId, limit = limit).collection
 
     suspend fun getPlaylist(id: Long): Playlist = api.getPlaylist(id)
+
+    suspend fun postComment(trackId: Long, body: String, timestampMs: Long): TrackComment? {
+        val code = webBridge.postComment(trackId, body, timestampMs)
+        DebugLog.log(TAG, "postComment($trackId) -> $code")
+        if (code !in 200..299) error("postComment failed: HTTP $code")
+        return runCatching {
+            val payload = webBridge.lastResponsePayload ?: return null
+            val author = payload.optJSONObject("user")
+            TrackComment(
+                id = payload.optLong("id"),
+                body = payload.optString("body"),
+                timestampMs = payload.optLong("timestamp"),
+                createdAt = payload.optString("created_at"),
+                user = User(
+                    id = author?.optLong("id") ?: 0L,
+                    username = author?.optString("username").orEmpty(),
+                    avatarUrl = author?.optString("avatar_url"),
+                ),
+            )
+        }.getOrNull()
+    }
+
+    suspend fun getTrackComments(trackId: Long): List<TrackComment> =
+        api.getTrackComments(trackId).collection
+            .filter { it.timestampMs != null && it.body.isNotBlank() }
+            .sortedBy { it.timestampMs }
 
     suspend fun getUserTopTracks(userId: Long, limit: Int = 10): List<Track> =
         api.getUserTopTracks(userId, limit = limit).collection

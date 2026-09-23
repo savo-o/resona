@@ -32,6 +32,13 @@ data class TrackListenStat(
     val playCount: Int,
 )
 
+data class SkipStat(
+    val trackId: Long,
+    val artistId: Long,
+    val skipCount: Int,
+    val lastSkippedAt: Long,
+)
+
 const val MIN_COUNTED_MS = 5_000L
 
 @Dao
@@ -41,6 +48,17 @@ interface PlayHistoryDao {
 
     @Query("UPDATE play_history SET msPlayed = :msPlayed WHERE id = :id")
     suspend fun updateMsPlayed(id: Long, msPlayed: Long)
+
+    @Query("UPDATE play_history SET msPlayed = :msPlayed, skipped = :skipped WHERE id = :id")
+    suspend fun updatePlayOutcome(id: Long, msPlayed: Long, skipped: Boolean)
+
+    @Query("""
+        SELECT trackId, artistId, COUNT(*) AS skipCount, MAX(playedAt) AS lastSkippedAt
+        FROM play_history
+        WHERE skipped = 1 AND playedAt >= :since
+        GROUP BY trackId
+    """)
+    suspend fun skipStats(since: Long): List<SkipStat>
 
     @Query("""
         SELECT trackId, title, artistId, artistName, artworkUrl, MAX(playedAt) AS lastPlayedAt

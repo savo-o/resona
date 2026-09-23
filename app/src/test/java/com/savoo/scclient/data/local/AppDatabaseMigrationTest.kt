@@ -124,6 +124,25 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
+    fun migrate15To16KeepsHistoryAndDefaultsSkipped() {
+        helper.createDatabase(TEST_DB, 15).use { db ->
+            db.execSQL(
+                "INSERT INTO play_history (trackId, title, artistId, artistName, artworkUrl, msPlayed, playedAt, genre, hiddenFromHistory) " +
+                    "VALUES (900002, 'Трек с историей', 42, 'Test Artist', NULL, 90000, 1700000000000, 'rap', 0)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 16, true, *AppDatabase.ALL_MIGRATIONS).use { db ->
+            db.query("SELECT title, msPlayed, skipped FROM play_history WHERE trackId = 900002").use {
+                assertTrue(it.moveToFirst())
+                assertEquals("Трек с историей", it.getString(0))
+                assertEquals(90000L, it.getLong(1))
+                assertEquals(0, it.getInt(2))
+            }
+        }
+    }
+
+    @Test
     fun migrate14To15RepairsIntermediateDevSchema() {
         helper.createDatabase(TEST_DB, 14).use { db ->
             db.execSQL("DROP TABLE lyrics_sync")
@@ -179,6 +198,6 @@ class AppDatabaseMigrationTest {
     private companion object {
         const val TEST_DB = "migration-test.db"
         const val FIRST_TESTED_VERSION = 11
-        const val LATEST_VERSION = 15
+        const val LATEST_VERSION = 16
     }
 }

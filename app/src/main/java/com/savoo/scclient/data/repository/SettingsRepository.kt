@@ -133,8 +133,9 @@ data class AppSettings(
     val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
     val dividerStyle: DividerStyle = DividerStyle.SUBTLE,
     val drmTrackHiding: DrmTrackHiding = DrmTrackHiding.FULL,
-    val artworkGlowSource: ArtworkGlowSource = ArtworkGlowSource.ARTWORK,
+    val artworkGlowSource: ArtworkGlowSource = ArtworkGlowSource.THEME,
     val marqueeTitles: Boolean = true,
+    val timedCommentsEnabled: Boolean = true,
     val telegramImportMode: TelegramImportMode = TelegramImportMode.MATCH_FIRST,
     val autoExportEnabled: Boolean = false,
     val autoExportUri: String? = null,
@@ -186,6 +187,7 @@ class SettingsRepository @Inject constructor(
         val DRM_TRACK_HIDING = stringPreferencesKey("drm_track_hiding")
         val ARTWORK_GLOW_SOURCE = stringPreferencesKey("artwork_glow_source")
         val MARQUEE_TITLES = booleanPreferencesKey("marquee_titles")
+        val TIMED_COMMENTS_ENABLED = booleanPreferencesKey("timed_comments_enabled")
         val TELEGRAM_IMPORT_MODE = stringPreferencesKey("telegram_import_mode")
         val AUTO_EXPORT_ENABLED = booleanPreferencesKey("auto_export_enabled")
         val AUTO_EXPORT_URI = stringPreferencesKey("auto_export_uri")
@@ -265,8 +267,9 @@ class SettingsRepository @Inject constructor(
             } ?: DrmTrackHiding.FULL,
             artworkGlowSource = prefs[Keys.ARTWORK_GLOW_SOURCE]?.let {
                 runCatching { ArtworkGlowSource.valueOf(it) }.getOrNull()
-            } ?: ArtworkGlowSource.ARTWORK,
+            } ?: ArtworkGlowSource.THEME,
             marqueeTitles = prefs[Keys.MARQUEE_TITLES] ?: true,
+            timedCommentsEnabled = prefs[Keys.TIMED_COMMENTS_ENABLED] ?: true,
             telegramImportMode = prefs[Keys.TELEGRAM_IMPORT_MODE]?.let {
                 runCatching { TelegramImportMode.valueOf(it) }.getOrNull()
             } ?: TelegramImportMode.MATCH_FIRST,
@@ -434,6 +437,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setMarqueeTitles(value: Boolean) {
         context.dataStore.edit { it[Keys.MARQUEE_TITLES] = value }
+    }
+
+    suspend fun setTimedCommentsEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.TIMED_COMMENTS_ENABLED] = value }
     }
 
     suspend fun setTelegramImportMode(mode: TelegramImportMode) {

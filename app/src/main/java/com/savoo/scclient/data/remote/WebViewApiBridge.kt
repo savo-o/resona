@@ -38,6 +38,17 @@ class WebViewApiBridge @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var nextCallId = 0
 
+    @Volatile
+    var lastResponseBody: String? = null
+        private set
+
+    @Volatile
+    var lastResponsePayload: org.json.JSONObject? = null
+        private set
+
+    @Volatile
+    private var cachedAppVersion: String? = null
+
     private val TAG = "WebViewApiBridge"
 
     fun setWebView(wv: WebView) {
@@ -103,10 +114,25 @@ class WebViewApiBridge @Inject constructor(
         url = "https://api-v2.soundcloud.com/users/$userId/track_likes/$trackId"
     )
 
+    suspend fun postComment(trackId: Long, body: String, timestampMs: Long): Int {
+        val query = "body=" + java.net.URLEncoder.encode(body, "UTF-8") + "&timestamp=$timestampMs"
+        return executeFetch(
+            method = "POST",
+            url = "https://api-v2.soundcloud.com/tracks/$trackId/comments",
+            extraQuery = query,
+        )
+    }
+
     // Serialized (callMutex) so two near-simultaneous taps can't clobber each other's result via
     // the shared window state, and polled (not a fixed delay) so a slow-but-successful request
     // isn't misread as a failure.
-    private suspend fun executeFetch(method: String, url: String): Int = callMutex.withLock {
+    private suspend fun executeFetch(
+        method: String,
+        url: String,
+        jsonBody: String? = null,
+        contentType: String = "application/json",
+        extraQuery: String? = null,
+    ): Int = callMutex.withLock {
         val wv = webView ?: return@withLock 0
         if (withTimeoutOrNull(8000) { pageReady.await() } == null) {
             Log.w(TAG, "$method $url: page never became ready")
@@ -115,8 +141,22 @@ class WebViewApiBridge @Inject constructor(
 
         val clientId = clientIdProvider.cachedOrFallback()
         val token = tokenStore.accessToken.orEmpty()
-        val fullUrl = "$url?client_id=$clientId"
+        val version = appVersion()
+        val fullUrl = buildString {
+            append(url)
+            append("?client_id=").append(clientId)
+            if (version != null) append("&app_version=").append(version)
+            append("&app_locale=en")
+            if (extraQuery != null) append("&").append(extraQuery)
+        }
         val slot = "__bridgeCall${nextCallId++}"
+
+        val headersJs = if (jsonBody == null) {
+            "{ 'Authorization': ${org.json.JSONObject.quote("OAuth $token")} }"
+        } else {
+            "{ 'Authorization': ${org.json.JSONObject.quote("OAuth $token")}, 'Content-Type': ${org.json.JSONObject.quote(contentType)} }"
+        }
+        val bodyJs = if (jsonBody == null) "" else ", body: ${org.json.JSONObject.quote(jsonBody)}"
 
         val js = """
             (function() {
@@ -124,7 +164,7 @@ class WebViewApiBridge @Inject constructor(
                 fetch(${org.json.JSONObject.quote(fullUrl)}, {
                     method: ${org.json.JSONObject.quote(method)},
                     credentials: 'include',
-                    headers: { 'Authorization': ${org.json.JSONObject.quote("OAuth $token")} }
+                    headers: $headersJs$bodyJs
                 }).then(function(resp) {
                     return resp.text().then(function(body) {
                         window.$slot.result = JSON.stringify({code: resp.status, ok: resp.ok, body: body});
@@ -151,9 +191,24 @@ class WebViewApiBridge @Inject constructor(
         // Clean up the per-call slot so it doesn't accumulate on the page's window object.
         withContext(Dispatchers.Main) { wv.evaluateJavascript("delete window.$slot;", null) }
 
-        val decoded = raw?.removeSurrounding("\"")?.replace("\\\"", "\"")
+        val decoded = runCatching { org.json.JSONTokener(raw.orEmpty()).nextValue() as? String }.getOrNull()
+            ?: raw?.removeSurrounding("\"")?.replace("\\\"", "\"")
+        lastResponseBody = decoded
+        lastResponsePayload = runCatching {
+            org.json.JSONObject(org.json.JSONObject(decoded.orEmpty()).getString("body"))
+        }.getOrNull()
         Log.d(TAG, "$method $url -> $decoded")
         Regex("\"code\":(\\d+)").find(decoded.orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
+
+    private suspend fun appVersion(): String? {
+        cachedAppVersion?.let { return it }
+        val wv = webView ?: return null
+        val raw = evalOnMain(wv, "(function() { return window.__sc_version || (window.webpackJsonp && window.__sc_version) || null; })()")
+        val value = raw?.removeSurrounding("\"")?.takeIf { it.isNotBlank() && it != "null" }
+        Log.d(TAG, "app_version from page: $value")
+        cachedAppVersion = value
+        return value
     }
 
     private suspend fun evalOnMain(wv: WebView, js: String): String? = withContext(Dispatchers.Main) {

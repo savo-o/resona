@@ -6,6 +6,7 @@ import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.SearchResponse
 import com.savoo.scclient.data.model.StreamUrlResponse
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.model.User
 import retrofit2.Response
 import retrofit2.http.DELETE
@@ -91,6 +92,14 @@ interface SoundCloudApi {
         @Query("limit") limit: Int = 20,
         @Query("offset") offset: Int = 0,
     ): SearchResponse<Track>
+
+    @GET("tracks/{id}/comments")
+    suspend fun getTrackComments(
+        @Path("id") id: Long,
+        @Query("threaded") threaded: Int = 0,
+        @Query("filter_replies") filterReplies: Int = 1,
+        @Query("limit") limit: Int = 100,
+    ): SearchResponse<TrackComment>
 
     @GET("users/{id}/toptracks")
     suspend fun getUserTopTracks(

@@ -14,6 +14,7 @@ import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.model.LyricsSync
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.LyricsRepository
 import com.savoo.scclient.data.repository.SeekBarStyle
@@ -47,6 +48,8 @@ class PlayerViewModel @Inject constructor(
     private val offlineTrackManager: OfflineTrackManager,
     private val lyricsRepository: LyricsRepository,
     private val settingsRepository: SettingsRepository,
+    private val trackRepository: com.savoo.scclient.data.repository.TrackRepository,
+    private val tokenStore: com.savoo.scclient.auth.TokenStore,
     private val excludedArtistDao: ExcludedArtistDao,
     val undoController: UndoController,
     private val favoritesImportManager: FavoritesImportManager,
@@ -105,6 +108,63 @@ class PlayerViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LyricsSyncState())
 
     val lyricsSyncState = lyricsSync
+
+    val timedCommentsEnabled = settingsRepository.settings.map { it.timedCommentsEnabled }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    private val commentsRefresh = MutableStateFlow(0)
+
+    val canComment = tokenStore.isLoggedIn
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    suspend fun postComment(body: String, timestampMs: Long): TrackComment? {
+        val trackId = controller.state.value.currentTrack?.id ?: return null
+        val text = body.trim()
+        if (text.isEmpty()) return null
+        val result = runCatching { trackRepository.postComment(trackId, text, timestampMs) }
+        if (result.isFailure) return null
+        val posted = result.getOrNull() ?: TrackComment(
+            id = -System.currentTimeMillis(),
+            body = text,
+            timestampMs = timestampMs,
+        )
+        optimisticComments.value = optimisticComments.value + posted
+        commentsRefresh.value++
+        return posted
+    }
+
+    private val optimisticComments = MutableStateFlow<List<TrackComment>>(emptyList())
+    private var loadedCommentsTrackId: Long? = null
+
+    private val fetchedComments = combine(
+        currentTrackId,
+        timedCommentsEnabled,
+        commentsRefresh,
+    ) { trackId, enabled, refreshKey -> Triple(trackId.takeIf { enabled }, enabled, refreshKey) }
+        .flatMapLatest { (trackId, _, _) ->
+            flow {
+                if (trackId == null || trackId <= 0L) {
+                    loadedCommentsTrackId = null
+                    optimisticComments.value = emptyList()
+                    emit(emptyList())
+                    return@flow
+                }
+                if (trackId != loadedCommentsTrackId) {
+                    loadedCommentsTrackId = trackId
+                    optimisticComments.value = emptyList()
+                    emit(emptyList())
+                }
+                emit(runCatching { trackRepository.getTrackComments(trackId) }.getOrDefault(emptyList()))
+            }
+        }
+
+    val timedComments = combine(fetchedComments, optimisticComments) { fetched, extra ->
+        val pending = extra.filter { local ->
+            fetched.none { it.id == local.id || (it.body == local.body && it.timestampMs == local.timestampMs) }
+        }
+        (fetched + pending).sortedBy { it.timestampMs ?: 0L }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val seekBarStyle = settingsRepository.settings.map { it.seekBarStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SeekBarStyle.CLASSIC)

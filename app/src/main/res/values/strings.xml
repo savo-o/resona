@@ -179,6 +179,21 @@
     <string name="player_save_offline">Save for offline</string>
     <string name="player_saved_offline">Saved for offline</string>
     <string name="player_shuffle">Shuffle</string>
+    <string name="player_more_like_this">More like this</string>
+    <string name="player_comments">Comments</string>
+    <string name="player_comment_hint">Comment at %s</string>
+    <string name="player_comment_send">Send</string>
+    <string name="player_comment_sent">Comment posted</string>
+    <string name="player_comment_failed">Could not post the comment</string>
+    <plurals name="player_comments_count">
+        <item quantity="one">%d comment</item>
+        <item quantity="other">%d comments</item>
+    </plurals>
+    <string name="player_more_like_this_empty">No similar tracks found</string>
+    <plurals name="player_more_like_this_added">
+        <item quantity="one">%d similar track added to the queue</item>
+        <item quantity="other">%d similar tracks added to the queue</item>
+    </plurals>
     <string name="player_repeat">Repeat</string>
     <string name="player_lyrics">Lyrics</string>
     <string name="player_lyrics_none_found">No lyrics found for this track</string>
@@ -331,6 +346,8 @@
     <string name="settings_artwork_glow_off">Off</string>
     <string name="settings_marquee_titles">Scrolling titles</string>
     <string name="settings_marquee_titles_desc">Long track titles scroll instead of being cut off</string>
+    <string name="settings_timed_comments">Timed comments</string>
+    <string name="settings_timed_comments_desc">SoundCloud comments appear above the seek bar at their moment in the track</string>
     <string name="settings_pixel_glow">Glow behind the artwork</string>
     <string name="settings_pixel_glow_desc">A soft radial gradient in the current track colour, the same one the Legacy Orb player uses</string>
     <string name="settings_player_style_pixel">Pixel</string>

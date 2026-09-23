@@ -219,8 +219,17 @@ class HomeViewModel @Inject constructor(
         preferredArtistIds: Set<Long>,
         discoveryEnabled: Boolean,
     ): List<Track> = withContext(Dispatchers.IO) {
-        val affinity = runCatching { computeAffinity(playHistoryDao.recentEvents(AFFINITY_EVENT_LIMIT)) }
-            .getOrElse { Affinity(emptyMap(), emptyMap()) }
+        val skipStats = runCatching { playHistoryDao.skipStats(System.currentTimeMillis() - SKIP_WINDOW_MS) }
+            .getOrDefault(emptyList())
+        val skipsByTrack = skipStats.associate { it.trackId to it.skipCount }
+        val skipsByArtist = skipStats
+            .filter { it.artistId != 0L }
+            .groupBy { it.artistId }
+            .mapValues { (_, stats) -> stats.sumOf { it.skipCount } }
+        val mutedTrackIds = skipStats.filter { it.skipCount >= SKIP_DROP_COUNT }.mapTo(HashSet()) { it.trackId }
+        val affinity = runCatching {
+            computeAffinity(playHistoryDao.recentEvents(AFFINITY_EVENT_LIMIT), skipsByTrack, skipsByArtist)
+        }.getOrElse { Affinity(emptyMap(), emptyMap(), skipsByTrack, skipsByArtist) }
 
         val excludedArtistIds = excludedArtists.mapTo(HashSet()) { it.artistId }
         val excludedNamesLower = excludedArtists.map { it.username.trim().lowercase() }.filter { it.isNotEmpty() }
@@ -269,7 +278,10 @@ class HomeViewModel @Inject constructor(
                         favoritesDao.filterFavoriteTrackIds(artistTracks.map { it.id }).toSet()
                     }.getOrDefault(emptySet())
                     artistTracks
-                        .filterNot { it.id in knownTrackIds || it.id in alreadyFavorite || isExcluded(it) || it.restrictionReason() != null }
+                        .filterNot {
+                            it.id in knownTrackIds || it.id in alreadyFavorite || isExcluded(it) ||
+                                it.id in mutedTrackIds || it.restrictionReason() != null
+                        }
                         .shuffled()
                         .take(5)
                 }
@@ -294,7 +306,7 @@ class HomeViewModel @Inject constructor(
                     relatedTracks
                         .filterNot {
                             it.id in knownTrackIds || it.id in alreadyFavorite || isExcluded(it) ||
-                                it.user.id in excludedArtistIds || it.restrictionReason() != null
+                                it.user.id in excludedArtistIds || it.id in mutedTrackIds || it.restrictionReason() != null
                         }
                         .shuffled()
                         .take(RELATED_TRACKS_PER_SEED)
@@ -318,21 +330,32 @@ class HomeViewModel @Inject constructor(
     private data class Affinity(
         val artistScore: Map<Long, Double>,
         val genreScore: Map<String, Double>,
+        val trackSkips: Map<Long, Int> = emptyMap(),
+        val artistSkips: Map<Long, Int> = emptyMap(),
     ) {
         private val maxArtistScore = artistScore.values.maxOrNull() ?: 0.0
         private val maxGenreScore = genreScore.values.maxOrNull() ?: 0.0
 
+        private fun artistPenalty(artistId: Long): Double =
+            1.0 + ARTIST_SKIP_PENALTY * (artistSkips[artistId] ?: 0)
+
         fun artistWeight(artistId: Long): Double =
-            1.0 + (if (maxArtistScore > 0) (artistScore[artistId] ?: 0.0) / maxArtistScore else 0.0)
+            (1.0 + (if (maxArtistScore > 0) (artistScore[artistId] ?: 0.0) / maxArtistScore else 0.0)) / artistPenalty(artistId)
 
         fun trackWeight(track: Track): Double {
             val artistPart = if (maxArtistScore > 0) (artistScore[track.user.id] ?: 0.0) / maxArtistScore else 0.0
             val genrePart = if (maxGenreScore > 0) (genreScore[track.genre] ?: 0.0) / maxGenreScore else 0.0
-            return 1.0 + artistPart + GENRE_WEIGHT * genrePart
+            val base = 1.0 + artistPart + GENRE_WEIGHT * genrePart
+            val penalty = 1.0 + TRACK_SKIP_PENALTY * (trackSkips[track.id] ?: 0) + ARTIST_SKIP_PENALTY * (artistSkips[track.user.id] ?: 0)
+            return base / penalty
         }
     }
 
-    private fun computeAffinity(events: List<PlayEvent>): Affinity {
+    private fun computeAffinity(
+        events: List<PlayEvent>,
+        trackSkips: Map<Long, Int>,
+        artistSkips: Map<Long, Int>,
+    ): Affinity {
         val now = System.currentTimeMillis()
         val artistScore = HashMap<Long, Double>()
         val genreScore = HashMap<String, Double>()
@@ -345,7 +368,7 @@ class HomeViewModel @Inject constructor(
                 genreScore[genre] = (genreScore[genre] ?: 0.0) + weight
             }
         }
-        return Affinity(artistScore, genreScore)
+        return Affinity(artistScore, genreScore, trackSkips, artistSkips)
     }
 
     /** Weighted sampling without replacement: higher [weightOf] means more likely to be picked
@@ -370,6 +393,10 @@ class HomeViewModel @Inject constructor(
         private const val RECENT_TRACKS_LIMIT = 30
         private const val RECENCY_HALF_LIFE_DAYS = 14.0
         private const val GENRE_WEIGHT = 0.3
+        private const val TRACK_SKIP_PENALTY = 0.8
+        private const val ARTIST_SKIP_PENALTY = 0.25
+        private const val SKIP_DROP_COUNT = 2
+        private const val SKIP_WINDOW_MS = 60L * 24 * 60 * 60 * 1000
         private const val DISCOVERY_ARTIST_SAMPLE = 14
         private const val DISCOVERY_TRACK_CAP = 45
         private const val RELATED_SEED_SAMPLE = 8

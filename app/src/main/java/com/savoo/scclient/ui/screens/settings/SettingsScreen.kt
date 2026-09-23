@@ -200,6 +200,7 @@ class SettingsViewModel @Inject constructor(
     fun setDividerStyle(style: DividerStyle) = viewModelScope.launch { repository.setDividerStyle(style) }
     fun setArtworkGlowSource(source: ArtworkGlowSource) = viewModelScope.launch { repository.setArtworkGlowSource(source) }
     fun setMarqueeTitles(value: Boolean) = viewModelScope.launch { repository.setMarqueeTitles(value) }
+    fun setTimedCommentsEnabled(value: Boolean) = viewModelScope.launch { repository.setTimedCommentsEnabled(value) }
     fun setDrmTrackHiding(mode: DrmTrackHiding) = viewModelScope.launch { repository.setDrmTrackHiding(mode) }
 
     data class CustomTranslationState(
@@ -848,6 +849,13 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     )
                 }
+                SettingsDivider()
+                SwitchItem(
+                    title = stringResource(R.string.settings_timed_comments),
+                    subtitle = stringResource(R.string.settings_timed_comments_desc),
+                    checked = settings.timedCommentsEnabled,
+                    onCheckedChange = { viewModel.setTimedCommentsEnabled(it) }
+                )
                 SettingsDivider()
                 SwitchItem(
                     title = stringResource(R.string.settings_lyrics_genius_fallback),

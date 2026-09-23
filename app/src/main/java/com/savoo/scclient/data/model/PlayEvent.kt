@@ -16,4 +16,5 @@ data class PlayEvent(
     val playedAt: Long,
     val genre: String? = null,
     @ColumnInfo(defaultValue = "0") val hiddenFromHistory: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val skipped: Boolean = false,
 )

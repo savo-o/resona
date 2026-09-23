@@ -179,6 +179,25 @@
     <string name="player_save_offline">Сохранить офлайн</string>
     <string name="player_saved_offline">Сохранено офлайн</string>
     <string name="player_shuffle">Перемешать</string>
+    <string name="player_more_like_this">Ещё похожее</string>
+    <string name="player_comments">Комментарии</string>
+    <string name="player_comment_hint">Комментарий на %s</string>
+    <string name="player_comment_send">Отправить</string>
+    <string name="player_comment_sent">Комментарий опубликован</string>
+    <string name="player_comment_failed">Не удалось опубликовать комментарий</string>
+    <plurals name="player_comments_count">
+        <item quantity="one">%d комментарий</item>
+        <item quantity="few">%d комментария</item>
+        <item quantity="many">%d комментариев</item>
+        <item quantity="other">%d комментария</item>
+    </plurals>
+    <string name="player_more_like_this_empty">Похожие треки не найдены</string>
+    <plurals name="player_more_like_this_added">
+        <item quantity="one">%d похожий трек добавлен в очередь</item>
+        <item quantity="few">%d похожих трека добавлено в очередь</item>
+        <item quantity="many">%d похожих треков добавлено в очередь</item>
+        <item quantity="other">%d похожих трека добавлено в очередь</item>
+    </plurals>
     <string name="player_repeat">Повтор</string>
     <string name="player_lyrics">Текст песни</string>
     <string name="player_lyrics_none_found">Текст для этого трека не найден</string>
@@ -335,6 +354,8 @@
     <string name="settings_artwork_glow_off">Выключить</string>
     <string name="settings_marquee_titles">Бегущие названия</string>
     <string name="settings_marquee_titles_desc">Длинные названия треков прокручиваются, а не обрезаются</string>
+    <string name="settings_timed_comments">Комментарии по времени</string>
+    <string name="settings_timed_comments_desc">Комментарии SoundCloud появляются над ползунком в свой момент трека</string>
     <string name="settings_pixel_glow">Свечение за обложкой</string>
     <string name="settings_pixel_glow_desc">Мягкий круговой градиент в цвет текущего трека, тот же, что в Legacy Orb</string>
     <string name="settings_player_style_pixel">Pixel</string>

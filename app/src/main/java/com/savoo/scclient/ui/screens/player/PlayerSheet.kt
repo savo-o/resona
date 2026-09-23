@@ -60,8 +60,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.CloudDownload
@@ -145,6 +147,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -156,6 +159,7 @@ import android.content.Intent
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.repository.AppBackgroundMode
 import com.savoo.scclient.data.repository.ArtworkShape
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
@@ -172,6 +176,7 @@ import com.savoo.scclient.ui.components.artworkProgressRing
 import com.savoo.scclient.ui.components.rememberArtworkShape
 import com.savoo.scclient.ui.components.TrackSkippedBanner
 import com.savoo.scclient.ui.components.AppDivider
+import com.savoo.scclient.ui.components.PlayerInfoBanner
 import com.savoo.scclient.ui.components.BulkDownloadBanner
 import com.savoo.scclient.ui.components.FavoritesImportBanner
 import com.savoo.scclient.data.repository.FavoritesImportState
@@ -368,6 +373,10 @@ fun PlayerSheet(
             artworkRingEnabled = viewModel.artworkRingEnabled.collectAsState().value,
             artworkScale = viewModel.artworkScale.collectAsState().value,
             lyrics = viewModel.lyrics.collectAsState().value,
+            timedComments = viewModel.timedComments.collectAsState().value,
+            commentsEnabled = viewModel.timedCommentsEnabled.collectAsState().value,
+            canComment = viewModel.canComment.collectAsState().value,
+            onSubmitComment = { body, at -> viewModel.postComment(body, at) },
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsSync = viewModel.lyricsSyncState.collectAsState().value,
             onLyricsSyncAction = { viewModel.onLyricsSyncAction(it) },
@@ -411,6 +420,10 @@ private fun FullPlayerSheet(
     showCustomizeHint: Boolean,
     onDismissCustomizeHint: () -> Unit,
     lyrics: LyricsResult?,
+    timedComments: List<TrackComment>,
+    commentsEnabled: Boolean,
+    canComment: Boolean,
+    onSubmitComment: suspend (String, Long) -> TrackComment?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
     onLyricsSyncAction: (LyricsSyncAction) -> Unit,
@@ -457,6 +470,10 @@ private fun FullPlayerSheet(
                 artworkRingEnabled = artworkRingEnabled,
                 artworkScale = artworkScale,
                 lyrics = lyrics,
+                timedComments = timedComments,
+                commentsEnabled = commentsEnabled,
+                canComment = canComment,
+                onSubmitComment = onSubmitComment,
                 activeLyricsLine = activeLyricsLine,
                 lyricsSync = lyricsSync,
                 onLyricsSyncAction = onLyricsSyncAction,
@@ -494,6 +511,10 @@ private fun FullPlayerSheet(
             showCustomizeHint = showCustomizeHint,
             onDismissCustomizeHint = onDismissCustomizeHint,
             lyrics = lyrics,
+            timedComments = timedComments,
+            commentsEnabled = commentsEnabled,
+            canComment = canComment,
+            onSubmitComment = onSubmitComment,
             activeLyricsLine = activeLyricsLine,
             lyricsSync = lyricsSync,
             onLyricsSyncAction = onLyricsSyncAction,
@@ -815,6 +836,10 @@ private fun PixelPlayerContent(
     showCustomizeHint: Boolean = false,
     onDismissCustomizeHint: () -> Unit = {},
     lyrics: LyricsResult?,
+    timedComments: List<TrackComment>,
+    commentsEnabled: Boolean,
+    canComment: Boolean,
+    onSubmitComment: suspend (String, Long) -> TrackComment?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
     onLyricsSyncAction: (LyricsSyncAction) -> Unit,
@@ -838,6 +863,8 @@ private fun PixelPlayerContent(
     val haptic = rememberHapticTick()
     val haptics = rememberHaptics()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
+    var showComments by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     var panel by remember { mutableStateOf<PixelPanel?>(null) }
     var lastPanel by remember { mutableStateOf(PixelPanel.QUEUE) }
     panel?.let { lastPanel = it }
@@ -860,6 +887,34 @@ private fun PixelPlayerContent(
         animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
         label = "playFull"
     )
+
+    val commentPositionMs = if (isDragging) dragPosition.toLong() else state.positionMs
+    var pinnedComment by remember { mutableStateOf<TrackComment?>(null) }
+    var infoMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(pinnedComment) {
+        if (pinnedComment != null) {
+            kotlinx.coroutines.delay(4_000)
+            pinnedComment = null
+        }
+    }
+    val activeComment = rememberVisibleComment(timedComments, commentPositionMs, state.durationMs, pinnedComment)
+
+    if (showComments && timedComments.isNotEmpty()) {
+        TimedCommentsSheet(
+            comments = timedComments,
+            positionMs = commentPositionMs,
+            accent = accent,
+            canComment = canComment,
+            initialHighlightId = activeComment?.id,
+            onSubmit = onSubmitComment,
+            onSelect = { comment ->
+                pinnedComment = comment
+                comment.timestampMs?.let(onSeek)
+            },
+            onPosted = { comment -> pinnedComment = comment },
+            onDismiss = { showComments = false },
+        )
+    }
 
     var prevTrackId by remember { mutableStateOf(state.currentTrack?.id) }
     val slideOffset = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -889,6 +944,11 @@ private fun PixelPlayerContent(
             .fillMaxHeight(0.92f)
             .navigationBarsPadding(),
     ) {
+    PlayerInfoBanner(
+        message = infoMessage,
+        onHide = { infoMessage = null },
+        modifier = Modifier.align(Alignment.TopCenter).zIndex(1f).padding(top = 8.dp),
+    )
     AdaptivePlayerLayout(
         showLyrics = showLyrics,
         modifier = Modifier.fillMaxSize(),
@@ -1166,6 +1226,18 @@ private fun PixelPlayerContent(
                 activeTrackColor = accent,
                 inactiveTrackColor = palette.onBackgroundMuted.copy(alpha = 0.25f),
             )
+            val markerColor = palette.onBackgroundMuted.copy(alpha = 0.5f)
+
+            TimedCommentChip(
+                comment = activeComment,
+                enabled = commentsEnabled,
+                accent = accent,
+                onColor = palette.onBackground,
+                surfaceColor = palette.surface,
+                highlighted = pinnedComment != null && pinnedComment?.id == activeComment?.id,
+                onClick = { showComments = true },
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
 
             AdaptivePlayerSeek(
                 horizontal = horizontal,
@@ -1180,6 +1252,14 @@ private fun PixelPlayerContent(
                     onValueChangeFinished = onSeekValueChangeFinished,
                     valueRange = seekValueRange,
                     colors = seekColors,
+                    modifier = Modifier.timedCommentMarkers(
+                        comments = timedComments,
+                        durationMs = state.durationMs,
+                        activeId = activeComment?.id,
+                        color = markerColor,
+                        activeColor = accent,
+                        trackInset = 8.dp,
+                    ),
                     track = { sliderState ->
                         WavySeekTrack(
                             sliderState = sliderState,
@@ -1209,6 +1289,14 @@ private fun PixelPlayerContent(
                     onValueChangeFinished = onSeekValueChangeFinished,
                     valueRange = seekValueRange,
                     colors = seekColors,
+                    modifier = Modifier.timedCommentMarkers(
+                        comments = timedComments,
+                        durationMs = state.durationMs,
+                        activeId = activeComment?.id,
+                        color = markerColor,
+                        activeColor = accent,
+                        trackInset = 10.dp,
+                    ),
                 )
             }
             }
@@ -1375,6 +1463,26 @@ private fun PixelPlayerContent(
                         label = stringResource(R.string.player_queue),
                         palette = palette,
                         onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.QUEUE },
+                    )
+                    if (timedComments.isNotEmpty()) {
+                        PixelMenuItem(
+                            icon = Icons.AutoMirrored.Filled.Comment,
+                            label = stringResource(R.string.player_comments),
+                            palette = palette,
+                            onClick = { haptic(); showOverflowMenu = false; showComments = true },
+                        )
+                    }
+                    PixelMenuItem(
+                        icon = Icons.Filled.AutoAwesome,
+                        label = stringResource(R.string.player_more_like_this),
+                        palette = palette,
+                        onClick = {
+                            haptic()
+                            showOverflowMenu = false
+                            state.currentTrack?.let { track ->
+                                moreLikeThis(scope, context, controller, track) { infoMessage = it }
+                            }
+                        },
                     )
                     PixelMenuItem(
                         icon = Icons.Filled.Speed,
@@ -2189,6 +2297,25 @@ private fun LyricsLineItem(
     )
 }
 
+private fun moreLikeThis(
+    scope: kotlinx.coroutines.CoroutineScope,
+    context: android.content.Context,
+    controller: PlayerController,
+    track: Track,
+    onMessage: (String) -> Unit,
+) {
+    scope.launch {
+        val added = controller.queueMoreLikeThis(track)
+        onMessage(
+            if (added > 0) {
+                context.resources.getQuantityString(R.plurals.player_more_like_this_added, added, added)
+            } else {
+                context.getString(R.string.player_more_like_this_empty)
+            }
+        )
+    }
+}
+
 @Composable
 internal fun playingFromSource(queueTag: String?, artistName: String): String = when {
     queueTag == null -> artistName
@@ -2202,7 +2329,7 @@ internal fun playingFromSource(queueTag: String?, artistName: String): String = 
     else -> artistName
 }
 
-private fun formatTime(ms: Long): String {
+internal fun formatTime(ms: Long): String {
     val totalSec = ms / 1000
     val min = totalSec / 60
     val sec = totalSec % 60
@@ -2226,6 +2353,10 @@ private fun ClassicPlayerContent(
     artworkRingEnabled: Boolean,
     artworkScale: Float,
     lyrics: LyricsResult?,
+    timedComments: List<TrackComment>,
+    commentsEnabled: Boolean,
+    canComment: Boolean,
+    onSubmitComment: suspend (String, Long) -> TrackComment?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
     onLyricsSyncAction: (LyricsSyncAction) -> Unit,
@@ -2249,6 +2380,8 @@ private fun ClassicPlayerContent(
     val haptic = rememberHapticTick()
     val haptics = rememberHaptics()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
+    var showComments by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     var showQueue by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
@@ -2278,6 +2411,34 @@ private fun ClassicPlayerContent(
         animationSpec = tween(1400, easing = FastOutSlowInEasing),
         label = "playerAccent",
     )
+
+    val commentPositionMs = if (isDragging) dragPosition.toLong() else state.positionMs
+    var pinnedComment by remember { mutableStateOf<TrackComment?>(null) }
+    var infoMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(pinnedComment) {
+        if (pinnedComment != null) {
+            kotlinx.coroutines.delay(4_000)
+            pinnedComment = null
+        }
+    }
+    val activeComment = rememberVisibleComment(timedComments, commentPositionMs, state.durationMs, pinnedComment)
+
+    if (showComments && timedComments.isNotEmpty()) {
+        TimedCommentsSheet(
+            comments = timedComments,
+            positionMs = commentPositionMs,
+            accent = accent,
+            canComment = canComment,
+            initialHighlightId = activeComment?.id,
+            onSubmit = onSubmitComment,
+            onSelect = { comment ->
+                pinnedComment = comment
+                comment.timestampMs?.let(onSeek)
+            },
+            onPosted = { comment -> pinnedComment = comment },
+            onDismiss = { showComments = false },
+        )
+    }
 
     var prevTrackId by remember { mutableStateOf(state.currentTrack?.id) }
     val slideOffset = remember { androidx.compose.animation.core.Animatable(0f) }
@@ -2342,9 +2503,15 @@ private fun ClassicPlayerContent(
         }
     }
 
+    Box(Modifier.fillMaxWidth().fillMaxHeight(0.92f).navigationBarsPadding()) {
+    PlayerInfoBanner(
+        message = infoMessage,
+        onHide = { infoMessage = null },
+        modifier = Modifier.align(Alignment.TopCenter).zIndex(1f).padding(top = 8.dp),
+    )
     AdaptivePlayerLayout(
         showLyrics = showLyrics,
-        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f).navigationBarsPadding(),
+        modifier = Modifier.fillMaxSize(),
         lyrics = {
             PlayerLyricsScreen(
                 backgroundColor = palette.bg,
@@ -2432,6 +2599,24 @@ private fun ClassicPlayerContent(
                                 icon = Icons.AutoMirrored.Filled.QueueMusic,
                                 label = stringResource(R.string.player_queue),
                                 onClick = { haptic(); showOverflowMenu = false; showQueue = true },
+                            )
+                            if (timedComments.isNotEmpty()) {
+                                ExpressiveMenuItem(
+                                    icon = Icons.AutoMirrored.Filled.Comment,
+                                    label = stringResource(R.string.player_comments),
+                                    onClick = { haptic(); showOverflowMenu = false; showComments = true },
+                                )
+                            }
+                            ExpressiveMenuItem(
+                                icon = Icons.Filled.AutoAwesome,
+                                label = stringResource(R.string.player_more_like_this),
+                                onClick = {
+                                    haptic()
+                                    showOverflowMenu = false
+                                    state.currentTrack?.let { track ->
+                                moreLikeThis(scope, context, controller, track) { infoMessage = it }
+                            }
+                                },
                             )
                             ExpressiveMenuItem(
                                 icon = Icons.Filled.Speed,
@@ -2609,6 +2794,18 @@ private fun ClassicPlayerContent(
                 activeTrackColor = accent,
                 inactiveTrackColor = palette.onMuted.copy(alpha = 0.25f),
             )
+            val markerColor = palette.onMuted.copy(alpha = 0.5f)
+
+            TimedCommentChip(
+                comment = activeComment,
+                enabled = commentsEnabled,
+                accent = accent,
+                onColor = palette.on,
+                surfaceColor = palette.card,
+                highlighted = pinnedComment != null && pinnedComment?.id == activeComment?.id,
+                onClick = { showComments = true },
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
 
             AdaptivePlayerSeek(
                 horizontal = horizontal,
@@ -2623,6 +2820,14 @@ private fun ClassicPlayerContent(
                     onValueChangeFinished = onSeekValueChangeFinished,
                     valueRange = seekValueRange,
                     colors = seekColors,
+                    modifier = Modifier.timedCommentMarkers(
+                        comments = timedComments,
+                        durationMs = state.durationMs,
+                        activeId = activeComment?.id,
+                        color = markerColor,
+                        activeColor = accent,
+                        trackInset = 8.dp,
+                    ),
                     track = { sliderState ->
                         WavySeekTrack(
                             sliderState = sliderState,
@@ -2652,6 +2857,14 @@ private fun ClassicPlayerContent(
                     onValueChangeFinished = onSeekValueChangeFinished,
                     valueRange = seekValueRange,
                     colors = seekColors,
+                    modifier = Modifier.timedCommentMarkers(
+                        comments = timedComments,
+                        durationMs = state.durationMs,
+                        activeId = activeComment?.id,
+                        color = markerColor,
+                        activeColor = accent,
+                        trackInset = 10.dp,
+                    ),
                 )
             }
             }
@@ -2726,6 +2939,7 @@ private fun ClassicPlayerContent(
         )
         },
     )
+    }
 
     if (showSleepTimer) {
         SleepTimerSheet(controller = controller, onDismiss = { showSleepTimer = false })

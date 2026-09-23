@@ -14,7 +14,7 @@ val LocalDividerStyle = compositionLocalOf { DividerStyle.SUBTLE }
 
 val LocalMarqueeTitles = compositionLocalOf { true }
 
-val LocalArtworkGlowSource = compositionLocalOf { ArtworkGlowSource.ARTWORK }
+val LocalArtworkGlowSource = compositionLocalOf { ArtworkGlowSource.THEME }
 
 @Composable
 fun AppDivider(

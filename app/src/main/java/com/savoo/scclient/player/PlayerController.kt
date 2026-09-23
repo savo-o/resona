@@ -168,6 +168,7 @@ class PlayerController @Inject constructor(
     private var fadeInMs = DefaultCrossfadeSeconds * 600L
 
     private var listenTrackId: Long? = null
+    private var listenTrackDurationMs: Long = 0L
     private var listenAccumulatedMs: Long = 0L
     private var listenEventJob: kotlinx.coroutines.Deferred<Long?>? = null
     private var listenSegmentStartRealtime: Long? = null
@@ -188,6 +189,9 @@ class PlayerController @Inject constructor(
         private const val FAVORITES_QUEUE_BEFORE = 250
         private const val QUEUE_EXTEND_THRESHOLD = 50
         private const val KEY_FAVORITES_CONTINUATION = "favorites_continuation"
+        private const val SKIP_MAX_PLAYED_MS = 25_000L
+        private const val SKIP_MAX_PLAYED_FRACTION = 0.35
+        private const val MORE_LIKE_THIS_LIMIT = 8
 
         // Placeholder items point at a real, always-loadable local silent file rather than an invalid URI (which used
         // to make ExoPlayer choke while probing it during buffering/look-ahead). Every placeholder gets a distinct
@@ -721,6 +725,7 @@ class PlayerController @Inject constructor(
     private fun beginListenSegment(track: Track) {
         flushListenSegment()
         listenTrackId = track.id
+        listenTrackDurationMs = track.durationMs
         listenAccumulatedMs = 0L
         listenSegmentStartRealtime = if (controller?.isPlaying == true) System.currentTimeMillis() else null
         val event = PlayEvent(
@@ -754,15 +759,19 @@ class PlayerController @Inject constructor(
         pauseListenSegment()
         val trackId = listenTrackId
         val ms = listenAccumulatedMs
+        val durationMs = listenTrackDurationMs
         val eventJob = listenEventJob
         listenEventJob = null
         if (trackId != null && eventJob != null) {
+            val skipped = ms in 1 until SKIP_MAX_PLAYED_MS &&
+                (durationMs <= 0L || ms < durationMs * SKIP_MAX_PLAYED_FRACTION)
             scope.launch(Dispatchers.IO) {
                 val eventId = eventJob.await() ?: return@launch
-                runCatching { playHistoryDao.updateMsPlayed(eventId, ms) }
+                runCatching { playHistoryDao.updatePlayOutcome(eventId, ms, skipped) }
             }
         }
         listenTrackId = null
+        listenTrackDurationMs = 0L
         listenAccumulatedMs = 0L
         listenSegmentStartRealtime = null
     }
@@ -962,6 +971,18 @@ class PlayerController @Inject constructor(
 
     fun skipToNext() {
         controller?.let { if (it.hasNextMediaItem()) it.seekToNext() }
+    }
+
+    suspend fun queueMoreLikeThis(track: Track): Int {
+        val related = runCatching { trackRepository.getRelatedTracksPage(track.id) }
+            .onFailure { DebugLog.log(TAG, "queueMoreLikeThis(${track.id}) failed: $it") }
+            .getOrDefault(emptyList())
+        val queuedIds = queue.mapTo(HashSet()) { it.track.id }
+        val fresh = related.filter { it.id !in queuedIds && knownReason(it) == null && it.restrictionReason() == null }
+            .take(MORE_LIKE_THIS_LIMIT)
+        if (fresh.isEmpty()) return 0
+        insertIntoQueue(fresh, atEnd = false)
+        return fresh.size
     }
 
     fun playNext(tracks: List<Track>) {

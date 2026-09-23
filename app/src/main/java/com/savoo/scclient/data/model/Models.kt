@@ -57,6 +57,15 @@ data class User(
 )
 
 @JsonClass(generateAdapter = true)
+data class TrackComment(
+    val id: Long = 0,
+    val body: String = "",
+    @Json(name = "timestamp") val timestampMs: Long? = null,
+    @Json(name = "created_at") val createdAt: String? = null,
+    @Json(name = "user") val user: User = User(),
+)
+
+@JsonClass(generateAdapter = true)
 data class SearchResponse<T>(
     val collection: List<T>,
     @Json(name = "next_href") val nextHref: String?
