@@ -38,6 +38,7 @@ class LyricsRepository @Inject constructor(
     private val cache = mutableMapOf<Long, LyricsResult>()
     private val lrcTagRegex = Regex("""\[(\d{2}):(\d{2})(?:[.:](\d{1,3}))?]""")
     private val maxDurationDriftSec = 3.0
+    private val titleOnlyDurationDriftSec = 2.0
     private val creditLineRegex = Regex(
         """(?i)^(lyrics\s*by|composed\s*by|arranged\s*by|produced\s*by|written\s*by)\s*[:：]"""
     )
@@ -197,10 +198,16 @@ class LyricsRepository @Inject constructor(
             consider(api.searchQuery("$artist ${info.cleanTitle}"))?.let { return it }
         }
 
-        val byTitle = api.searchByTitle(info.cleanTitle)
-            .filter { candidate -> info.artistCandidates.any { looselyMatches(candidate.artistName.orEmpty(), it) } }
+        val (byTitleAndArtist, byTitleOnly) = api.searchByTitle(info.cleanTitle)
             .filter { it.id == null || it.id !in seenIds }
-        consider(byTitle)?.let { return it }
+            .partition { candidate -> info.artistCandidates.any { looselyMatches(candidate.artistName.orEmpty(), it) } }
+        consider(byTitleAndArtist)?.let { return it }
+
+        val sameSong = byTitleOnly.filter { candidate ->
+            sameTitle(candidate.trackName.orEmpty(), info.cleanTitle) &&
+                abs((candidate.duration ?: 0.0) - durationSec) <= titleOnlyDurationDriftSec
+        }
+        consider(sameSong)?.let { return it }
 
         return plainFallback
     }
@@ -247,6 +254,12 @@ class LyricsRepository @Inject constructor(
         return an.isNotBlank() && bn.isNotBlank() && (an.contains(bn) || bn.contains(an))
     }
 
+    private fun sameTitle(candidate: String, title: String): Boolean {
+        val stripped = candidate.replace(Regex("""[(\[][^)\]]*[)\]]"""), "")
+        val cn = normalizeForMatch(stripped)
+        return cn.isNotBlank() && cn == normalizeForMatch(title)
+    }
+
     private fun normalizeForMatch(value: String): String =
         value.lowercase().filter { it.isLetterOrDigit() }
 
@@ -275,13 +288,19 @@ class LyricsRepository @Inject constructor(
     private data class TitleInfo(val cleanTitle: String, val artistCandidates: List<String>)
 
     private fun analyzeTitle(track: Track): TitleInfo {
-        var working = track.title.trim()
+        var working = track.title.trim().substringBefore('|').trim().ifBlank { track.title.trim() }
         var titleArtist: String? = null
 
         val dashMatch = Regex("""^([^-–—]{2,60}?)\s+[-–—]\s+(.+)$""").find(working)
         if (dashMatch != null) {
             val (left, right) = dashMatch.destructured
-            if (right.isNotBlank() && !left.contains(Regex("""(?i)feat\.?|ft\."""))) {
+            val rightIsOnlyVariant = right.replace(Regex("""[(\[{][^)\]}]*[)\]}]"""), " ")
+                .replace(variantRegex, " ")
+                .replace(Regex("""[^\p{L}\p{N}]"""), "")
+                .isBlank()
+            if (rightIsOnlyVariant) {
+                working = left
+            } else if (right.isNotBlank() && !left.contains(Regex("""(?i)feat\.?|ft\."""))) {
                 titleArtist = left.trim()
                 working = right
             }
@@ -289,21 +308,40 @@ class LyricsRepository @Inject constructor(
 
         val featMatch = Regex("""(?i)\b(?:feat|ft)\.?\s+([^()\[\]]+)""").find(working)
         val featArtist = featMatch?.groupValues?.get(1)?.trim()?.trim(')', ']')
+        val withMatch = Regex("""(?i)\s+(?:w/|with)\s*([^()\[\]]+)$""").find(working)
+        val withArtist = withMatch?.groupValues?.get(1)?.trim()
 
         val cleaned = working
-            .replace(Regex("""[(\[][^)\]]*[)\]]"""), "")
-            .replace(Regex("""(?i)\b(feat|ft)\.?.*$"""), "")
+            .replace(Regex("""[(\[{][^)\]}]*[)\]}]"""), " ")
+            .replace(Regex("""(?i)\b(feat|ft)\.?\s.*$"""), "")
+            .replace(Regex("""(?i)\s+(w/|with\s).*$"""), "")
             .replace(Regex("""(?i)\s+prod\.?\s.*$"""), "")
+            .replace(variantRegex, " ")
+            .replace(Regex("""[^\p{L}\p{N}\s'’&.,!?-]"""), " ")
+            .replace(Regex("""\s+"""), " ")
             .trim()
+            .trim('-', '–', '—', '+', '/', ',', ':', '.', ' ')
             .ifBlank { track.title.trim() }
 
-        val candidates = linkedSetOf(track.user.username)
-        titleArtist?.let { candidates += it }
-        featArtist?.let { candidates += it }
+        val candidates = linkedSetOf<String>()
+        listOfNotNull(track.user.username, track.user.fullName, titleArtist, featArtist, withArtist).forEach { raw ->
+            val name = raw.trim()
+            candidates += name
+            name.split(artistSplitRegex).map { it.trim() }.filter { it.length >= 2 }.forEach { candidates += it }
+        }
         candidates.removeAll { it.isBlank() }
 
         return TitleInfo(cleaned, candidates.toList().ifEmpty { listOf(track.user.username) })
     }
+
+    private val variantRegex = Regex(
+        """(?i)\b((super|ultra)\s+)?(sped[\s-]*up|speed(ed)?[\s-]*up|spedup|speedup|slowed([\s-]*down)?|pitched([\s-]*(up|down))?|reverb|nightcore|daycore|8d(\s*audio)?|bass[\s-]*boost(ed)?)(\s*(version|ver\.?|edit|remix))?\b\.*|""" +
+            """\b(""" +
+            """tik[\s-]*tok(\s*version)?|extended(\s*(mix|version))?|radio\s*edit|remaster(ed)?|""" +
+            """official\s*(music\s*)?(video|audio)|lyric(s)?\s*video|visuali[sz]er|free\s*(dl|download)|out\s*now|snippet|leak(ed)?)\b"""
+    )
+
+    private val artistSplitRegex = Regex("""(?i)\s+(?:x|&|and|w/|with|vs\.?|feat\.?|ft\.?)\s+|\s*[,+]\s*|\s+w/""")
 
     private fun parseLrc(lrc: String): List<LyricsLine> =
         lrc.lineSequence()

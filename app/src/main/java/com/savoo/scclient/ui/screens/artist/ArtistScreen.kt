@@ -1,18 +1,16 @@
 package com.savoo.scclient.ui.screens.artist
 
-import com.savoo.scclient.ui.components.badgeTitle
-import com.savoo.scclient.ui.components.followersCountText
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,25 +23,21 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Handyman
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,25 +45,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import android.content.Intent
-import android.net.Uri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
+import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteArtist
-import com.savoo.scclient.R
+import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.model.releaseYear
 import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.remote.BadgeRepository
 import com.savoo.scclient.data.repository.DrmTrackHiding
@@ -77,25 +76,40 @@ import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.components.CollapsingDetailTopBar
+import com.savoo.scclient.ui.components.DetailActionRow
+import com.savoo.scclient.ui.components.DetailCardCarousel
+import com.savoo.scclient.ui.components.DetailCardItem
+import com.savoo.scclient.ui.components.DetailSectionTitle
 import com.savoo.scclient.ui.components.TrackRow
 import com.savoo.scclient.ui.components.TrackSelectionBar
 import com.savoo.scclient.ui.components.TrackSort
 import com.savoo.scclient.ui.components.TrackSortButton
 import com.savoo.scclient.ui.components.applySortOption
+import com.savoo.scclient.ui.components.badgeTitle
+import com.savoo.scclient.ui.components.followersCountText
+import com.savoo.scclient.ui.components.hiResArtwork
+import com.savoo.scclient.ui.components.rememberCollapseProgress
 import com.savoo.scclient.ui.components.rememberTrackSelection
+import com.savoo.scclient.ui.haptics.rememberHapticTick
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import androidx.compose.ui.text.style.TextOverflow
 
 data class ArtistUiState(
     val user: User? = null,
     val tracks: List<Track> = emptyList(),
+    val topTracks: List<Track> = emptyList(),
+    val albums: List<Playlist> = emptyList(),
+    val playlists: List<Playlist> = emptyList(),
+    val relatedArtists: List<User> = emptyList(),
     val isLoading: Boolean = false,
+    val isLoadingTracks: Boolean = false,
     val error: String? = null,
 )
 
@@ -130,20 +144,48 @@ class ArtistViewModel @Inject constructor(
     val developerMode = settingsRepository.settings.map { it.developerMode }
     val drmTrackHiding = settingsRepository.settings.map { it.drmTrackHiding }
 
+    private var loadedUserId: Long? = null
+
     fun loadArtist(userId: Long) {
+        if (loadedUserId == userId && _uiState.value.user != null) return
+        loadedUserId = userId
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            runCatching {
-                val user = repository.getUser(userId)
-                val tracks = repository.getUserTracks(userId)
-                Pair(user, tracks)
-            }.onSuccess { (user, tracks) ->
-                _uiState.value = ArtistUiState(user = user, tracks = tracks, isLoading = false)
-            }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
+            _uiState.value = ArtistUiState(isLoading = true)
+            val user = runCatching { repository.getUser(userId) }.getOrElse { e ->
+                _uiState.value = ArtistUiState(error = e.message)
+                return@launch
+            }
+            _uiState.update { it.copy(user = user, isLoading = false, isLoadingTracks = true) }
+            launch {
+                val tracks = runCatching { repository.getUserTracks(userId) }.getOrDefault(emptyList())
+                _uiState.update { it.copy(tracks = tracks, isLoadingTracks = false) }
+            }
+            launch {
+                val top = runCatching { repository.getUserTopTracks(userId) }.getOrDefault(emptyList())
+                _uiState.update { it.copy(topTracks = top) }
+            }
+            launch {
+                val albums = runCatching { repository.getUserAlbums(userId) }.getOrDefault(emptyList())
+                _uiState.update { it.copy(albums = albums) }
+            }
+            launch {
+                val playlists = runCatching { repository.getUserPlaylists(userId) }.getOrDefault(emptyList())
+                _uiState.update { it.copy(playlists = playlists) }
+            }
+            launch {
+                val related = runCatching { repository.getRelatedArtists(userId) }.getOrDefault(emptyList())
+                _uiState.update { it.copy(relatedArtists = related) }
             }
         }
     }
+
+    fun shuffleAll(tracks: List<Track> = _uiState.value.tracks) {
+        if (tracks.isNotEmpty()) {
+            playerController.playQueue(tracks.shuffled(), 0, tag = artistQueueTag(), startExact = false)
+        }
+    }
+
+    fun isPlayingFromArtist(queueTag: String?): Boolean = queueTag != null && queueTag == artistQueueTag()
 
     fun playAll(tracks: List<Track> = _uiState.value.tracks) {
         if (tracks.isNotEmpty()) {
@@ -234,6 +276,8 @@ fun ArtistScreen(
     userId: Long,
     viewModel: ArtistViewModel = hiltViewModel(),
     onBack: () -> Unit = {},
+    onArtistClick: (Long) -> Unit = {},
+    onPlaylistClick: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
@@ -241,49 +285,75 @@ fun ArtistScreen(
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
     var selectedBadge by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(TrackSort()) }
+    var popularExpanded by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val selection = rememberTrackSelection()
+    val haptic = rememberHapticTick()
 
-    androidx.compose.runtime.LaunchedEffect(userId) {
-        viewModel.loadArtist(userId)
-    }
-    androidx.compose.runtime.LaunchedEffect(sort) { listState.animateScrollToItem(0) }
+    LaunchedEffect(userId) { viewModel.loadArtist(userId) }
 
     val context = LocalContext.current
     val drmHiding by viewModel.drmTrackHiding.collectAsState(initial = DrmTrackHiding.FULL)
-    val visibleTracks = state.tracks.applyDrmHiding(drmHiding)
-    val sortedTracks = visibleTracks.applySortOption(sort)
+    val visibleTracks = remember(state.tracks, drmHiding) { state.tracks.applyDrmHiding(drmHiding) }
+    val sortedTracks = remember(visibleTracks, sort) { visibleTracks.applySortOption(sort) }
+    val popularTracks = remember(state.topTracks, visibleTracks, drmHiding) {
+        val source = state.topTracks.ifEmpty { visibleTracks.sortedByDescending { it.playbackCount ?: 0L } }
+        source.applyDrmHiding(drmHiding).filter { it.restrictionReason() == null }.take(10)
+    }
+    val collapse = rememberCollapseProgress(listState, 260.dp)
+    val displayName = state.user?.fullName?.ifBlank { null } ?: state.user?.username ?: ""
+    val isPlayingThis = playerState.isPlaying && viewModel.isPlayingFromArtist(playerState.queueTag)
+    val share: (() -> Unit)? = state.user?.permalinkUrl?.let { url ->
+        {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, url)
+            }
+            context.startActivity(Intent.createChooser(intent, null))
+        }
+    }
+
+    @Composable
+    fun ArtistTrack(track: Track, queue: List<Track>, rank: Int?, modifier: Modifier) {
+        val isFav by viewModel.isFavoriteFlow(track.id).collectAsState(initial = false)
+        val isOffline by viewModel.isOfflineFlow(track.id).collectAsState(initial = false)
+        val isCurrentTrack = playerState.currentTrack?.id == track.id
+        Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+            if (rank != null) {
+                Text(
+                    "$rank",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isCurrentTrack) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(28.dp),
+                )
+            }
+            TrackRow(
+                track = track,
+                onClick = { viewModel.playTrack(track, queue) },
+                isFavorite = isFav,
+                isLoading = playerState.loadingTrackId == track.id,
+                isPlaying = playerState.isPlaying && isCurrentTrack,
+                onToggleFavorite = { viewModel.toggleFavorite(track) },
+                onTogglePlayPause = {
+                    if (isCurrentTrack) viewModel.playerController.togglePlayPause()
+                    else viewModel.playTrack(track, queue)
+                },
+                isDownloaded = isOffline,
+                isDownloading = track.id in downloadingIds,
+                onToggleDownload = { viewModel.toggleDownload(track) },
+                selectionActive = selection.isActive,
+                isSelected = selection.contains(track.id),
+                onLongPress = { selection.toggle(track.id) },
+                unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(state.user?.fullName?.ifBlank { null } ?: state.user?.username ?: "", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                actions = {
-                    if (visibleTracks.isNotEmpty()) {
-                        TrackSortButton(sort = sort, onSortChange = { sort = it })
-                    }
-                    state.user?.permalinkUrl?.let { url ->
-                        IconButton(onClick = {
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, url)
-                            }
-                            context.startActivity(Intent.createChooser(intent, null))
-                        }) {
-                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.action_share))
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                )
-            )
-        },
+        contentWindowInsets = WindowInsets(0),
         bottomBar = {
             TrackSelectionBar(
                 selectedCount = selection.count,
@@ -304,214 +374,373 @@ fun ArtistScreen(
             )
         },
     ) { padding ->
-        when {
-            state.isLoading -> Box(
-                Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                LoadingIndicator()
-            }
-            state.error != null -> Box(
-                Modifier.fillMaxSize().padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    stringResource(R.string.artist_error, state.error ?: ""),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            state.user != null -> LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(bottom = 100.dp),
-            ) {
-                item {
-                    val isArtistFav by viewModel.isArtistFavoriteFlow(userId).collectAsState(initial = false)
-                    val artistBadges by viewModel.getBadges(userId).collectAsState()
-                    val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
-                    ArtistHeader(
-                        user = state.user!!,
-                        trackCount = visibleTracks.size,
-                        badges = artistBadges,
-                        showId = isDeveloper,
-                        isFavorite = isArtistFav,
-                        onPlayAll = { viewModel.playAll(sortedTracks) },
-                        onToggleFavorite = { viewModel.toggleArtistFavorite(state.user!!) },
-                        onBadgeClick = { selectedBadge = it },
-                    )
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            when {
+                state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    LoadingIndicator()
                 }
-                item {
+                state.error != null -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        text = stringResource(R.string.artist_tracks),
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        stringResource(R.string.artist_error, state.error ?: ""),
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
                     )
                 }
-                items(sortedTracks, key = { it.id }) { track ->
-                    val isFav by viewModel.isFavoriteFlow(track.id).collectAsState(initial = false)
-                    val isOffline by viewModel.isOfflineFlow(track.id).collectAsState(initial = false)
-                    val isCurrentTrack = playerState.currentTrack?.id == track.id
-                    TrackRow(
-                        track = track,
-                        onClick = { viewModel.playTrack(track, sortedTracks) },
-                        isFavorite = isFav,
-                        isLoading = playerState.loadingTrackId == track.id,
-                        isPlaying = playerState.isPlaying && isCurrentTrack,
-                        onToggleFavorite = { viewModel.toggleFavorite(track) },
-                        onTogglePlayPause = {
-                            if (isCurrentTrack) viewModel.playerController.togglePlayPause()
-                            else viewModel.playTrack(track, sortedTracks)
-                        },
-                        isDownloaded = isOffline,
-                        isDownloading = track.id in downloadingIds,
-                            onToggleDownload = { viewModel.toggleDownload(track) },
-                        selectionActive = selection.isActive,
-                        isSelected = selection.contains(track.id),
-                        onLongPress = { selection.toggle(track.id) },
-                        unavailableReason = unavailableReasons[track.id] ?: track.restrictionReason(),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
-                    )
+                state.user != null -> {
+                    val user = state.user!!
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 100.dp),
+                    ) {
+                        item(key = "hero") {
+                            val artistBadges by viewModel.getBadges(userId).collectAsState()
+                            val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
+                            ArtistHero(
+                                user = user,
+                                badges = artistBadges,
+                                showId = isDeveloper,
+                                scrollOffsetPx = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset else 0,
+                                onBadgeClick = { selectedBadge = it },
+                            )
+                        }
+                        item(key = "meta") {
+                            ArtistMeta(user = user, trackCount = user.trackCount ?: visibleTracks.size)
+                        }
+                        item(key = "actions") {
+                            val isArtistFav by viewModel.isArtistFavoriteFlow(userId).collectAsState(initial = false)
+                            DetailActionRow(
+                                isFavorite = isArtistFav,
+                                onToggleFavorite = { viewModel.toggleArtistFavorite(user) },
+                                isPlayingThis = isPlayingThis,
+                                playEnabled = sortedTracks.isNotEmpty() || popularTracks.isNotEmpty(),
+                                onPlay = {
+                                    if (viewModel.isPlayingFromArtist(playerState.queueTag)) viewModel.playerController.togglePlayPause()
+                                    else viewModel.playAll(sortedTracks.ifEmpty { popularTracks })
+                                },
+                                onShuffle = { viewModel.shuffleAll(sortedTracks.ifEmpty { popularTracks }) },
+                                onShare = share,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+
+                        if (popularTracks.isNotEmpty()) {
+                            item(key = "popular_title") { DetailSectionTitle(stringResource(R.string.detail_popular)) }
+                            val shown = if (popularExpanded) popularTracks else popularTracks.take(5)
+                            shown.forEachIndexed { index, track ->
+                                item(key = "popular_${track.id}") {
+                                    ArtistTrack(
+                                        track = track,
+                                        queue = popularTracks,
+                                        rank = index + 1,
+                                        modifier = Modifier.padding(start = 8.dp, end = 16.dp, top = 4.dp, bottom = 4.dp).animateItem(),
+                                    )
+                                }
+                            }
+                            if (popularTracks.size > 5) {
+                                item(key = "popular_more") {
+                                    Box(Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.Center) {
+                                        TextButton(onClick = { haptic(); popularExpanded = !popularExpanded }) {
+                                            Text(stringResource(if (popularExpanded) R.string.detail_show_less else R.string.detail_show_more))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (state.albums.isNotEmpty()) {
+                            item(key = "albums") {
+                                Column {
+                                    DetailSectionTitle(stringResource(R.string.detail_albums))
+                                    DetailCardCarousel(
+                                        items = state.albums.map { it.toCardItem(playlistKindLabel(it)) },
+                                        onClick = onPlaylistClick,
+                                    )
+                                }
+                            }
+                        }
+
+                        if (state.playlists.isNotEmpty()) {
+                            item(key = "playlists") {
+                                Column {
+                                    DetailSectionTitle(stringResource(R.string.search_playlists))
+                                    DetailCardCarousel(
+                                        items = state.playlists.map { it.toCardItem(playlistKindLabel(it)) },
+                                        onClick = onPlaylistClick,
+                                    )
+                                }
+                            }
+                        }
+
+                        item(key = "tracks_title") {
+                            DetailSectionTitle(
+                                text = stringResource(R.string.detail_all_tracks),
+                                trailing = {
+                                    if (visibleTracks.isNotEmpty()) {
+                                        TrackSortButton(sort = sort, onSortChange = { sort = it })
+                                    }
+                                },
+                            )
+                        }
+                        if (state.isLoadingTracks) {
+                            item(key = "tracks_loading") {
+                                Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    LoadingIndicator(modifier = Modifier.size(32.dp))
+                                }
+                            }
+                        }
+                        items(sortedTracks, key = { it.id }) { track ->
+                            ArtistTrack(
+                                track = track,
+                                queue = sortedTracks,
+                                rank = null,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).animateItem(),
+                            )
+                        }
+
+                        if (state.relatedArtists.isNotEmpty()) {
+                            item(key = "related") {
+                                Column {
+                                    DetailSectionTitle(stringResource(R.string.detail_related_artists))
+                                    DetailCardCarousel(
+                                        items = state.relatedArtists.map { artist ->
+                                            DetailCardItem(
+                                                id = artist.id,
+                                                title = artist.fullName?.ifBlank { null } ?: artist.username,
+                                                subtitle = artist.followersCount?.let { followersCountText(it) },
+                                                artworkUrl = artist.avatarUrl,
+                                            )
+                                        },
+                                        onClick = onArtistClick,
+                                        circular = true,
+                                    )
+                                }
+                            }
+                        }
+
+                        if (!user.description.isNullOrBlank() || !user.city.isNullOrBlank()) {
+                            item(key = "about") { ArtistAbout(user) }
+                        }
+                    }
+                }
             }
+
+            CollapsingDetailTopBar(
+                title = displayName,
+                progress = collapse,
+                onBack = onBack,
+            )
         }
     }
 
     selectedBadge?.let { badge ->
         com.savoo.scclient.ui.components.BadgeBottomSheet(
             badge = badge,
-            profileName = state.user?.fullName?.ifBlank { null } ?: state.user?.username ?: "",
+            profileName = displayName,
             onDismiss = { selectedBadge = null },
             onOpenUrl = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
         )
     }
 }
-}
 
 @Composable
-private fun ArtistHeader(
-    user: User,
-    trackCount: Int,
-    badges: List<String> = emptyList(),
-    showId: Boolean = false,
-    isFavorite: Boolean,
-    onPlayAll: () -> Unit,
-    onToggleFavorite: () -> Unit,
-    onBadgeClick: (String) -> Unit = {},
-) {
-    var buttonPressed by remember { mutableStateOf(false) }
-    val buttonScale by animateFloatAsState(
-        targetValue = if (buttonPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
-        label = "playAll",
-        finishedListener = { buttonPressed = false }
+private fun playlistKindLabel(playlist: Playlist): String {
+    val kind = stringResource(
+        when (playlist.setType?.lowercase()) {
+            "album" -> R.string.playlist_kind_album
+            "ep" -> R.string.playlist_kind_ep
+            "single" -> R.string.playlist_kind_single
+            "compilation" -> R.string.playlist_kind_compilation
+            else -> if (playlist.isAlbum == true) R.string.playlist_kind_album else R.string.playlist_kind_playlist
+        }
     )
+    return listOfNotNull(kind, playlist.releaseYear).joinToString(" · ")
+}
 
-    Column(
+private fun Playlist.toCardItem(subtitle: String) = DetailCardItem(
+    id = id,
+    title = title,
+    subtitle = subtitle,
+    artworkUrl = artworkUrl ?: tracks?.firstOrNull { it.artworkUrl != null }?.artworkUrl,
+)
+
+@Composable
+private fun ArtistHero(
+    user: User,
+    badges: List<String>,
+    showId: Boolean,
+    scrollOffsetPx: Int,
+    onBadgeClick: (String) -> Unit,
+) {
+    val background = MaterialTheme.colorScheme.surface
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .height(360.dp)
+            .clipToBounds(),
     ) {
         AsyncImage(
-            model = user.avatarUrl?.replace("-large", "-t500x500"),
+            model = hiResArtwork(user.avatarUrl),
             contentDescription = user.username,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .size(120.dp)
-                .clip(CircleShape)
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationY = scrollOffsetPx * 0.45f
+                    val zoom = 1.08f - (scrollOffsetPx / 4000f).coerceAtMost(0.08f)
+                    scaleX = zoom
+                    scaleY = zoom
+                },
         )
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to background.copy(alpha = 0.55f),
+                        0.22f to Color.Transparent,
+                        0.55f to Color.Transparent,
+                        1f to background,
+                    )
+                ),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
-            Text(
-                text = user.fullName?.ifBlank { null } ?: user.username,
-                style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center,
-            )
-            badges.forEach { badge ->
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    imageVector = when (badge) {
-                        "developer" -> Icons.Filled.Handyman
-                        "supporter" -> Icons.Filled.Star
-                        else -> Icons.Filled.Star
-                    },
-                    contentDescription = badgeTitle(badge),
-                    tint = when (badge) {
-                        "developer" -> MaterialTheme.colorScheme.tertiary
-                        "supporter" -> MaterialTheme.colorScheme.secondary
-                        else -> MaterialTheme.colorScheme.primary
-                    },
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable { onBadgeClick(badge) },
+            if (user.verified == true) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Verified,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        stringResource(R.string.detail_verified_artist),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = user.fullName?.ifBlank { null } ?: user.username,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                badges.forEach { badge ->
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        imageVector = if (badge == "developer") Icons.Filled.Handyman else Icons.Filled.Star,
+                        contentDescription = badgeTitle(badge),
+                        tint = when (badge) {
+                            "developer" -> MaterialTheme.colorScheme.tertiary
+                            "supporter" -> MaterialTheme.colorScheme.secondary
+                            else -> MaterialTheme.colorScheme.primary
+                        },
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onBadgeClick(badge) },
+                    )
+                }
+            }
+            if (showId) {
+                Text(
+                    text = stringResource(R.string.artist_id, user.id),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
+    }
+}
 
+@Composable
+private fun ArtistMeta(user: User, trackCount: Int) {
+    val parts = listOfNotNull(
+        user.followersCount?.let { followersCountText(it) },
+        stringResource(R.string.artist_tracks_count, trackCount),
+    )
+    Column(Modifier.padding(horizontal = 20.dp)) {
         Text(
-            text = stringResource(R.string.artist_at_username, user.username),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        if (showId) {
-            Text(
-                text = stringResource(R.string.artist_id, user.id),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.padding(top = 2.dp),
-            )
-        }
-
-        user.followersCount?.let {
-            Text(
-                text = followersCountText(it),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-        }
-
-        Text(
-            text = stringResource(R.string.artist_tracks_count, trackCount),
+            stringResource(R.string.artist_at_username, user.username),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Text(
+            parts.joinToString(" · "),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+@Composable
+private fun ArtistAbout(user: User) {
+    var expanded by remember { mutableStateOf(false) }
+    val haptic = rememberHapticTick()
+    Column {
+        DetailSectionTitle(stringResource(R.string.detail_about_artist))
+        Surface(
+            onClick = { haptic(); expanded = !expanded },
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).animateContentSize(),
         ) {
-            Surface(
-                onClick = { buttonPressed = true; onPlayAll() },
-                modifier = Modifier
-                    .graphicsLayer { scaleX = buttonScale; scaleY = buttonScale },
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.play_all), style = MaterialTheme.typography.labelLarge)
+            Column(Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = hiResArtwork(user.avatarUrl),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(56.dp).clip(CircleShape),
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            user.fullName?.ifBlank { null } ?: user.username,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        user.city?.takeIf { it.isNotBlank() }?.let { city ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.Place,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    city,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-            IconButton(onClick = onToggleFavorite) {
-                Icon(
-                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                    contentDescription = stringResource(R.string.action_favorite),
-                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                user.description?.takeIf { it.isNotBlank() }?.let { description ->
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        description.trim(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = if (expanded) Int.MAX_VALUE else 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

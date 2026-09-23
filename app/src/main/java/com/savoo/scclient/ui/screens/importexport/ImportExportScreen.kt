@@ -87,6 +87,7 @@ import com.savoo.scclient.data.repository.AutoExportInterval
 import com.savoo.scclient.data.repository.FavoritesExporter
 import com.savoo.scclient.data.repository.FavoritesImportManager
 import com.savoo.scclient.data.repository.SettingsRepository
+import com.savoo.scclient.data.repository.TelegramImportMode
 import com.savoo.scclient.data.repository.TelegramImportRepository
 import com.savoo.scclient.work.AutoExportManager
 import java.text.DateFormat
@@ -251,6 +252,10 @@ class ImportExportViewModel @Inject constructor(
             settingsRepository.setAutoExportEnabled(value)
             autoExportManager.syncSchedule()
         }
+    }
+
+    fun setTelegramImportMode(mode: TelegramImportMode) {
+        viewModelScope.launch { settingsRepository.setTelegramImportMode(mode) }
     }
 
     fun setAutoExportInterval(interval: AutoExportInterval) {
@@ -665,6 +670,8 @@ fun ImportExportScreen(
                     onImportChat = { viewModel.telegramImportChat(it) },
                     onReset = { viewModel.telegramReset() },
                     onLogOut = { viewModel.telegramLogOut() },
+                    importMode = viewModel.settings.collectAsState(initial = AppSettings()).value.telegramImportMode,
+                    onImportModeChange = { viewModel.setTelegramImportMode(it) },
                 )
             }
         }
@@ -963,6 +970,8 @@ private fun TelegramImportSection(
     onImportChat: (TelegramChatSummary) -> Unit,
     onReset: () -> Unit,
     onLogOut: () -> Unit,
+    importMode: TelegramImportMode,
+    onImportModeChange: (TelegramImportMode) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -992,6 +1001,38 @@ private fun TelegramImportSection(
             stringResource(R.string.import_tg_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        val modes = listOf(TelegramImportMode.MATCH_FIRST, TelegramImportMode.DOWNLOAD_ALL)
+        ButtonGroup(modifier = Modifier.fillMaxWidth()) {
+            modes.forEachIndexed { index, mode ->
+                ToggleButton(
+                    checked = importMode == mode,
+                    onCheckedChange = { checked -> if (checked) onImportModeChange(mode) },
+                    modifier = Modifier.weight(1f),
+                    shapes = if (index == 0) ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    else ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                ) {
+                    Text(
+                        stringResource(
+                            if (mode == TelegramImportMode.MATCH_FIRST) R.string.import_tg_mode_match
+                            else R.string.import_tg_mode_download_all
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            stringResource(
+                if (importMode == TelegramImportMode.MATCH_FIRST) R.string.import_tg_mode_match_desc
+                else R.string.import_tg_mode_download_all_desc
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         Spacer(Modifier.height(12.dp))

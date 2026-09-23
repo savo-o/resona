@@ -25,6 +25,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -234,11 +235,15 @@ fun TrackRow(
                     },
                 )
                 Column(modifier = Modifier.weight(1f)) {
+                    val marquee = LocalMarqueeTitles.current
                     Text(
                         text = track.title,
                         style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                        overflow = if (marquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        softWrap = false,
                         color = if (unavailableReason != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        modifier = if (marquee) Modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500, repeatDelayMillis = 2000) else Modifier,
                     )
                     Text(
                         text = if (unavailableReason != null) stringResource(R.string.track_unavailable) else track.user.username,

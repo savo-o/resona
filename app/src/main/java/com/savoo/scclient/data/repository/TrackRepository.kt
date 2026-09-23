@@ -121,6 +121,16 @@ class TrackRepository @Inject constructor(
 
     suspend fun getPlaylist(id: Long): Playlist = api.getPlaylist(id)
 
+    suspend fun getUserTopTracks(userId: Long, limit: Int = 10): List<Track> =
+        api.getUserTopTracks(userId, limit = limit).collection
+
+    suspend fun getUserAlbums(userId: Long): List<Playlist> = api.getUserAlbums(userId).collection
+
+    suspend fun getUserPlaylists(userId: Long): List<Playlist> = api.getUserPlaylists(userId).collection
+
+    suspend fun getRelatedArtists(userId: Long): List<User> =
+        api.getRelatedArtists(userId).collection.filter { it.id != userId }
+
     suspend fun getCharts(limit: Int = 50): List<Track> =
         api.getCharts(kind = "trending", genre = "soundcloud:genres:all-music", limit = limit).collection.map { it.track }
 

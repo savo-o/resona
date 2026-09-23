@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.savoo.scclient.R
 import com.savoo.scclient.data.repository.AppBackgroundMode
+import com.savoo.scclient.data.repository.ArtworkGlowSource
 import com.savoo.scclient.data.repository.ArtworkShape
 import com.savoo.scclient.data.repository.AppIconOption
 import com.savoo.scclient.data.repository.DarkModeOption
@@ -549,6 +550,40 @@ fun CustomizationScreen(
                             }
                         }
                     }
+                }
+            }
+
+            SettingsSectionCard(title = stringResource(R.string.settings_artwork_glow)) {
+                run {
+                    val sources = listOf(ArtworkGlowSource.ARTWORK, ArtworkGlowSource.THEME, ArtworkGlowSource.OFF)
+                    val labels = listOf(
+                        R.string.settings_artwork_glow_artwork,
+                        R.string.settings_artwork_glow_theme,
+                        R.string.settings_artwork_glow_off,
+                    )
+                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        sources.forEachIndexed { index, source ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                sources.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.artworkGlowSource == source,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setArtworkGlowSource(source) } },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(stringResource(labels[index]), style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                    SwitchItem(
+                        title = stringResource(R.string.settings_marquee_titles),
+                        subtitle = stringResource(R.string.settings_marquee_titles_desc),
+                        checked = settings.marqueeTitles,
+                        onCheckedChange = { viewModel.setMarqueeTitles(it) },
+                    )
                 }
             }
 

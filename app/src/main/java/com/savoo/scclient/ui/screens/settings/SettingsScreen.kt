@@ -100,6 +100,7 @@ import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.LanguageOption
+import com.savoo.scclient.data.repository.ArtworkGlowSource
 import com.savoo.scclient.data.repository.DividerStyle
 import com.savoo.scclient.data.repository.DrmTrackHiding
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
@@ -197,6 +198,8 @@ class SettingsViewModel @Inject constructor(
     fun setArtworkRingEnabled(value: Boolean) = viewModelScope.launch { repository.setArtworkRingEnabled(value) }
     fun setArtworkShape(shape: com.savoo.scclient.data.repository.ArtworkShape) = viewModelScope.launch { repository.setArtworkShape(shape) }
     fun setDividerStyle(style: DividerStyle) = viewModelScope.launch { repository.setDividerStyle(style) }
+    fun setArtworkGlowSource(source: ArtworkGlowSource) = viewModelScope.launch { repository.setArtworkGlowSource(source) }
+    fun setMarqueeTitles(value: Boolean) = viewModelScope.launch { repository.setMarqueeTitles(value) }
     fun setDrmTrackHiding(mode: DrmTrackHiding) = viewModelScope.launch { repository.setDrmTrackHiding(mode) }
 
     data class CustomTranslationState(

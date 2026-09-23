@@ -92,6 +92,30 @@ interface SoundCloudApi {
         @Query("offset") offset: Int = 0,
     ): SearchResponse<Track>
 
+    @GET("users/{id}/toptracks")
+    suspend fun getUserTopTracks(
+        @Path("id") id: Long,
+        @Query("limit") limit: Int = 10,
+    ): SearchResponse<Track>
+
+    @GET("users/{id}/albums")
+    suspend fun getUserAlbums(
+        @Path("id") id: Long,
+        @Query("limit") limit: Int = 20,
+    ): SearchResponse<Playlist>
+
+    @GET("users/{id}/playlists_without_albums")
+    suspend fun getUserPlaylists(
+        @Path("id") id: Long,
+        @Query("limit") limit: Int = 20,
+    ): SearchResponse<Playlist>
+
+    @GET("users/{id}/relatedartists")
+    suspend fun getRelatedArtists(
+        @Path("id") id: Long,
+        @Query("limit") limit: Int = 12,
+    ): SearchResponse<User>
+
     @GET("playlists/{id}")
     suspend fun getPlaylist(@Path("id") id: Long): Playlist
 

@@ -1,8 +1,5 @@
 package com.savoo.scclient.ui.screens.stats
 
-import android.content.Context
-import android.content.Intent
-import android.graphics.Bitmap
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +18,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,23 +25,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.ArtistListenStat
 import com.savoo.scclient.data.local.TrackListenStat
-import kotlinx.coroutines.Dispatchers
+import com.savoo.scclient.ui.components.captureInto
+import com.savoo.scclient.ui.components.rememberCaptureLayer
+import com.savoo.scclient.ui.components.shareImage
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -59,7 +49,7 @@ fun WrappedSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val graphicsLayer = rememberGraphicsLayer()
+    val graphicsLayer = rememberCaptureLayer()
     var isSharing by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
@@ -70,14 +60,7 @@ fun WrappedSheet(
             modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                modifier = Modifier.drawWithContent {
-                    graphicsLayer.record {
-                        this@drawWithContent.drawContent()
-                    }
-                    drawLayer(graphicsLayer)
-                },
-            ) {
+            Box(modifier = Modifier.captureInto(graphicsLayer)) {
                 WrappedShareCard(
                     totalHours = totalHours,
                     totalPlays = totalPlays,
@@ -95,7 +78,7 @@ fun WrappedSheet(
                     isSharing = true
                     scope.launch {
                         val bitmap = graphicsLayer.toImageBitmap().asAndroidBitmap()
-                        shareWrappedImage(context, bitmap)
+                        shareImage(context, bitmap, "resona_wrapped")
                         isSharing = false
                     }
                 },
@@ -111,30 +94,4 @@ fun WrappedSheet(
             }
         }
     }
-}
-
-@Composable
-private fun rememberGraphicsLayer(): GraphicsLayer {
-    val graphicsContext = LocalGraphicsContext.current
-    val graphicsLayer = remember { graphicsContext.createGraphicsLayer() }
-    DisposableEffect(graphicsLayer) {
-        onDispose { graphicsContext.releaseGraphicsLayer(graphicsLayer) }
-    }
-    return graphicsLayer
-}
-
-private suspend fun shareWrappedImage(context: Context, bitmap: Bitmap) {
-    val uri = withContext(Dispatchers.IO) {
-        val dir = File(context.cacheDir, "shared_images").apply { mkdirs() }
-        val file = File(dir, "resona_wrapped_${System.currentTimeMillis()}.png")
-        FileOutputStream(file).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    }
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "image/png"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    context.startActivity(Intent.createChooser(intent, null))
 }

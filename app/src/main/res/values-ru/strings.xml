@@ -192,6 +192,11 @@
     <string name="player_lyrics_sync">Синхронизация</string>
     <string name="player_lyrics_offset_label">Сдвиг</string>
     <string name="player_lyrics_drift_label">Растяжение</string>
+    <string name="lyrics_card_share">Поделиться</string>
+    <string name="lyrics_card_style_artwork">Обложка</string>
+    <string name="lyrics_card_style_color">Цвет</string>
+    <string name="lyrics_card_style_dark">Тёмная</string>
+    <string name="lyrics_card_pick_lines">Выберите до %d строк</string>
     <string name="player_playing_from">Играет из: %1$s</string>
     <string name="player_source_mix">Микс</string>
     <string name="player_source_favorites">Избранное</string>
@@ -250,6 +255,30 @@
     <string name="artist_error">Ошибка: %s</string>
     <string name="playlist_by">%s</string>
     <string name="playlist_tracks_count">%d треков</string>
+    <string name="detail_popular">Популярное</string>
+    <string name="detail_show_more">Показать ещё</string>
+    <string name="detail_show_less">Свернуть</string>
+    <string name="detail_albums">Альбомы</string>
+    <string name="detail_all_tracks">Все треки</string>
+    <string name="detail_related_artists">Похожие исполнители</string>
+    <string name="detail_about_artist">Об исполнителе</string>
+    <string name="detail_verified_artist">Верифицирован на SoundCloud</string>
+    <string name="detail_add_to_favorites">В избранное</string>
+    <string name="detail_in_favorites">В избранном</string>
+    <string name="detail_more_by">Ещё от %s</string>
+    <string name="detail_duration_hours">%1$d ч %2$d мин</string>
+    <string name="detail_duration_minutes">%d мин</string>
+    <plurals name="detail_tracks_count">
+        <item quantity="one">%d трек</item>
+        <item quantity="few">%d трека</item>
+        <item quantity="many">%d треков</item>
+        <item quantity="other">%d трека</item>
+    </plurals>
+    <string name="playlist_kind_album">Альбом</string>
+    <string name="playlist_kind_ep">EP</string>
+    <string name="playlist_kind_single">Сингл</string>
+    <string name="playlist_kind_compilation">Сборник</string>
+    <string name="playlist_kind_playlist">Плейлист</string>
 
     <!-- Account -->
     <string name="account_title">Аккаунт</string>
@@ -300,6 +329,12 @@
     <string name="settings_app_background_custom_desc">Свой цвет фона, карточки треков отступают от него на несколько ступеней</string>
     <string name="settings_app_background_player_only_desc">От обложки красится только плеер, остальное приложение остаётся обычным</string>
     <string name="settings_player_style">Стиль плеера</string>
+    <string name="settings_artwork_glow">Подсветка обложки</string>
+    <string name="settings_artwork_glow_artwork">Обложка</string>
+    <string name="settings_artwork_glow_theme">Тема</string>
+    <string name="settings_artwork_glow_off">Выключить</string>
+    <string name="settings_marquee_titles">Бегущие названия</string>
+    <string name="settings_marquee_titles_desc">Длинные названия треков прокручиваются, а не обрезаются</string>
     <string name="settings_pixel_glow">Свечение за обложкой</string>
     <string name="settings_pixel_glow_desc">Мягкий круговой градиент в цвет текущего трека, тот же, что в Legacy Orb</string>
     <string name="settings_player_style_pixel">Pixel</string>
@@ -490,6 +525,10 @@
     <string name="import_tg_title">Импорт из Telegram</string>
     <string name="import_tg_beta">БЕТА</string>
     <string name="import_tg_desc">Просканировать чат на аудио, найти совпадения в SoundCloud, а всё не найденное - добавить в офлайн-треки. Найденные совпадения сохраняются только в локальное/оффлайн избранное - без синхронизации с вашими лайками на SoundCloud.</string>
+    <string name="import_tg_mode_match">Сначала поиск</string>
+    <string name="import_tg_mode_download_all">Скачивать все</string>
+    <string name="import_tg_mode_match_desc">Треки, найденные на SoundCloud, добавляются в избранное, остальные скачиваются из Telegram.</string>
+    <string name="import_tg_mode_download_all_desc">Все треки сохраняются офлайн: найденные скачиваются с SoundCloud, остальные из Telegram. Расходует больше трафика и памяти.</string>
     <string name="import_tg_unavailable">Не настроено в этой сборке - см. инструкцию по настройке импорта из Telegram.</string>
     <string name="import_tg_start">Войти через Telegram</string>
     <string name="import_tg_connecting">Подключение…</string>

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -42,6 +43,7 @@ class TelegramImportRepository @Inject constructor(
     private val offlineTrackManager: OfflineTrackManager,
     private val telegramImportDao: TelegramImportDao,
     private val unavailableTrackDao: UnavailableTrackDao,
+    private val settingsRepository: SettingsRepository,
 ) {
     /** Synthetic ids for offline-only imports live in a negative namespace - real SoundCloud ids are always positive. */
     private fun syntheticTrackId(chatId: Long, messageId: Long): Long =
@@ -112,6 +114,9 @@ class TelegramImportRepository @Inject constructor(
             }
     }
 
+    private suspend fun downloadEverything(): Boolean =
+        settingsRepository.settings.first().telegramImportMode == TelegramImportMode.DOWNLOAD_ALL
+
     private suspend fun importOne(message: TelegramAudioMessage): ImportItemResult = withContext(Dispatchers.IO) {
         // A single stuck download or search call (TDLib edge cases, flaky network) used to be able to
         // wedge one of the flatMapMerge slots forever, which on a large chat gradually starved the
@@ -153,6 +158,9 @@ class TelegramImportRepository @Inject constructor(
                     userAvatarUrl = match.user.avatarUrl,
                 )
             )
+            if (downloadEverything() && !offlineTrackManager.isOfflineTrackSync(match.id)) {
+                offlineTrackManager.saveForOffline(match)
+            }
             return ImportItemResult(message, resolvedTitle, performer, ImportItemStatus.MATCHED, match.id)
         }
 

@@ -192,6 +192,11 @@
     <string name="player_lyrics_sync">Sync</string>
     <string name="player_lyrics_offset_label">Shift</string>
     <string name="player_lyrics_drift_label">Stretch</string>
+    <string name="lyrics_card_share">Share</string>
+    <string name="lyrics_card_style_artwork">Artwork</string>
+    <string name="lyrics_card_style_color">Color</string>
+    <string name="lyrics_card_style_dark">Dark</string>
+    <string name="lyrics_card_pick_lines">Pick up to %d lines</string>
     <string name="player_playing_from">Playing from %1$s</string>
     <string name="player_source_mix">Mix</string>
     <string name="player_source_favorites">Favorites</string>
@@ -248,6 +253,28 @@
     <string name="artist_error">Error: %s</string>
     <string name="playlist_by">%s</string>
     <string name="playlist_tracks_count">%d tracks</string>
+    <string name="detail_popular">Popular</string>
+    <string name="detail_show_more">Show more</string>
+    <string name="detail_show_less">Show less</string>
+    <string name="detail_albums">Albums</string>
+    <string name="detail_all_tracks">All tracks</string>
+    <string name="detail_related_artists">Fans also like</string>
+    <string name="detail_about_artist">About</string>
+    <string name="detail_verified_artist">SoundCloud Verified artist</string>
+    <string name="detail_add_to_favorites">Favorite</string>
+    <string name="detail_in_favorites">In favorites</string>
+    <string name="detail_more_by">More by %s</string>
+    <string name="detail_duration_hours">%1$d h %2$d min</string>
+    <string name="detail_duration_minutes">%d min</string>
+    <plurals name="detail_tracks_count">
+        <item quantity="one">%d track</item>
+        <item quantity="other">%d tracks</item>
+    </plurals>
+    <string name="playlist_kind_album">Album</string>
+    <string name="playlist_kind_ep">EP</string>
+    <string name="playlist_kind_single">Single</string>
+    <string name="playlist_kind_compilation">Compilation</string>
+    <string name="playlist_kind_playlist">Playlist</string>
 
     <!-- Account -->
     <string name="account_title">Account</string>
@@ -298,6 +325,12 @@
     <string name="settings_app_background_custom_desc">Your own color for the background, with track pills stepped away from it</string>
     <string name="settings_app_background_player_only_desc">Only the player follows the cover, the rest of the app stays plain</string>
     <string name="settings_player_style">Player style</string>
+    <string name="settings_artwork_glow">Artwork glow</string>
+    <string name="settings_artwork_glow_artwork">Artwork</string>
+    <string name="settings_artwork_glow_theme">Theme</string>
+    <string name="settings_artwork_glow_off">Off</string>
+    <string name="settings_marquee_titles">Scrolling titles</string>
+    <string name="settings_marquee_titles_desc">Long track titles scroll instead of being cut off</string>
     <string name="settings_pixel_glow">Glow behind the artwork</string>
     <string name="settings_pixel_glow_desc">A soft radial gradient in the current track colour, the same one the Legacy Orb player uses</string>
     <string name="settings_player_style_pixel">Pixel</string>
@@ -488,6 +521,10 @@
     <string name="import_tg_title">Import from Telegram</string>
     <string name="import_tg_beta">BETA</string>
     <string name="import_tg_desc">Scan a chat for shared audio, match it against SoundCloud, and add whatever isn\'t found there to Offline Tracks. Matches are saved to local/offline favorites only - not synced to your own SoundCloud likes.</string>
+    <string name="import_tg_mode_match">Match first</string>
+    <string name="import_tg_mode_download_all">Download all</string>
+    <string name="import_tg_mode_match_desc">Tracks found on SoundCloud are added to favorites, the rest are downloaded from Telegram.</string>
+    <string name="import_tg_mode_download_all_desc">Every track is saved for offline: matches are downloaded from SoundCloud, the rest from Telegram. Uses more traffic and storage.</string>
     <string name="import_tg_unavailable">Not set up in this build - see the Telegram import setup notes.</string>
     <string name="import_tg_start">Sign in with Telegram</string>
     <string name="import_tg_connecting">Connecting…</string>

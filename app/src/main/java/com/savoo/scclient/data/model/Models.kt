@@ -50,6 +50,10 @@ data class User(
     @Json(name = "followers_count") val followersCount: Long? = null,
     @Json(name = "full_name") val fullName: String? = null,
     @Json(name = "permalink_url") val permalinkUrl: String? = null,
+    @Json(name = "description") val description: String? = null,
+    @Json(name = "city") val city: String? = null,
+    @Json(name = "track_count") val trackCount: Int? = null,
+    @Json(name = "verified") val verified: Boolean? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -90,4 +94,13 @@ data class Playlist(
     @Json(name = "permalink_url") val permalinkUrl: String? = null,
     @Json(name = "description") val description: String? = null,
     @Json(name = "tracks") val tracks: List<Track>? = null,
+    @Json(name = "is_album") val isAlbum: Boolean? = null,
+    @Json(name = "set_type") val setType: String? = null,
+    @Json(name = "release_date") val releaseDate: String? = null,
+    @Json(name = "created_at") val createdAt: String? = null,
+    @Json(name = "duration") val durationMs: Long? = null,
+    @Json(name = "likes_count") val likesCount: Long? = null,
 )
+
+val Playlist.releaseYear: String?
+    get() = (releaseDate ?: createdAt)?.take(4)?.takeIf { it.length == 4 && it.all(Char::isDigit) }

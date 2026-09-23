@@ -7,9 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
+import com.savoo.scclient.data.repository.ArtworkGlowSource
 import com.savoo.scclient.data.repository.DividerStyle
 
 val LocalDividerStyle = compositionLocalOf { DividerStyle.SUBTLE }
+
+val LocalMarqueeTitles = compositionLocalOf { true }
+
+val LocalArtworkGlowSource = compositionLocalOf { ArtworkGlowSource.ARTWORK }
 
 @Composable
 fun AppDivider(

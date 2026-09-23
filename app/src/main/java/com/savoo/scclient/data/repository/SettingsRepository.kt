@@ -60,6 +60,10 @@ enum class DividerStyle { HIDDEN, SUBTLE, BRIGHT }
 
 enum class DrmTrackHiding { FULL, PARTIAL, OFF }
 
+enum class ArtworkGlowSource { ARTWORK, THEME, OFF }
+
+enum class TelegramImportMode { MATCH_FIRST, DOWNLOAD_ALL }
+
 enum class AutoExportInterval(val hours: Long) { SIX_HOURS(6), DAILY(24), WEEKLY(168) }
 
 enum class HomeSection { JUMP_BACK_IN, FAVORITES, OFFLINE, ARTISTS, PLAYLISTS }
@@ -129,6 +133,9 @@ data class AppSettings(
     val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
     val dividerStyle: DividerStyle = DividerStyle.SUBTLE,
     val drmTrackHiding: DrmTrackHiding = DrmTrackHiding.FULL,
+    val artworkGlowSource: ArtworkGlowSource = ArtworkGlowSource.ARTWORK,
+    val marqueeTitles: Boolean = true,
+    val telegramImportMode: TelegramImportMode = TelegramImportMode.MATCH_FIRST,
     val autoExportEnabled: Boolean = false,
     val autoExportUri: String? = null,
     val autoExportInterval: AutoExportInterval = AutoExportInterval.DAILY,
@@ -177,6 +184,9 @@ class SettingsRepository @Inject constructor(
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
         val DIVIDER_STYLE = stringPreferencesKey("divider_style")
         val DRM_TRACK_HIDING = stringPreferencesKey("drm_track_hiding")
+        val ARTWORK_GLOW_SOURCE = stringPreferencesKey("artwork_glow_source")
+        val MARQUEE_TITLES = booleanPreferencesKey("marquee_titles")
+        val TELEGRAM_IMPORT_MODE = stringPreferencesKey("telegram_import_mode")
         val AUTO_EXPORT_ENABLED = booleanPreferencesKey("auto_export_enabled")
         val AUTO_EXPORT_URI = stringPreferencesKey("auto_export_uri")
         val AUTO_EXPORT_INTERVAL = stringPreferencesKey("auto_export_interval")
@@ -253,6 +263,13 @@ class SettingsRepository @Inject constructor(
             drmTrackHiding = prefs[Keys.DRM_TRACK_HIDING]?.let {
                 runCatching { DrmTrackHiding.valueOf(it) }.getOrNull()
             } ?: DrmTrackHiding.FULL,
+            artworkGlowSource = prefs[Keys.ARTWORK_GLOW_SOURCE]?.let {
+                runCatching { ArtworkGlowSource.valueOf(it) }.getOrNull()
+            } ?: ArtworkGlowSource.ARTWORK,
+            marqueeTitles = prefs[Keys.MARQUEE_TITLES] ?: true,
+            telegramImportMode = prefs[Keys.TELEGRAM_IMPORT_MODE]?.let {
+                runCatching { TelegramImportMode.valueOf(it) }.getOrNull()
+            } ?: TelegramImportMode.MATCH_FIRST,
             autoExportEnabled = prefs[Keys.AUTO_EXPORT_ENABLED] ?: false,
             autoExportUri = prefs[Keys.AUTO_EXPORT_URI]?.takeIf { it.isNotBlank() },
             autoExportInterval = prefs[Keys.AUTO_EXPORT_INTERVAL]?.let {
@@ -409,6 +426,18 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setDrmTrackHiding(mode: DrmTrackHiding) {
         context.dataStore.edit { it[Keys.DRM_TRACK_HIDING] = mode.name }
+    }
+
+    suspend fun setArtworkGlowSource(source: ArtworkGlowSource) {
+        context.dataStore.edit { it[Keys.ARTWORK_GLOW_SOURCE] = source.name }
+    }
+
+    suspend fun setMarqueeTitles(value: Boolean) {
+        context.dataStore.edit { it[Keys.MARQUEE_TITLES] = value }
+    }
+
+    suspend fun setTelegramImportMode(mode: TelegramImportMode) {
+        context.dataStore.edit { it[Keys.TELEGRAM_IMPORT_MODE] = mode.name }
     }
 
     suspend fun setAutoExportEnabled(value: Boolean) {

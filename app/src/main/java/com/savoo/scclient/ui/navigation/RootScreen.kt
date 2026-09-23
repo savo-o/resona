@@ -394,6 +394,8 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                         ArtistScreen(
                             userId = userId,
                             onBack = { navController.popBackStack() },
+                            onArtistClick = { id -> navController.navigate(Screen.Artist.createRoute(id)) },
+                            onPlaylistClick = { id -> navController.navigate(Screen.Playlist.createRoute(id)) },
                         )
                     }
                     composable(
@@ -428,6 +430,8 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                         PlaylistScreen(
                             playlistId = playlistId,
                             onBack = { navController.popBackStack() },
+                            onArtistClick = { id -> navController.navigate(Screen.Artist.createRoute(id)) },
+                            onPlaylistClick = { id -> navController.navigate(Screen.Playlist.createRoute(id)) },
                         )
                     }
                 }
