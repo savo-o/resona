@@ -12,12 +12,14 @@ import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.LyricsResult
+import com.savoo.scclient.data.model.LyricsSource
 import com.savoo.scclient.data.model.LyricsSync
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.LyricsRepository
 import com.savoo.scclient.data.repository.SeekBarStyle
+import com.savoo.scclient.data.repository.TimedCommentsRate
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
@@ -27,6 +29,7 @@ import com.savoo.scclient.ui.screens.home.HomeViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
@@ -71,7 +74,23 @@ class PlayerViewModel @Inject constructor(
 
     private val currentTrackId = controller.state.map { it.currentTrack?.id }.distinctUntilChanged()
 
-    val lyrics = combine(
+    private val forcedLyrics = MutableStateFlow<Pair<Long, LyricsResult>?>(null)
+    private val forcingLyrics = MutableStateFlow(false)
+
+    val lyricsForcing = forcingLyrics.asStateFlow()
+
+    fun forceLyrics(source: LyricsSource) {
+        val track = controller.state.value.currentTrack ?: return
+        viewModelScope.launch {
+            forcingLyrics.value = true
+            forcedLyrics.value = null
+            val result = runCatching { lyricsRepository.forceLyrics(track, source) }.getOrNull()
+            if (result != null) forcedLyrics.value = track.id to result
+            forcingLyrics.value = false
+        }
+    }
+
+    private val loadedLyrics = combine(
         currentTrackId,
         controller.state.map { it.currentTrack }
             .distinctUntilChanged { old, new -> old?.id == new?.id }
@@ -82,7 +101,10 @@ class PlayerViewModel @Inject constructor(
                 }
             },
     ) { trackId, loaded -> loaded?.takeIf { it.first == trackId }?.second }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val lyrics = combine(currentTrackId, loadedLyrics, forcedLyrics) { trackId, loaded, forced ->
+        forced?.takeIf { it.first == trackId }?.second ?: loaded
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val lyricsTrackDurationMs = controller.state
         .map { state -> state.currentTrack?.durationMs?.takeIf { it > 0L } ?: state.durationMs.takeIf { it > 0L } }
@@ -117,6 +139,26 @@ class PlayerViewModel @Inject constructor(
 
     val canComment = tokenStore.isLoggedIn
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val timedCommentsRate = settingsRepository.settings.map { it.timedCommentsRate }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TimedCommentsRate.OFTEN)
+
+    private val removedCommentIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    val currentUserId = tokenStore.isLoggedIn
+        .map { loggedIn -> if (loggedIn) runCatching { trackRepository.getMe().id }.getOrNull() else null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun deleteComment(comment: TrackComment) {
+        viewModelScope.launch {
+            val removed = runCatching { trackRepository.deleteComment(comment.id) }.isSuccess
+            if (removed) {
+                removedCommentIds.value = removedCommentIds.value + comment.id
+                optimisticComments.value = optimisticComments.value.filterNot { it.id == comment.id }
+            }
+        }
+    }
 
     suspend fun postComment(body: String, timestampMs: Long): TrackComment? {
         val trackId = controller.state.value.currentTrack?.id ?: return null
@@ -153,17 +195,18 @@ class PlayerViewModel @Inject constructor(
                 if (trackId != loadedCommentsTrackId) {
                     loadedCommentsTrackId = trackId
                     optimisticComments.value = emptyList()
+                    removedCommentIds.value = emptySet()
                     emit(emptyList())
                 }
                 emit(runCatching { trackRepository.getTrackComments(trackId) }.getOrDefault(emptyList()))
             }
         }
 
-    val timedComments = combine(fetchedComments, optimisticComments) { fetched, extra ->
+    val timedComments = combine(fetchedComments, optimisticComments, removedCommentIds) { fetched, extra, removed ->
         val pending = extra.filter { local ->
             fetched.none { it.id == local.id || (it.body == local.body && it.timestampMs == local.timestampMs) }
         }
-        (fetched + pending).sortedBy { it.timestampMs ?: 0L }
+        (fetched + pending).filterNot { it.id in removed }.sortedBy { it.timestampMs ?: 0L }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val seekBarStyle = settingsRepository.settings.map { it.seekBarStyle }

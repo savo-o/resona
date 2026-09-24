@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -69,12 +70,13 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.TrackComment
+import com.savoo.scclient.data.repository.TimedCommentsRate
 import com.savoo.scclient.ui.components.PlayerInfoBanner
 import com.savoo.scclient.ui.components.hiResArtwork
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import kotlinx.coroutines.launch
 
-private const val COMMENT_SLOT_MS = 1_500L
+private const val COMMENT_EXACT_WINDOW_MS = 5_000L
 private const val COMMENT_NEAR_MS = 6_000L
 private val COMMENT_ROW_HEIGHT = 34.dp
 private const val MARKER_BUCKETS = 40
@@ -84,22 +86,39 @@ fun rememberVisibleComment(
     comments: List<TrackComment>,
     positionMs: Long,
     durationMs: Long,
+    rate: TimedCommentsRate,
     pinned: TrackComment? = null,
 ): TrackComment? {
     if (pinned != null) return pinned
-    val schedule = remember(comments, durationMs) { buildCommentSchedule(comments, durationMs) }
+    if (rate == TimedCommentsRate.EXACT) {
+        val timed = remember(comments) {
+            comments.filter { (it.timestampMs ?: -1L) >= 0 }.sortedBy { it.timestampMs }
+        }
+        val comment = timed.lastOrNull { (it.timestampMs ?: 0L) <= positionMs } ?: return null
+        val at = comment.timestampMs ?: return null
+        return comment.takeIf { positionMs - at < COMMENT_EXACT_WINDOW_MS }
+    }
+    val slotMs = rate.slotMs()
+    val schedule = remember(comments, durationMs, slotMs) { buildCommentSchedule(comments, durationMs, slotMs) }
     if (schedule.isEmpty()) return null
-    val slot = (positionMs / COMMENT_SLOT_MS).toInt()
+    val slot = (positionMs / slotMs).toInt()
     return schedule.getOrNull(slot) ?: schedule.lastOrNull()
 }
 
-private fun buildCommentSchedule(comments: List<TrackComment>, durationMs: Long): List<TrackComment?> {
+private fun TimedCommentsRate.slotMs(): Long = when (this) {
+    TimedCommentsRate.OFTEN -> 1_500L
+    TimedCommentsRate.NORMAL -> 3_000L
+    TimedCommentsRate.RARE -> 6_000L
+    TimedCommentsRate.EXACT -> 1_500L
+}
+
+private fun buildCommentSchedule(comments: List<TrackComment>, durationMs: Long, slotMs: Long): List<TrackComment?> {
     val timed = comments.filter { (it.timestampMs ?: -1L) >= 0 }.sortedBy { it.timestampMs }
     if (timed.isEmpty() || durationMs <= 0L) return emptyList()
-    val slots = (durationMs / COMMENT_SLOT_MS).toInt() + 1
+    val slots = (durationMs / slotMs).toInt() + 1
     var previous: TrackComment? = null
     return List(slots) { slot ->
-        val start = slot * COMMENT_SLOT_MS
+        val start = slot * slotMs
         val near = timed.filter { (it.timestampMs ?: 0L) in (start - COMMENT_NEAR_MS)..(start + COMMENT_NEAR_MS) }
         val pool = near.filter { it.id != previous?.id }.ifEmpty { near }
         val pick = pool.randomOrNull()
@@ -214,10 +233,12 @@ fun TimedCommentsSheet(
     positionMs: Long,
     accent: Color,
     canComment: Boolean,
+    currentUserId: Long?,
     initialHighlightId: Long?,
     onSubmit: suspend (String, Long) -> TrackComment?,
     onSelect: (TrackComment) -> Unit,
     onPosted: (TrackComment) -> Unit,
+    onDelete: (TrackComment) -> Unit,
     onDismiss: () -> Unit,
     onUserClick: (Long) -> Unit = {},
 ) {
@@ -230,7 +251,7 @@ fun TimedCommentsSheet(
     var highlightedId by remember { mutableStateOf(initialHighlightId) }
     val draftPositionMs = remember { positionMs }
     val listState = rememberLazyListState()
-    val startIndex = remember {
+    val startIndex = remember(comments.size) {
         val byHighlight = initialHighlightId?.let { id -> comments.indexOfFirst { it.id == id } } ?: -1
         if (byHighlight >= 0) byHighlight
         else comments.indexOfLast { (it.timestampMs ?: 0L) <= positionMs }.coerceAtLeast(0)
@@ -256,6 +277,14 @@ fun TimedCommentsSheet(
                     onHide = { banner = null },
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
                 )
+                if (comments.isEmpty()) {
+                    Text(
+                        stringResource(R.string.player_comments_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                    )
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
@@ -309,6 +338,20 @@ fun TimedCommentsSheet(
                                         style = MaterialTheme.typography.labelSmall,
                                         color = accent,
                                     )
+                                    if (currentUserId != null && comment.user.id == currentUserId) {
+                                        Spacer(Modifier.width(4.dp))
+                                        IconButton(
+                                            onClick = { haptic(); onDelete(comment) },
+                                            modifier = Modifier.size(28.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.DeleteOutline,
+                                                contentDescription = stringResource(R.string.player_comment_delete),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
+                                    }
                                 }
                                 Text(
                                     comment.body.trim(),

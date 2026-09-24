@@ -88,6 +88,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -158,6 +159,7 @@ import androidx.media3.common.util.UnstableApi
 import android.content.Intent
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.LyricsResult
+import com.savoo.scclient.data.model.LyricsSource
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.repository.AppBackgroundMode
@@ -165,6 +167,7 @@ import com.savoo.scclient.data.repository.ArtworkShape
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
 import com.savoo.scclient.data.repository.PlayerStyle
 import com.savoo.scclient.data.repository.SeekBarStyle
+import com.savoo.scclient.data.repository.TimedCommentsRate
 import com.savoo.scclient.player.BulkDownloadProgress
 import com.savoo.scclient.player.PlaybackState
 import com.savoo.scclient.player.PlayerController
@@ -375,11 +378,15 @@ fun PlayerSheet(
             lyrics = viewModel.lyrics.collectAsState().value,
             timedComments = viewModel.timedComments.collectAsState().value,
             commentsEnabled = viewModel.timedCommentsEnabled.collectAsState().value,
+            commentsRate = viewModel.timedCommentsRate.collectAsState().value,
+            currentUserId = viewModel.currentUserId.collectAsState().value,
+            onDeleteComment = { comment -> viewModel.deleteComment(comment) },
             canComment = viewModel.canComment.collectAsState().value,
             onSubmitComment = { body, at -> viewModel.postComment(body, at) },
             activeLyricsLine = viewModel.activeLyricsLine.collectAsState().value,
             lyricsSync = viewModel.lyricsSyncState.collectAsState().value,
             onLyricsSyncAction = { viewModel.onLyricsSyncAction(it) },
+            onForceLyrics = { source -> viewModel.forceLyrics(source) },
             onDismiss = { showFullPlayer = false },
             onTogglePlay = { viewModel.controller.togglePlayPause() },
             onScrubStart = { viewModel.controller.beginScrub() },
@@ -422,11 +429,15 @@ private fun FullPlayerSheet(
     lyrics: LyricsResult?,
     timedComments: List<TrackComment>,
     commentsEnabled: Boolean,
+    commentsRate: TimedCommentsRate,
+    currentUserId: Long?,
+    onDeleteComment: (TrackComment) -> Unit,
     canComment: Boolean,
     onSubmitComment: suspend (String, Long) -> TrackComment?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
     onLyricsSyncAction: (LyricsSyncAction) -> Unit,
+    onForceLyrics: (LyricsSource) -> Unit,
     onDismiss: () -> Unit,
     onTogglePlay: () -> Unit,
     onScrubStart: () -> Unit,
@@ -443,6 +454,8 @@ private fun FullPlayerSheet(
     onExcludeArtist: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetScope = rememberCoroutineScope()
+    val collapseWithAnimation: () -> Unit = { sheetScope.launch { sheetState.hide(); onDismiss() } }
     val pixelPalette = rememberPixelPalette(glowColor, backgroundMode == AppBackgroundMode.PLAYER_ONLY)
     val classicPalette = rememberPlayerPalette()
     val isPixel = playerStyle == PlayerStyle.PIXEL
@@ -472,12 +485,16 @@ private fun FullPlayerSheet(
                 lyrics = lyrics,
                 timedComments = timedComments,
                 commentsEnabled = commentsEnabled,
+                commentsRate = commentsRate,
+                currentUserId = currentUserId,
+                onDeleteComment = onDeleteComment,
                 canComment = canComment,
                 onSubmitComment = onSubmitComment,
                 activeLyricsLine = activeLyricsLine,
                 lyricsSync = lyricsSync,
                 onLyricsSyncAction = onLyricsSyncAction,
-                onCollapse = onDismiss,
+                onForceLyrics = onForceLyrics,
+                onCollapse = collapseWithAnimation,
                 onTogglePlay = onTogglePlay,
                 onScrubStart = onScrubStart,
                 onScrub = onScrub,
@@ -513,12 +530,16 @@ private fun FullPlayerSheet(
             lyrics = lyrics,
             timedComments = timedComments,
             commentsEnabled = commentsEnabled,
+            commentsRate = commentsRate,
+            currentUserId = currentUserId,
+            onDeleteComment = onDeleteComment,
             canComment = canComment,
             onSubmitComment = onSubmitComment,
             activeLyricsLine = activeLyricsLine,
             lyricsSync = lyricsSync,
             onLyricsSyncAction = onLyricsSyncAction,
-            onCollapse = onDismiss,
+            onForceLyrics = onForceLyrics,
+            onCollapse = collapseWithAnimation,
             onTogglePlay = onTogglePlay,
             onScrubStart = onScrubStart,
             onScrub = onScrub,
@@ -838,11 +859,15 @@ private fun PixelPlayerContent(
     lyrics: LyricsResult?,
     timedComments: List<TrackComment>,
     commentsEnabled: Boolean,
+    commentsRate: TimedCommentsRate,
+    currentUserId: Long?,
+    onDeleteComment: (TrackComment) -> Unit,
     canComment: Boolean,
     onSubmitComment: suspend (String, Long) -> TrackComment?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
     onLyricsSyncAction: (LyricsSyncAction) -> Unit,
+    onForceLyrics: (LyricsSource) -> Unit,
     onCollapse: () -> Unit,
     onTogglePlay: () -> Unit,
     onScrubStart: () -> Unit,
@@ -864,6 +889,7 @@ private fun PixelPlayerContent(
     val haptics = rememberHaptics()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showComments by remember { mutableStateOf(false) }
+    var showLyricsSourceMenu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var panel by remember { mutableStateOf<PixelPanel?>(null) }
     var lastPanel by remember { mutableStateOf(PixelPanel.QUEUE) }
@@ -897,14 +923,15 @@ private fun PixelPlayerContent(
             pinnedComment = null
         }
     }
-    val activeComment = rememberVisibleComment(timedComments, commentPositionMs, state.durationMs, pinnedComment)
+    val activeComment = rememberVisibleComment(timedComments, commentPositionMs, state.durationMs, commentsRate, pinnedComment)
 
-    if (showComments && timedComments.isNotEmpty()) {
+    if (showComments) {
         TimedCommentsSheet(
             comments = timedComments,
             positionMs = commentPositionMs,
             accent = accent,
             canComment = canComment,
+            currentUserId = currentUserId,
             initialHighlightId = activeComment?.id,
             onSubmit = onSubmitComment,
             onSelect = { comment ->
@@ -912,6 +939,7 @@ private fun PixelPlayerContent(
                 comment.timestampMs?.let(onSeek)
             },
             onPosted = { comment -> pinnedComment = comment },
+            onDelete = onDeleteComment,
             onDismiss = { showComments = false },
             onUserClick = { id -> showComments = false; onArtistClick(id) },
         )
@@ -1026,13 +1054,21 @@ private fun PixelPlayerContent(
                         background = palette.surface,
                     )
                 }
-                PixelIconButton(
-                    icon = Icons.Filled.Lyrics,
-                    contentDescription = stringResource(R.string.player_lyrics),
-                    onClick = { haptic(); showLyrics = !showLyrics },
-                    tint = if (showLyrics) accent else palette.onBackground,
-                    background = palette.surface,
-                )
+                Box {
+                    PixelIconButton(
+                        icon = Icons.Filled.Lyrics,
+                        contentDescription = stringResource(R.string.player_lyrics),
+                        onClick = { haptic(); showLyrics = !showLyrics },
+                        onLongClick = { haptic(); showLyricsSourceMenu = true },
+                        tint = if (showLyrics) accent else palette.onBackground,
+                        background = palette.surface,
+                    )
+                    LyricsSourceMenu(
+                        expanded = showLyricsSourceMenu,
+                        onDismiss = { showLyricsSourceMenu = false },
+                        onPick = { source -> onForceLyrics(source); showLyrics = true },
+                    )
+                }
                 PixelIconButton(
                     icon = Icons.Filled.MoreVert,
                     contentDescription = stringResource(R.string.player_more_options),
@@ -1465,7 +1501,7 @@ private fun PixelPlayerContent(
                         palette = palette,
                         onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.QUEUE },
                     )
-                    if (timedComments.isNotEmpty()) {
+                    if (commentsEnabled) {
                         PixelMenuItem(
                             icon = Icons.AutoMirrored.Filled.Comment,
                             label = stringResource(R.string.player_comments),
@@ -1732,6 +1768,7 @@ private fun ExpressiveMenuItem(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun PixelIconButton(
     icon: ImageVector,
@@ -1743,15 +1780,18 @@ private fun PixelIconButton(
     size: Dp = 44.dp,
     iconSize: Dp = 20.dp,
     iconModifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Surface(
-        onClick = onClick,
         shape = CircleShape,
         color = background,
         contentColor = tint,
         modifier = modifier.size(size),
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        ) {
             Icon(icon, contentDescription = contentDescription, modifier = iconModifier.size(iconSize))
         }
     }
@@ -2318,6 +2358,29 @@ private fun moreLikeThis(
 }
 
 @Composable
+private fun LyricsSourceMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onPick: (LyricsSource) -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.player_lyrics_force_lrclib)) },
+            onClick = { onDismiss(); onPick(LyricsSource.LRCLIB) },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.player_lyrics_force_genius)) },
+            onClick = { onDismiss(); onPick(LyricsSource.GENIUS) },
+        )
+    }
+}
+
+@Composable
 internal fun playingFromSource(queueTag: String?, artistName: String): String = when {
     queueTag == null -> artistName
     queueTag == "home_mix" -> stringResource(R.string.player_source_mix)
@@ -2337,7 +2400,7 @@ internal fun formatTime(ms: Long): String {
     return "%d:%02d".format(min, sec)
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun ClassicPlayerContent(
@@ -2356,11 +2419,15 @@ private fun ClassicPlayerContent(
     lyrics: LyricsResult?,
     timedComments: List<TrackComment>,
     commentsEnabled: Boolean,
+    commentsRate: TimedCommentsRate,
+    currentUserId: Long?,
+    onDeleteComment: (TrackComment) -> Unit,
     canComment: Boolean,
     onSubmitComment: suspend (String, Long) -> TrackComment?,
     activeLyricsLine: Int,
     lyricsSync: LyricsSyncState,
     onLyricsSyncAction: (LyricsSyncAction) -> Unit,
+    onForceLyrics: (LyricsSource) -> Unit,
     onCollapse: () -> Unit,
     onTogglePlay: () -> Unit,
     onScrubStart: () -> Unit,
@@ -2382,6 +2449,7 @@ private fun ClassicPlayerContent(
     val haptics = rememberHaptics()
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showComments by remember { mutableStateOf(false) }
+    var showLyricsSourceMenu by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var showQueue by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
@@ -2422,14 +2490,15 @@ private fun ClassicPlayerContent(
             pinnedComment = null
         }
     }
-    val activeComment = rememberVisibleComment(timedComments, commentPositionMs, state.durationMs, pinnedComment)
+    val activeComment = rememberVisibleComment(timedComments, commentPositionMs, state.durationMs, commentsRate, pinnedComment)
 
-    if (showComments && timedComments.isNotEmpty()) {
+    if (showComments) {
         TimedCommentsSheet(
             comments = timedComments,
             positionMs = commentPositionMs,
             accent = accent,
             canComment = canComment,
+            currentUserId = currentUserId,
             initialHighlightId = activeComment?.id,
             onSubmit = onSubmitComment,
             onSelect = { comment ->
@@ -2437,6 +2506,7 @@ private fun ClassicPlayerContent(
                 comment.timestampMs?.let(onSeek)
             },
             onPosted = { comment -> pinnedComment = comment },
+            onDelete = onDeleteComment,
             onDismiss = { showComments = false },
             onUserClick = { id -> showComments = false; onArtistClick(id) },
         )
@@ -2563,12 +2633,28 @@ private fun ClassicPlayerContent(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (mini) libraryActions()
-                IconButton(onClick = { haptic(); showLyrics = !showLyrics }) {
-                    Icon(
-                        Icons.Filled.Lyrics,
-                        contentDescription = stringResource(R.string.player_lyrics),
-                        modifier = Modifier.size(24.dp),
-                        tint = if (showLyrics) accent else palette.on,
+                Box {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .combinedClickable(
+                                onClick = { haptic(); showLyrics = !showLyrics },
+                                onLongClick = { haptic(); showLyricsSourceMenu = true },
+                            ),
+                    ) {
+                        Icon(
+                            Icons.Filled.Lyrics,
+                            contentDescription = stringResource(R.string.player_lyrics),
+                            modifier = Modifier.size(24.dp),
+                            tint = if (showLyrics) accent else palette.on,
+                        )
+                    }
+                    LyricsSourceMenu(
+                        expanded = showLyricsSourceMenu,
+                        onDismiss = { showLyricsSourceMenu = false },
+                        onPick = { source -> onForceLyrics(source); showLyrics = true },
                     )
                 }
                 Box {
@@ -2602,7 +2688,7 @@ private fun ClassicPlayerContent(
                                 label = stringResource(R.string.player_queue),
                                 onClick = { haptic(); showOverflowMenu = false; showQueue = true },
                             )
-                            if (timedComments.isNotEmpty()) {
+                            if (commentsEnabled) {
                                 ExpressiveMenuItem(
                                     icon = Icons.AutoMirrored.Filled.Comment,
                                     label = stringResource(R.string.player_comments),

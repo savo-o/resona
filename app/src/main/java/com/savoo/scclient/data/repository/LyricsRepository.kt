@@ -6,6 +6,7 @@ import com.savoo.scclient.data.model.LyricsCacheEntity
 import com.savoo.scclient.data.model.LyricsLine
 import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.model.LyricsSearchResult
+import com.savoo.scclient.data.model.LyricsSource
 import com.savoo.scclient.data.model.LyricsSync
 import com.savoo.scclient.data.model.LyricsSyncEntity
 import com.savoo.scclient.data.model.Track
@@ -42,6 +43,18 @@ class LyricsRepository @Inject constructor(
     private val creditLineRegex = Regex(
         """(?i)^(lyrics\s*by|composed\s*by|arranged\s*by|produced\s*by|written\s*by)\s*[:：]"""
     )
+
+    suspend fun forceLyrics(track: Track, source: LyricsSource): LyricsResult {
+        val result = when (source) {
+            LyricsSource.LRCLIB -> withContext(Dispatchers.IO) {
+                runCatching { fetchFromLrcLib(track) }.getOrNull()
+            } ?: LyricsResult.NotFound
+            LyricsSource.GENIUS -> fetchFromGenius(track)?.let { LyricsResult.Plain(it, "Genius") } ?: LyricsResult.NotFound
+        }
+        currentCoroutineContext().ensureActive()
+        if (result != LyricsResult.NotFound) store(track.id, result) else cache.remove(track.id)
+        return result
+    }
 
     suspend fun getLyrics(track: Track): LyricsResult {
         cache[track.id]?.let { return it }

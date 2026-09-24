@@ -62,6 +62,8 @@ enum class DrmTrackHiding { FULL, PARTIAL, OFF }
 
 enum class ArtworkGlowSource { ARTWORK, THEME, OFF }
 
+enum class TimedCommentsRate { OFTEN, NORMAL, RARE, EXACT }
+
 enum class TelegramImportMode { MATCH_FIRST, DOWNLOAD_ALL }
 
 enum class AutoExportInterval(val hours: Long) { SIX_HOURS(6), DAILY(24), WEEKLY(168) }
@@ -136,6 +138,7 @@ data class AppSettings(
     val artworkGlowSource: ArtworkGlowSource = ArtworkGlowSource.THEME,
     val marqueeTitles: Boolean = true,
     val timedCommentsEnabled: Boolean = true,
+    val timedCommentsRate: TimedCommentsRate = TimedCommentsRate.OFTEN,
     val telegramImportMode: TelegramImportMode = TelegramImportMode.MATCH_FIRST,
     val autoExportEnabled: Boolean = false,
     val autoExportUri: String? = null,
@@ -188,6 +191,7 @@ class SettingsRepository @Inject constructor(
         val ARTWORK_GLOW_SOURCE = stringPreferencesKey("artwork_glow_source")
         val MARQUEE_TITLES = booleanPreferencesKey("marquee_titles")
         val TIMED_COMMENTS_ENABLED = booleanPreferencesKey("timed_comments_enabled")
+        val TIMED_COMMENTS_RATE = stringPreferencesKey("timed_comments_rate")
         val TELEGRAM_IMPORT_MODE = stringPreferencesKey("telegram_import_mode")
         val AUTO_EXPORT_ENABLED = booleanPreferencesKey("auto_export_enabled")
         val AUTO_EXPORT_URI = stringPreferencesKey("auto_export_uri")
@@ -270,6 +274,9 @@ class SettingsRepository @Inject constructor(
             } ?: ArtworkGlowSource.THEME,
             marqueeTitles = prefs[Keys.MARQUEE_TITLES] ?: true,
             timedCommentsEnabled = prefs[Keys.TIMED_COMMENTS_ENABLED] ?: true,
+            timedCommentsRate = prefs[Keys.TIMED_COMMENTS_RATE]?.let {
+                runCatching { TimedCommentsRate.valueOf(it) }.getOrNull()
+            } ?: TimedCommentsRate.OFTEN,
             telegramImportMode = prefs[Keys.TELEGRAM_IMPORT_MODE]?.let {
                 runCatching { TelegramImportMode.valueOf(it) }.getOrNull()
             } ?: TelegramImportMode.MATCH_FIRST,
@@ -441,6 +448,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setTimedCommentsEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.TIMED_COMMENTS_ENABLED] = value }
+    }
+
+    suspend fun setTimedCommentsRate(rate: TimedCommentsRate) {
+        context.dataStore.edit { it[Keys.TIMED_COMMENTS_RATE] = rate.name }
     }
 
     suspend fun setTelegramImportMode(mode: TelegramImportMode) {

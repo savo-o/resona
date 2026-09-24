@@ -19,6 +19,8 @@ data class LyricsLine(
     val text: String,
 )
 
+enum class LyricsSource { LRCLIB, GENIUS }
+
 sealed interface LyricsResult {
     data class Synced(val lines: List<LyricsLine>, val sourceDurationMs: Long? = null) : LyricsResult
     data class Plain(val text: String, val source: String) : LyricsResult

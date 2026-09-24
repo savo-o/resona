@@ -114,6 +114,11 @@ class WebViewApiBridge @Inject constructor(
         url = "https://api-v2.soundcloud.com/users/$userId/track_likes/$trackId"
     )
 
+    suspend fun deleteComment(commentId: Long): Int = executeFetch(
+        method = "DELETE",
+        url = "https://api-v2.soundcloud.com/comments/$commentId",
+    )
+
     suspend fun postComment(trackId: Long, body: String, timestampMs: Long): Int {
         val query = "body=" + java.net.URLEncoder.encode(body, "UTF-8") + "&timestamp=$timestampMs"
         return executeFetch(

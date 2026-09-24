@@ -181,6 +181,7 @@
     <string name="player_shuffle">Shuffle</string>
     <string name="player_more_like_this">More like this</string>
     <string name="player_comments">Comments</string>
+    <string name="player_comments_empty">No comments yet. Be the first.</string>
     <string name="player_comment_hint">Comment at %s</string>
     <string name="player_comment_send">Send</string>
     <string name="player_comment_sent">Comment posted</string>
@@ -197,6 +198,8 @@
     <string name="player_repeat">Repeat</string>
     <string name="player_lyrics">Lyrics</string>
     <string name="player_lyrics_none_found">No lyrics found for this track</string>
+    <string name="player_lyrics_force_lrclib">Force lyrics from LRCLIB</string>
+    <string name="player_lyrics_force_genius">Force lyrics from Genius</string>
     <string name="player_lyrics_back_to_current">Current line</string>
     <string name="player_lyrics_source">Lyrics via %s</string>
     <string name="player_lyrics_offset_earlier">Show lyrics earlier</string>
@@ -348,6 +351,11 @@
     <string name="settings_marquee_titles_desc">Long track titles scroll instead of being cut off</string>
     <string name="settings_timed_comments">Timed comments</string>
     <string name="settings_timed_comments_desc">SoundCloud comments appear above the seek bar at their moment in the track</string>
+    <string name="settings_timed_comments_often">Often</string>
+    <string name="settings_timed_comments_normal">Medium</string>
+    <string name="settings_timed_comments_rare">Rarely</string>
+    <string name="settings_timed_comments_exact">By moment</string>
+    <string name="player_comment_delete">Delete comment</string>
     <string name="settings_pixel_glow">Glow behind the artwork</string>
     <string name="settings_pixel_glow_desc">A soft radial gradient in the current track colour, the same one the Legacy Orb player uses</string>
     <string name="settings_player_style_pixel">Pixel</string>

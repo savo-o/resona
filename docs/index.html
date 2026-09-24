@@ -1,975 +1,364 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>resona</title>
-    <link rel="icon" type="image/png" href="favicon.png">
-    <script>
-        (function () {
-            var stored = localStorage.getItem('theme');
-            var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (dark) document.documentElement.setAttribute('data-theme', 'dark');
-        })();
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
-    <style>
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-        :root {
-            --md-sys-color-primary: #5B5DF0;
-            --md-sys-color-on-primary: #FFFFFF;
-            --md-sys-color-primary-container: #E0DEFF;
-            --md-sys-color-on-primary-container: #1705A3;
-            --md-sys-color-secondary: #5C5D72;
-            --md-sys-color-on-secondary: #FFFFFF;
-            --md-sys-color-secondary-container: #E1E0F9;
-            --md-sys-color-on-secondary-container: #191A2C;
-            --md-sys-color-tertiary: #7A5368;
-            --md-sys-color-tertiary-container: #FFD7EC;
-            --md-sys-color-surface: #FFFBFF;
-            --md-sys-color-on-surface: #1C1B1F;
-            --md-sys-color-surface-variant: #E6E0EC;
-            --md-sys-color-on-surface-variant: #49454E;
-            --md-sys-color-outline: #7A757F;
-            --md-sys-color-surface-container-lowest: #FFFFFF;
-            --md-sys-color-surface-container-low: #F7F2FA;
-            --md-sys-color-surface-container: #F1ECF4;
-            --md-sys-color-surface-container-high: #ECE6EF;
-            --md-sys-color-surface-container-highest: #E6E0E9;
-            --md-sys-shape-corner-extra-large: 32px;
-            --md-sys-shape-corner-large: 16px;
-            --md-sys-shape-corner-medium: 12px;
-            --md-sys-shape-corner-small: 8px;
-            --md-sys-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-            --md-sys-motion-emphasized: cubic-bezier(0.2, 0, 0, 1);
-        }
-
-        [data-theme="dark"] {
-            --md-sys-color-primary: #C3C1FF;
-            --md-sys-color-on-primary: #2700C3;
-            --md-sys-color-primary-container: #3F3DC4;
-            --md-sys-color-on-primary-container: #E0DEFF;
-            --md-sys-color-secondary: #C5C4DD;
-            --md-sys-color-on-secondary: #2E2F42;
-            --md-sys-color-secondary-container: #444559;
-            --md-sys-color-on-secondary-container: #E1E0F9;
-            --md-sys-color-tertiary: #E9B8D0;
-            --md-sys-color-tertiary-container: #613B50;
-            --md-sys-color-surface: #141218;
-            --md-sys-color-on-surface: #E6E0E9;
-            --md-sys-color-surface-variant: #49454E;
-            --md-sys-color-on-surface-variant: #CAC4D0;
-            --md-sys-color-outline: #948F99;
-            --md-sys-color-surface-container-lowest: #0F0D13;
-            --md-sys-color-surface-container-low: #1D1B20;
-            --md-sys-color-surface-container: #211F26;
-            --md-sys-color-surface-container-high: #2B2930;
-            --md-sys-color-surface-container-highest: #36343B;
-        }
-
-        html { scroll-behavior: smooth; overflow-x: hidden; }
-
-        body {
-            font-family: 'Google Sans Flex', system-ui, -apple-system, sans-serif;
-            background-color: var(--md-sys-color-surface);
-            color: var(--md-sys-color-on-surface);
-            line-height: 1.6;
-            overflow-x: hidden;
-            max-width: 100vw;
-        }
-
-        .material-symbols-rounded {
-            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-
-        nav {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            border-bottom: 1px solid var(--md-sys-color-surface-container-highest);
-            padding: 0 24px;
-            height: 64px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            background: color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent);
-        }
-
-        .nav-brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            text-decoration: none;
-            color: var(--md-sys-color-on-surface);
-        }
-
-        .nav-brand img {
-            width: 32px;
-            height: 32px;
-            border-radius: 30% 70% 65% 35% / 40% 35% 65% 60%;
-            transition: border-radius 0.6s var(--md-sys-motion-spring);
-        }
-
-        .nav-brand:hover img {
-            border-radius: 50%;
-        }
-
-        .nav-brand span {
-            font-weight: 600;
-            font-size: 19px;
-            letter-spacing: -0.4px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-
-        .nav-links a {
-            text-decoration: none;
-            color: var(--md-sys-color-on-surface-variant);
-            padding: 8px 14px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .nav-links a:hover {
-            background: var(--md-sys-color-surface-container-high);
-            color: var(--md-sys-color-on-surface);
-        }
-
-        .nav-links a.nav-github {
-            background: var(--md-sys-color-primary);
-            color: var(--md-sys-color-on-primary) !important;
-        }
-
-        .nav-links a.nav-github:hover {
-            background: var(--md-sys-color-primary);
-            filter: brightness(1.1);
-        }
-
-        .nav-links a.nav-github:active {
-            transform: scale(0.92);
-            border-radius: 12px;
-        }
-
-        .theme-toggle {
-            width: 40px;
-            height: 40px;
-            border-radius: 20px;
-            border: none;
-            background: transparent;
-            color: var(--md-sys-color-on-surface-variant);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s, border-radius 0.35s var(--md-sys-motion-spring), transform 0.25s var(--md-sys-motion-spring);
-        }
-
-        .theme-toggle:hover {
-            background: var(--md-sys-color-surface-container-high);
-            border-radius: 14px;
-        }
-
-        .theme-toggle:active {
-            transform: scale(0.88);
-            border-radius: 10px;
-        }
-
-        .theme-toggle .material-symbols-rounded { font-size: 22px; }
-
-        .hero {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 120px 24px 80px;
-            position: relative;
-            width: 100%;
-            z-index: 1;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: -200px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 800px;
-            height: 800px;
-            background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 15%, transparent) 0%, transparent 70%);
-            pointer-events: none;
-            animation: breathe 6s ease-in-out infinite;
-        }
-
-        .hero::after {
-            content: '';
-            position: absolute;
-            bottom: -100px;
-            right: -100px;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-tertiary) 10%, transparent) 0%, transparent 70%);
-            pointer-events: none;
-            animation: breathe 8s ease-in-out infinite reverse;
-        }
-
-        .hero-chip {
-            display: none;
-        }
-
-        .hero-chip .material-symbols-rounded { font-size: 16px; }
-
-        .hero h1 {
-            font-size: clamp(48px, 8vw, 88px);
-            font-weight: 700;
-            line-height: 1.05;
-            letter-spacing: -2px;
-            margin-bottom: 24px;
-            max-width: 700px;
-        }
-
-        .hero h1 .gradient {
-            background: linear-gradient(135deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero p {
-            font-size: 18px;
-            color: var(--md-sys-color-on-surface-variant);
-            max-width: 480px;
-            margin-bottom: 40px;
-            line-height: 1.7;
-            font-weight: 400;
-        }
-
-        .hero-actions {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .btn-filled {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 28px;
-            background: var(--md-sys-color-primary);
-            color: var(--md-sys-color-on-primary);
-            border: none;
-            border-radius: 20px;
-            font-family: inherit;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            transition: transform 0.35s var(--md-sys-motion-spring), border-radius 0.35s var(--md-sys-motion-spring), box-shadow 0.3s var(--md-sys-motion-emphasized), background 0.3s;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.06);
-        }
-
-        .btn-filled:hover {
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15), 0 8px 16px rgba(0,0,0,0.1);
-            transform: translateY(-2px);
-            border-radius: 24px;
-        }
-
-        .btn-filled:active {
-            transform: translateY(0) scale(0.94);
-            border-radius: 12px;
-        }
-
-        .btn-filled .material-symbols-rounded { font-size: 20px; }
-
-        .btn-tonal {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 14px 28px;
-            background: var(--md-sys-color-secondary-container);
-            color: var(--md-sys-color-on-secondary-container);
-            border: none;
-            border-radius: 20px;
-            font-family: inherit;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            transition: transform 0.35s var(--md-sys-motion-spring), border-radius 0.35s var(--md-sys-motion-spring), box-shadow 0.3s var(--md-sys-motion-emphasized);
-        }
-
-        .btn-tonal:hover {
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
-            border-radius: 24px;
-        }
-
-        .btn-tonal:active {
-            transform: translateY(0) scale(0.94);
-            border-radius: 12px;
-        }
-
-        .btn-tonal .material-symbols-rounded { font-size: 20px; }
-
-        .hero-mockup {
-            margin-top: 64px;
-            width: 280px;
-            height: 560px;
-            background: var(--md-sys-color-surface-container);
-            border-radius: 40px;
-            border: 4px solid var(--md-sys-color-outline);
-            overflow: hidden;
-            position: relative;
-            box-shadow: 0 24px 48px rgba(0,0,0,0.12), 0 8px 16px rgba(0,0,0,0.08);
-            animation: float 6s ease-in-out infinite;
-            cursor: pointer;
-            transition: transform 0.45s var(--md-sys-motion-spring), box-shadow 0.4s var(--md-sys-motion-emphasized);
-        }
-
-        .hero-mockup:hover {
-            transform: translateY(-8px) scale(1.03);
-            box-shadow: 0 32px 64px rgba(0,0,0,0.18), 0 12px 24px rgba(0,0,0,0.12);
-        }
-
-        .hero-mockup:active {
-            transform: translateY(-2px) scale(0.97);
-            transition-duration: 0.15s;
-        }
-
-        .mockup-screen {
-            width: 100%;
-            height: 100%;
-            background: var(--md-sys-color-surface);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .mockup-statusbar {
-            height: 28px;
-            background: var(--md-sys-color-surface-container);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 500;
-            color: var(--md-sys-color-on-surface);
-        }
-
-        .mockup-content {
-            flex: 1;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            overflow: hidden;
-            justify-content: flex-start;
-        }
-
-        .mockup-search {
-            height: 44px;
-            background: var(--md-sys-color-surface-container-highest);
-            border-radius: 22px;
-            display: flex;
-            align-items: center;
-            padding: 0 16px;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--md-sys-color-on-surface-variant);
-        }
-
-        .mockup-search .material-symbols-rounded { font-size: 20px; }
-
-        .mockup-card {
-            background: var(--md-sys-color-primary-container);
-            border-radius: 20px;
-            padding: 16px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-        }
-
-        .mockup-card-art {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            background: var(--md-sys-color-primary);
-            opacity: 0.6;
-        }
-
-        .mockup-card-text {
-            flex: 1;
-        }
-
-        .mockup-card-title {
-            height: 12px;
-            width: 80%;
-            background: var(--md-sys-color-on-primary-container);
-            border-radius: 6px;
-            opacity: 0.5;
-            margin-bottom: 6px;
-        }
-
-        .mockup-card-sub {
-            height: 10px;
-            width: 50%;
-            background: var(--md-sys-color-on-primary-container);
-            border-radius: 5px;
-            opacity: 0.3;
-        }
-
-        .mockup-row {
-            display: flex;
-            gap: 8px;
-        }
-
-        .mockup-small-card {
-            flex: 1;
-            height: 100px;
-            background: var(--md-sys-color-secondary-container);
-            border-radius: 16px;
-        }
-
-        .mockup-player {
-            height: 64px;
-            background: var(--md-sys-color-surface-container-high);
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            padding: 0 12px;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-
-        .mockup-player-art {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: var(--md-sys-color-primary);
-            opacity: 0.5;
-        }
-
-        .mockup-player-bars {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .mockup-player-title {
-            height: 10px;
-            width: 60%;
-            background: var(--md-sys-color-on-surface);
-            border-radius: 5px;
-            opacity: 0.4;
-        }
-
-        .mockup-player-progress {
-            height: 3px;
-            width: 100%;
-            background: var(--md-sys-color-surface-container-highest);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-
-        .mockup-player-progress-fill {
-            width: 40%;
-            height: 100%;
-            background: var(--md-sys-color-primary);
-            border-radius: 2px;
-            animation: progressPulse 3s ease-in-out infinite;
-        }
-
-        @keyframes progressPulse {
-            0% { width: 20%; }
-            50% { width: 70%; }
-            100% { width: 20%; }
-        }
-
-        section {
-            padding: 100px 24px;
-            max-width: 1200px;
-            margin: 0 auto;
-            position: relative;
-            z-index: 1;
-        }
-
-        .section-label {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--md-sys-color-on-primary-container);
-            background: var(--md-sys-color-primary-container);
-            padding: 8px 18px 8px 14px;
-            border-radius: 100px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 20px;
-        }
-
-        .section-label .material-symbols-rounded { font-size: 18px; }
-
-        .section-title {
-            font-size: clamp(32px, 5vw, 48px);
-            font-weight: 700;
-            letter-spacing: -1px;
-            line-height: 1.15;
-            margin-bottom: 16px;
-        }
-
-        .section-desc {
-            font-size: 17px;
-            color: var(--md-sys-color-on-surface-variant);
-            max-width: 560px;
-            line-height: 1.7;
-            margin-bottom: 56px;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 16px;
-        }
-
-        .feature-card {
-            background: var(--md-sys-color-surface-container-low);
-            border-radius: var(--md-sys-shape-corner-extra-large);
-            padding: 32px;
-            transition: transform 0.45s var(--md-sys-motion-spring), box-shadow 0.3s var(--md-sys-motion-emphasized), border-radius 0.45s var(--md-sys-motion-spring);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-6px);
-            border-radius: 40px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-        }
-
-        .feature-card:hover::before { opacity: 1; }
-
-        .feature-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%;
-            background: var(--md-sys-color-primary-container);
-            color: var(--md-sys-color-on-primary-container);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            transition: border-radius 0.5s var(--md-sys-motion-spring), transform 0.5s var(--md-sys-motion-spring);
-        }
-
-        .feature-card:hover .feature-icon {
-            border-radius: 50%;
-            transform: rotate(10deg) scale(1.08);
-        }
-
-        .feature-icon .material-symbols-rounded { font-size: 28px; }
-
-        .feature-card h3 {
-            font-size: 20px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            letter-spacing: -0.3px;
-        }
-
-        .feature-card p {
-            font-size: 14px;
-            color: var(--md-sys-color-on-surface-variant);
-            line-height: 1.65;
-        }
-
-        .feature-card.accent .feature-icon {
-            background: var(--md-sys-color-tertiary-container);
-            color: var(--md-sys-color-tertiary);
-        }
-
-        .feature-card.secondary .feature-icon {
-            background: var(--md-sys-color-secondary-container);
-            color: var(--md-sys-color-on-secondary-container);
-        }
-
-        .specs-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-        }
-
-        .spec-card {
-            background: var(--md-sys-color-surface-container);
-            border-radius: var(--md-sys-shape-corner-large);
-            padding: 24px;
-            text-align: center;
-            transition: transform 0.4s var(--md-sys-motion-spring), border-radius 0.4s var(--md-sys-motion-spring), background 0.3s;
-        }
-
-        .spec-card:hover {
-            transform: translateY(-4px) scale(1.03);
-            border-radius: 24px;
-            background: var(--md-sys-color-surface-container-high);
-        }
-
-        .spec-card .material-symbols-rounded {
-            font-size: 32px;
-            color: var(--md-sys-color-primary);
-            margin-bottom: 12px;
-        }
-
-        .spec-card h4 {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--md-sys-color-on-surface-variant);
-            margin-bottom: 4px;
-        }
-
-        .spec-card .value {
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--md-sys-color-on-surface);
-        }
-
-        .screenshots-scroll {
-            display: flex;
-            gap: 16px;
-            overflow-x: auto;
-            padding-bottom: 16px;
-            scroll-snap-type: x mandatory;
-        }
-
-        .screenshots-scroll::-webkit-scrollbar { height: 6px; }
-        .screenshots-scroll::-webkit-scrollbar-track { background: transparent; }
-        .screenshots-scroll::-webkit-scrollbar-thumb {
-            background: var(--md-sys-color-outline);
-            border-radius: 3px;
-        }
-
-        .screenshot-item {
-            flex: 0 0 auto;
-            width: 260px;
-            scroll-snap-align: start;
-        }
-
-        .screenshot-frame {
-            width: 260px;
-            height: 520px;
-            background: var(--md-sys-color-surface-container);
-            border-radius: 28px;
-            border: 3px solid var(--md-sys-color-outline);
-            overflow: hidden;
-            margin-bottom: 12px;
-        }
-
-        .screenshot-frame img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .screenshot-label {
-            font-size: 14px;
-            font-weight: 500;
-            color: var(--md-sys-color-on-surface);
-            text-align: center;
-        }
-
-        .cta-section {
-            text-align: center;
-            padding: 120px 24px;
-            position: relative;
-            z-index: 1;
-        }
-
-        .cta-section::before {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent) 0%, transparent 70%);
-            pointer-events: none;
-            animation: breatheCta 7s ease-in-out infinite;
-        }
-
-        @keyframes breatheCta {
-            0%, 100% { opacity: 0.5; transform: translateX(-50%) scale(1); }
-            50% { opacity: 1; transform: translateX(-50%) scale(1.2); }
-        }
-
-        .cta-section h2 {
-            font-size: clamp(36px, 6vw, 56px);
-            font-weight: 700;
-            letter-spacing: -1.5px;
-            margin-bottom: 16px;
-        }
-
-        .cta-section p {
-            font-size: 17px;
-            color: var(--md-sys-color-on-surface-variant);
-            max-width: 440px;
-            margin: 0 auto 40px;
-            line-height: 1.7;
-        }
-
-        footer {
-            text-align: center;
-            padding: 40px 24px;
-            border-top: 1px solid var(--md-sys-color-surface-container-highest);
-            color: var(--md-sys-color-on-surface-variant);
-            font-size: 13px;
-            position: relative;
-            z-index: 1;
-        }
-
-        footer a {
-            color: var(--md-sys-color-primary);
-            text-decoration: none;
-        }
-
-        footer a:hover { text-decoration: underline; }
-        footer p + p { margin-top: 8px; }
-
-        @media (max-width: 768px) {
-            nav { padding: 0 12px; height: 48px; }
-            .nav-brand img { width: 28px; height: 28px; }
-            .nav-brand span { font-size: 16px; }
-            .nav-links { gap: 4px; }
-            .nav-links a:not(.btn-filled) { display: none; }
-            .nav-links a.nav-github span:last-child { display: none; }
-            .nav-links a.nav-github { padding: 8px 12px !important; }
-            .nav-links a.nav-github .material-symbols-rounded { font-size: 20px; }
-            .theme-toggle { width: 36px; height: 36px; }
-            .hero { padding: 72px 16px 40px; min-height: auto; }
-            .hero h1 { font-size: 38px; letter-spacing: -1px; margin-bottom: 16px; }
-            .hero p { font-size: 15px; margin-bottom: 28px; padding: 0 8px; }
-            .hero-actions { flex-direction: column; width: 100%; padding: 0 8px; }
-            .hero-actions a { width: 100%; justify-content: center; }
-            .hero-mockup { width: 200px; height: 400px; margin-top: 40px; border-radius: 28px; border-width: 3px; }
-            .mockup-statusbar { height: 22px; font-size: 10px; }
-            .mockup-content { padding: 10px; gap: 8px; }
-            .mockup-search { height: 36px; font-size: 11px; border-radius: 18px; padding: 0 12px; }
-            .mockup-card { padding: 10px; border-radius: 14px; }
-            .mockup-card-art { width: 36px; height: 36px; border-radius: 10px; }
-            .mockup-card-title { height: 10px; }
-            .mockup-card-sub { height: 8px; }
-            .mockup-row { gap: 6px; }
-            .mockup-small-card { height: 70px; border-radius: 12px; }
-            .mockup-player { height: 52px; padding: 0 8px; gap: 8px; border-radius: 12px; }
-            .mockup-player-art { width: 32px; height: 32px; border-radius: 8px; }
-            .mockup-player-title { height: 8px; }
-            section { padding: 48px 16px; }
-            .section-title { font-size: 28px; letter-spacing: -0.5px; }
-            .section-desc { font-size: 15px; margin-bottom: 36px; }
-            .features-grid { grid-template-columns: 1fr; gap: 12px; }
-            .feature-card { padding: 24px; }
-            .feature-card h3 { font-size: 18px; }
-            .specs-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-            .spec-card { padding: 16px; }
-            .spec-card .value { font-size: 18px; }
-            .cta-section { padding: 60px 16px; }
-            .cta-section h2 { font-size: 32px; }
-            .cta-section p { font-size: 15px; }
-        }
-
-        @media (max-width: 380px) {
-            .hero h1 { font-size: 34px; }
-            .hero-mockup { width: 180px; height: 360px; }
-            .specs-grid { grid-template-columns: 1fr 1fr; }
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-12px); }
-        }
-
-        @keyframes breathe {
-            0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(1); }
-            50% { opacity: 1; transform: translateX(-50%) scale(1.15); }
-        }
-
-        @keyframes breatheReverse {
-            0%, 100% { opacity: 0.5; transform: scale(1.1); }
-            50% { opacity: 0.9; transform: scale(0.9); }
-        }
-
-
-
-
-
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .fade-up { opacity: 0; }
-
-        .content-ready .fade-up {
-            animation: fadeUp 0.9s var(--md-sys-motion-emphasized) forwards;
-        }
-
-        .fade-up.d1 { animation-delay: 0.1s; }
-        .fade-up.d2 { animation-delay: 0.2s; }
-        .fade-up.d3 { animation-delay: 0.3s; }
-        .fade-up.d4 { animation-delay: 0.4s; }
-        #loader {
-            position: fixed;
-            inset: 0;
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--md-sys-color-surface);
-            transition: opacity 0.5s var(--md-sys-motion-emphasized), visibility 0.5s;
-        }
-
-        #loader.loader-hidden {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-
-        .loader-blob {
-            width: 176px;
-            height: 176px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, var(--md-sys-color-primary), var(--md-sys-color-tertiary));
-            animation: loaderMorph 2.1s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .loader-blob img {
-            width: 116px;
-            height: 116px;
-            object-fit: contain;
-            animation: loaderPulse 2.1s infinite cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        @keyframes loaderMorph {
-            0%   { border-radius: 50%; transform: rotate(0deg); }
-            25%  { border-radius: 42% 58% 63% 37% / 45% 40% 60% 55%; transform: rotate(20deg); }
-            50%  { border-radius: 22px; transform: rotate(0deg); }
-            75%  { border-radius: 30% 70% 40% 60% / 60% 35% 65% 40%; transform: rotate(-20deg); }
-            100% { border-radius: 50%; transform: rotate(0deg); }
-        }
-
-        @keyframes loaderPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(0.82); }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>resona</title>
+<meta name="description" content="Resona is an open source SoundCloud client for Android. No account required, Material 3 Expressive, timed comments, lyric cards and offline playback.">
+<link rel="icon" type="image/png" href="favicon.png">
+<script>
+    (function () {
+        var stored = localStorage.getItem('theme');
+        var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+    })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Rounded" rel="stylesheet">
+<style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+        --md-sys-color-primary: #5B5DF0;
+        --md-sys-color-on-primary: #FFFFFF;
+        --md-sys-color-primary-container: #E0DEFF;
+        --md-sys-color-on-primary-container: #1705A3;
+        --md-sys-color-secondary: #5C5D72;
+        --md-sys-color-on-secondary: #FFFFFF;
+        --md-sys-color-secondary-container: #E1E0F9;
+        --md-sys-color-on-secondary-container: #191A2C;
+        --md-sys-color-tertiary: #7A5368;
+        --md-sys-color-on-tertiary: #FFFFFF;
+        --md-sys-color-tertiary-container: #FFD7EC;
+        --md-sys-color-on-tertiary-container: #2F1122;
+        --md-sys-color-surface: #FFFBFF;
+        --md-sys-color-on-surface: #1C1B1F;
+        --md-sys-color-on-surface-variant: #49454E;
+        --md-sys-color-outline: #7A757F;
+        --md-sys-color-surface-container-low: #F7F2FA;
+        --md-sys-color-surface-container: #F1ECF4;
+        --md-sys-color-surface-container-high: #ECE6EF;
+        --md-sys-color-surface-container-highest: #E6E0E9;
+        --md-sys-motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+        --md-sys-motion-emphasized: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    [data-theme="dark"] {
+        --md-sys-color-primary: #C3C1FF;
+        --md-sys-color-on-primary: #2700C3;
+        --md-sys-color-primary-container: #3F3DC4;
+        --md-sys-color-on-primary-container: #E0DEFF;
+        --md-sys-color-secondary: #C5C4DD;
+        --md-sys-color-on-secondary: #2E2F42;
+        --md-sys-color-secondary-container: #444559;
+        --md-sys-color-on-secondary-container: #E1E0F9;
+        --md-sys-color-tertiary: #E9B8D0;
+        --md-sys-color-on-tertiary: #46263B;
+        --md-sys-color-tertiary-container: #613B50;
+        --md-sys-color-on-tertiary-container: #FFD7EC;
+        --md-sys-color-surface: #141218;
+        --md-sys-color-on-surface: #E6E0E9;
+        --md-sys-color-on-surface-variant: #CAC4D0;
+        --md-sys-color-outline: #948F99;
+        --md-sys-color-surface-container-low: #1D1B20;
+        --md-sys-color-surface-container: #211F26;
+        --md-sys-color-surface-container-high: #2B2930;
+        --md-sys-color-surface-container-highest: #36343B;
+    }
+
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+
+    body {
+        font-family: 'Google Sans Flex', system-ui, -apple-system, sans-serif;
+        background-color: var(--md-sys-color-surface);
+        color: var(--md-sys-color-on-surface);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--md-sys-color-primary); text-decoration: none; }
+    .material-symbols-rounded { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+    /* ---------- nav, same system as api.html / eula.html ---------- */
+    nav {
+        position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+        border-bottom: 1px solid var(--md-sys-color-surface-container-highest);
+        padding: 0 20px; height: 64px;
+        display: flex; align-items: center; justify-content: space-between;
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        background: color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent);
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--md-sys-color-on-surface); }
+    .nav-brand img {
+        width: 32px; height: 32px;
+        border-radius: 30% 70% 65% 35% / 40% 35% 65% 60%;
+        transition: border-radius 0.6s var(--md-sys-motion-spring);
+    }
+    .nav-brand:hover img { border-radius: 50%; }
+    .nav-brand span { font-weight: 600; font-size: 19px; letter-spacing: -0.4px; }
+    .nav-links { display: flex; gap: 6px; align-items: center; }
+    .nav-links a.nav-item {
+        text-decoration: none; color: var(--md-sys-color-on-surface-variant);
+        padding: 8px 14px; border-radius: 20px; font-size: 14px; font-weight: 500; transition: all 0.2s;
+    }
+    .nav-links a.nav-item:hover { background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); }
+    .icon-btn {
+        width: 40px; height: 40px; border: none; background: transparent; color: var(--md-sys-color-on-surface);
+        border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+        transition: background 0.2s, border-radius 0.35s var(--md-sys-motion-spring);
+    }
+    .icon-btn:hover { background: var(--md-sys-color-surface-container-high); border-radius: 14px; }
+    .icon-btn:active { transform: scale(0.88); }
+    .icon-btn .material-symbols-rounded { font-size: 22px; }
+
+    /* ---------- buttons ---------- */
+    .btn {
+        display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+        font-weight: 600; font-size: 15px; padding: 15px 26px;
+        border-radius: 22px; transition: border-radius 0.45s var(--md-sys-motion-spring), transform 0.25s var(--md-sys-motion-spring), background 0.2s;
+    }
+    .btn:hover { border-radius: 999px; }
+    .btn:active { transform: scale(0.96); }
+    .btn .material-symbols-rounded { font-size: 20px; }
+    .btn-filled { background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+    .btn-tonal { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+    .btn-small { padding: 9px 18px; font-size: 14px; border-radius: 18px; }
+
+    /* ---------- layout ---------- */
+    main { padding-top: 64px; }
+    section { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 72px 0; }
+    .label {
+        display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+        color: var(--md-sys-color-on-secondary-container); background: var(--md-sys-color-secondary-container);
+        padding: 8px 16px; border-radius: 999px;
+    }
+    .label .material-symbols-rounded { font-size: 18px; }
+    h2.title { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.1; letter-spacing: -1.2px; font-weight: 600; margin: 18px 0 10px; }
+    .lede { color: var(--md-sys-color-on-surface-variant); font-size: 17px; max-width: 60ch; }
+
+    /* ---------- hero ---------- */
+    .hero { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 32px; align-items: center; padding: 48px 0 8px; }
+    .hero h1 { font-size: clamp(42px, 6.6vw, 76px); line-height: 1.02; letter-spacing: -2.4px; font-weight: 600; }
+    .hero h1 em { font-style: normal; color: var(--md-sys-color-primary); }
+    .hero .lede { margin: 20px 0 28px; font-size: 18px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .facts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
+    .fact {
+        background: var(--md-sys-color-surface-container-low); border-radius: 22px;
+        padding: 14px 18px; min-width: 132px;
+        transition: border-radius 0.45s var(--md-sys-motion-spring), background 0.25s;
+    }
+    .fact:hover { border-radius: 8px 28px 28px 28px; background: var(--md-sys-color-surface-container-high); }
+    .fact b { display: block; font-size: 19px; letter-spacing: -0.4px; }
+    .fact span { font-size: 13px; color: var(--md-sys-color-on-surface-variant); }
+
+    /* ---------- phone ---------- */
+    .stage {
+        position: relative; display: grid; place-items: center;
+        background: var(--md-sys-color-primary-container);
+        border-radius: 56px; padding: 28px 0; overflow: hidden;
+        perspective: 1200px;
+    }
+    .stage .shape {
+        position: absolute; width: 300px; height: 300px; background: var(--md-sys-color-tertiary-container);
+        animation: morph 14s ease-in-out infinite; opacity: .85;
+    }
+    .stage .shape.a { top: -110px; left: -110px; }
+    .stage .shape.b { bottom: -120px; right: -110px; background: var(--md-sys-color-secondary-container); animation-delay: -5s; }
+    @keyframes morph {
+        0%, 100% { border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; }
+        33% { border-radius: 62% 38% 40% 60% / 40% 60% 40% 60%; }
+        66% { border-radius: 38% 62% 58% 42% / 62% 38% 62% 38%; }
+    }
+    .phone {
+        position: relative; width: 272px; height: 552px; border-radius: 40px; padding: 10px;
+        background: var(--md-sys-color-surface-container-highest);
+        box-shadow: 0 30px 70px -30px rgba(0,0,0,.45);
+        transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+        transition: transform .5s var(--md-sys-motion-emphasized);
+    }
+    .screen {
+        height: 100%; border-radius: 32px; background: var(--md-sys-color-surface);
+        padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;
+    }
+    .screen .bar { display: flex; justify-content: space-between; font-size: 11px; color: var(--md-sys-color-on-surface-variant); }
+    .art {
+        width: 186px; height: 186px; margin: 4px auto 0;
+        background: var(--md-sys-color-primary); animation: morph 12s ease-in-out infinite;
+    }
+    .meta .l1 { height: 13px; width: 62%; border-radius: 999px; background: var(--md-sys-color-on-surface); opacity: .85; }
+    .meta .l2 { height: 9px; width: 40%; border-radius: 999px; background: var(--md-sys-color-on-surface); opacity: .3; margin-top: 8px; }
+    .comment {
+        display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 6px 12px 6px 6px;
+        border-radius: 999px; background: var(--md-sys-color-surface-container-high); overflow: hidden;
+    }
+    .comment .av { width: 20px; height: 20px; border-radius: 50%; background: var(--md-sys-color-tertiary); flex: none; }
+    .comment b { color: var(--md-sys-color-primary); font-weight: 600; }
+    .comment span { color: var(--md-sys-color-on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .comment.swap { animation: swapIn .45s var(--md-sys-motion-emphasized); }
+    @keyframes swapIn { from { opacity: 0; transform: translateY(6px); } }
+    .lyrics { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+    .lyrics span { font-size: 12.5px; color: var(--md-sys-color-on-surface-variant); opacity: .45; }
+    .lyrics .now { color: var(--md-sys-color-on-surface); opacity: 1; font-weight: 600; }
+    .seek svg { width: 100%; height: 20px; }
+    .seek .rest { fill: none; stroke: var(--md-sys-color-surface-container-highest); stroke-width: 4; stroke-linecap: round; }
+    .seek .wave { fill: none; stroke: var(--md-sys-color-primary); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 300; stroke-dashoffset: 300; animation: play 10s var(--md-sys-motion-emphasized) infinite; }
+    .seek .mark { fill: var(--md-sys-color-outline); }
+    @keyframes play { 0% { stroke-dashoffset: 292; } 85%, 100% { stroke-dashoffset: 70; } }
+    .keys { display: flex; gap: 8px; margin-top: auto; }
+    .key { flex: 1; height: 58px; border-radius: 24px; display: grid; place-items: center; background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); transition: flex .5s var(--md-sys-motion-spring), border-radius .5s var(--md-sys-motion-spring); }
+    .key.main { flex: 1.6; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); }
+    .phone:hover .key.main { flex: 2; border-radius: 30px; }
+
+    /* ---------- feature blocks ---------- */
+    .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; margin-top: 36px; }
+    .block {
+        grid-column: span 2; position: relative; padding: 26px; border-radius: 32px;
+        background: var(--md-sys-color-surface-container-low);
+        transition: border-radius 0.55s var(--md-sys-motion-spring), transform 0.35s var(--md-sys-motion-spring), background 0.3s;
+    }
+    .block:hover { border-radius: 12px 40px 40px 40px; transform: translateY(-4px); }
+    .block.span3 { grid-column: span 3; }
+    .block.primary { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+    .block.tertiary { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+    .block.secondary { background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); }
+    .block .ico {
+        width: 48px; height: 48px; display: grid; place-items: center; border-radius: 16px;
+        background: color-mix(in srgb, currentColor 14%, transparent);
+        transition: border-radius 0.55s var(--md-sys-motion-spring);
+    }
+    .block:hover .ico { border-radius: 50%; }
+    .block h3 { font-size: 20px; letter-spacing: -0.5px; font-weight: 600; margin: 16px 0 8px; }
+    .block p { font-size: 14.5px; opacity: .85; }
+
+    .demo-seek { position: relative; height: 24px; margin-top: 18px; }
+    .demo-seek .track { position: absolute; inset: 11px 0 auto 0; height: 4px; border-radius: 999px; background: color-mix(in srgb, currentColor 18%, transparent); }
+    .demo-seek .fill { position: absolute; top: 11px; left: 0; height: 4px; border-radius: 999px; background: currentColor; animation: grow 10s var(--md-sys-motion-emphasized) infinite; }
+    @keyframes grow { 0% { width: 4%; } 85%, 100% { width: 78%; } }
+    .demo-seek i { position: absolute; top: 3px; width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, currentColor 45%, transparent); }
+    .card-demo { margin-top: 18px; width: 150px; padding: 12px; border-radius: 18px; background: var(--md-sys-color-primary); }
+    .card-demo b { display: inline-block; background: #fff; color: #111; font-size: 11px; padding: 2px 6px; border-radius: 3px; margin-bottom: 4px; }
+    .shape-row { display: flex; gap: 10px; margin-top: 18px; }
+    .shape-row i { width: 40px; height: 40px; background: currentColor; opacity: .55; animation: morph 11s ease-in-out infinite; }
+    .shape-row i:nth-child(2) { animation-delay: -3s; }
+    .shape-row i:nth-child(3) { animation-delay: -6s; }
+    .shape-row i:nth-child(4) { animation-delay: -9s; }
+
+    /* ---------- tech ---------- */
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+    .chip {
+        display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 20px;
+        background: var(--md-sys-color-surface-container-low); font-weight: 500; font-size: 14.5px;
+        transition: border-radius 0.5s var(--md-sys-motion-spring), background .25s;
+    }
+    .chip:hover { border-radius: 999px; background: var(--md-sys-color-secondary-container); }
+    .chip .material-symbols-rounded { font-size: 19px; color: var(--md-sys-color-primary); }
+
+    /* ---------- cta ---------- */
+    .cta { border-radius: 44px; background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); padding: 64px 32px; text-align: center; }
+    .cta h2 { font-size: clamp(28px, 4.4vw, 44px); letter-spacing: -1.2px; line-height: 1.1; font-weight: 600; }
+    .cta p { margin: 12px auto 26px; max-width: 48ch; opacity: .85; }
+    .cta .actions { justify-content: center; }
+
+    footer { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: 40px 0 64px; color: var(--md-sys-color-on-surface-variant); font-size: 14px; display: grid; gap: 8px; }
+
+    .reveal { opacity: 0; }
+    .reveal.in { animation: revealIn .6s var(--md-sys-motion-emphasized) both; }
+    @keyframes revealIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+    @media (max-width: 960px) {
+        .hero { grid-template-columns: 1fr; }
+        .grid { grid-template-columns: repeat(2, 1fr); }
+        .block, .block.span3 { grid-column: span 1; }
+        .nav-links a.nav-item.hide-sm { display: none; }
+    }
+    @media (max-width: 560px) {
+        .nav-brand span { display: none; }
+        .grid { grid-template-columns: 1fr; }
+        section { padding: 56px 0; }
+        .stage { border-radius: 40px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+        html { scroll-behavior: auto; }
+    }
+</style>
 </head>
 <body>
-    <div id="loader" aria-hidden="true">
-        <div class="loader-blob">
-            <img src="logo-mono.png" alt="">
-        </div>
-    </div>
-    <noscript><style>#loader { display: none !important; } .fade-up { opacity: 1 !important; }</style></noscript>
 
-    <nav>
-        <a href="#" class="nav-brand">
-            <img src="logo.png" alt="Resona">
-            <span>Resona</span>
+<nav>
+    <a href="index.html" class="nav-brand">
+        <img src="logo.png" alt="Resona">
+        <span>Resona</span>
+    </a>
+    <div class="nav-links">
+        <a href="#features" class="nav-item hide-sm">Features</a>
+        <a href="api.html" class="nav-item">API Docs</a>
+        <a href="eula.html" class="nav-item hide-sm">Disclaimer</a>
+        <a href="https://savo-o.github.io/resona-status/translations/" target="_blank" class="nav-item hide-sm">Translations</a>
+        <a href="https://github.com/savo-o/resona" target="_blank" class="btn btn-filled btn-small">
+            <span class="material-symbols-rounded">star</span> GitHub
         </a>
-        <div class="nav-links">
-            <a href="#features">Features</a>
-            <a href="#specs">Specs</a>
-            <a href="api.html">API Docs</a>
-            <a href="eula.html">EULA</a>
-            <a href="https://savo-o.github.io/resona-status/" target="_blank">Status</a>
-            <a href="https://savo-o.github.io/resona-status/translations/" target="_blank">Translations</a>
-            <a href="https://github.com/savo-o/resona" target="_blank" class="btn-filled nav-github" style="padding: 10px 20px; font-size: 13px;">
-                <span class="material-symbols-rounded" style="font-size: 18px;">code</span>
-                GitHub
-            </a>
-            <button class="theme-toggle" onclick="toggleTheme()" ondblclick="event.preventDefault(); resetTheme()" aria-label="Toggle theme">
-                <span class="material-symbols-rounded" id="themeIcon">dark_mode</span>
-            </button>
-        </div>
-    </nav>
+        <button class="icon-btn" onclick="toggleTheme()" aria-label="Toggle theme">
+            <span class="material-symbols-rounded" id="themeIcon">dark_mode</span>
+        </button>
+    </div>
+</nav>
 
+<main>
     <section class="hero">
-        <h1 class="fade-up d2">Music,<br><span class="gradient">your way.</span></h1>
-        <p class="fade-up d3">Resona is a beautifully crafted, open-source SoundCloud client for Android. No account required. Just press play.</p>
-        <div class="hero-actions fade-up d4">
-            <a href="https://github.com/savo-o/resona/releases" target="_blank" class="btn-filled">
-                <span class="material-symbols-rounded">download</span>
-                Download
-            </a>
-            <a href="https://github.com/savo-o/resona" target="_blank" class="btn-tonal">
-                <span class="material-symbols-rounded">star</span>
-                Star on GitHub
-            </a>
+        <div>
+            <div class="label reveal"><span class="material-symbols-rounded">graphic_eq</span> SoundCloud client for Android</div>
+            <h1 class="reveal">Music,<br><em>your way.</em></h1>
+            <p class="lede reveal">An open source SoundCloud client for Android. No account required, Material 3 Expressive everywhere, timed comments on the seek bar, shareable lyric cards and offline playback.</p>
+            <div class="actions reveal">
+                <a class="btn btn-filled" href="https://github.com/savo-o/resona/releases" target="_blank">
+                    <span class="material-symbols-rounded">download</span> Download APK
+                </a>
+                <a class="btn btn-tonal" href="https://github.com/savo-o/resona" target="_blank">
+                    <span class="material-symbols-rounded">code</span> View source
+                </a>
+            </div>
+            <div class="facts reveal">
+                <div class="fact"><b>Android 8+</b><span>works on old phones</span></div>
+                <div class="fact"><b>GPL v3</b><span>free forever</span></div>
+                <div class="fact"><b>No account</b><span>sign in only if you want</span></div>
+            </div>
         </div>
 
-        <div class="hero-mockup fade-up d4" onclick="document.getElementById('features').scrollIntoView({behavior:'smooth'})">
-            <div class="mockup-screen">
-                <div class="mockup-statusbar">12:00</div>
-                <div class="mockup-content">
-                    <div class="mockup-search">
-                        <span class="material-symbols-rounded">search</span>
-                        Search tracks, artists...
+        <div class="stage reveal" id="stage">
+            <div class="shape a"></div>
+            <div class="shape b"></div>
+            <div class="phone" id="phone">
+                <div class="screen">
+                    <div class="bar"><span>12:00</span><span class="material-symbols-rounded" style="font-size:13px">battery_full</span></div>
+                    <div class="art"></div>
+                    <div class="meta"><div class="l1"></div><div class="l2"></div></div>
+                    <div class="comment" id="comment">
+                        <span class="av"></span>
+                        <b id="who">maya</b>
+                        <span id="txt">chills every time</span>
                     </div>
-                    <div class="mockup-card">
-                        <div class="mockup-card-art"></div>
-                        <div class="mockup-card-text">
-                            <div class="mockup-card-title"></div>
-                            <div class="mockup-card-sub"></div>
-                        </div>
+                    <div class="lyrics">
+                        <span class="now">i can hear it in the quiet</span>
+                        <span>every line lands on time</span>
                     </div>
-                    <div class="mockup-row">
-                        <div class="mockup-small-card"></div>
-                        <div class="mockup-small-card"></div>
+                    <div class="seek">
+                        <svg viewBox="0 0 244 20" preserveAspectRatio="none">
+                            <path class="rest" d="M2 10 H242"></path>
+                            <path class="wave" d="M2 10 Q12 3 22 10 T42 10 T62 10 T82 10 T102 10 T122 10 T142 10 T162 10 T182 10 T202 10 T222 10 T242 10"></path>
+                            <circle class="mark" cx="58" cy="2" r="2"></circle>
+                            <circle class="mark" cx="104" cy="2" r="2"></circle>
+                            <circle class="mark" cx="163" cy="2" r="2"></circle>
+                            <circle class="mark" cx="209" cy="2" r="2"></circle>
+                        </svg>
                     </div>
-                    <div class="mockup-card" style="background: var(--md-sys-color-tertiary-container);">
-                        <div class="mockup-card-art" style="background: var(--md-sys-color-tertiary);"></div>
-                        <div class="mockup-card-text">
-                            <div class="mockup-card-title"></div>
-                            <div class="mockup-card-sub"></div>
-                        </div>
-                    </div>
-                    <div class="mockup-player">
-                        <div class="mockup-player-art"></div>
-                        <div class="mockup-player-bars">
-                            <div class="mockup-player-title"></div>
-                            <div class="mockup-player-progress">
-                                <div class="mockup-player-progress-fill"></div>
-                            </div>
-                        </div>
+                    <div class="keys">
+                        <div class="key"><span class="material-symbols-rounded">skip_previous</span></div>
+                        <div class="key main"><span class="material-symbols-rounded">pause</span></div>
+                        <div class="key"><span class="material-symbols-rounded">skip_next</span></div>
                     </div>
                 </div>
             </div>
@@ -977,209 +366,161 @@
     </section>
 
     <section id="features">
-        <div class="section-label">
-            <span class="material-symbols-rounded">auto_awesome</span>
-            Features
-        </div>
-        <h2 class="section-title">Everything you need,<br>nothing you don't.</h2>
-        <p class="section-desc">Built with modern Android technologies. Clean, fast, and respectful of your privacy.</p>
+        <div class="label reveal"><span class="material-symbols-rounded">auto_awesome</span> Features</div>
+        <h2 class="title reveal">Everything you need,<br>nothing you don't.</h2>
+        <p class="lede reveal">Built with Jetpack Compose and Material 3 Expressive, down to the morphing artwork and the wavy seek bar.</p>
 
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <span class="material-symbols-rounded">person_off</span>
+        <div class="grid">
+            <div class="block span3 primary reveal">
+                <div class="ico"><span class="material-symbols-rounded">chat_bubble</span></div>
+                <h3>Timed comments on the bar</h3>
+                <p>Comments show up at their moment in the track, with markers on the seek bar. Open the full list, jump to any moment, or leave your own at the second you are listening to.</p>
+                <div class="demo-seek">
+                    <span class="track"></span><span class="fill"></span>
+                    <i style="left:18%"></i><i style="left:37%"></i><i style="left:58%"></i><i style="left:77%"></i>
                 </div>
-                <h3>No Account Required</h3>
-                <p>Start listening instantly. No sign-up, no tracking, no strings attached. Just open and play.</p>
             </div>
-            <div class="feature-card accent">
-                <div class="feature-icon">
-                    <span class="material-symbols-rounded">palette</span>
-                </div>
-                <h3>Material Expressive</h3>
-                <p>Dynamic colors that adapt to album art. Beautiful light and dark themes with smooth animations.</p>
-            </div>
-            <div class="feature-card secondary">
-                <div class="feature-icon">
-                    <span class="material-symbols-rounded">favorite</span>
-                </div>
-                <h3>Local Favorites</h3>
-                <p>Save tracks, artists, and playlists locally. Export and import your collection as JSON anytime.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">
-                    <span class="material-symbols-rounded">cloud_off</span>
-                </div>
-                <h3>Offline Cache</h3>
-                <p>Tracks are cached for seamless playback. Listen again without re-downloading, even on slow connections.</p>
-            </div>
-            <div class="feature-card accent">
-                <div class="feature-icon">
-                    <span class="material-symbols-rounded">code</span>
-                </div>
-                <h3>100% Open Source</h3>
-                <p>Built in the open. Every line of code is auditable on GitHub. GPL v3 licensed.</p>
-            </div>
-            <div class="feature-card secondary">
-                <div class="feature-icon">
-                    <span class="material-symbols-rounded">graphic_eq</span>
-                </div>
-                <h3>Background Playback</h3>
-                <p>Full media session support with notification controls. Lock screen and Bluetooth ready.</p>
-            </div>
-        </div>
-    </section>
 
-    <section id="specs">
-        <div class="section-label">
-            <span class="material-symbols-rounded">memory</span>
-            Tech Stack
-        </div>
-        <h2 class="section-title">Built with modern<br>Android stack.</h2>
-        <p class="section-desc">Powered by Kotlin, Jetpack Compose, and the latest Android libraries.</p>
+            <div class="block span3 tertiary reveal">
+                <div class="ico"><span class="material-symbols-rounded">ios_share</span></div>
+                <h3>Lyric cards worth sharing</h3>
+                <p>Pick up to four lines and get a square card in three styles: over the artwork, in the track's color, or dark with a big quote.</p>
+                <div class="card-demo">
+                    <b>pick a line</b><br><b>share the feeling</b>
+                </div>
+            </div>
 
-        <div class="specs-grid">
-            <div class="spec-card">
-                <span class="material-symbols-rounded">phone_android</span>
-                <h4>Min Android</h4>
-                <div class="value">8.0+</div>
+            <div class="block reveal">
+                <div class="ico"><span class="material-symbols-rounded">palette</span></div>
+                <h3>Customization first</h3>
+                <p>Twelve artwork shapes, colors from the cover, rounded font, artwork size, dividers and more.</p>
+                <div class="shape-row"><i></i><i></i><i></i><i></i></div>
             </div>
-            <div class="spec-card">
-                <span class="material-symbols-rounded">code</span>
-                <h4>Language</h4>
-                <div class="value">Kotlin</div>
+
+            <div class="block secondary reveal">
+                <div class="ico"><span class="material-symbols-rounded">cloud_off</span></div>
+                <h3>Offline and light</h3>
+                <p>Save tracks for offline, cache what you play, and keep listening on a slow connection or none at all.</p>
             </div>
-            <div class="spec-card">
-                <span class="material-symbols-rounded">brush</span>
-                <h4>UI</h4>
-                <div class="value">Compose</div>
+
+            <div class="block reveal">
+                <div class="ico"><span class="material-symbols-rounded">person_off</span></div>
+                <h3>No account needed</h3>
+                <p>Open it and press play. Sign in only for your own likes, favorites stay on your phone either way.</p>
             </div>
-            <div class="spec-card">
-                <span class="material-symbols-rounded">database</span>
-                <h4>Local DB</h4>
-                <div class="value">Room</div>
+
+            <div class="block reveal">
+                <div class="ico"><span class="material-symbols-rounded">lyrics</span></div>
+                <h3>Lyrics that fit</h3>
+                <p>Synced lyrics from LRCLIB with per-track shift and stretch, and a Genius fallback when nothing matches.</p>
             </div>
-            <div class="spec-card">
-                <span class="material-symbols-rounded">dns</span>
-                <h4>Network</h4>
-                <div class="value">Retrofit</div>
+
+            <div class="block secondary reveal">
+                <div class="ico"><span class="material-symbols-rounded">tune</span></div>
+                <h3>A mix that learns</h3>
+                <p>Favorites, downloads, artists you like and related tracks. Skips now count against a track too.</p>
             </div>
-            <div class="spec-card">
-                <span class="material-symbols-rounded">smart_toy</span>
-                <h4>DI</h4>
-                <div class="value">Hilt</div>
-            </div>
-            <div class="spec-card">
-                <span class="material-symbols-rounded">play_circle</span>
-                <h4>Player</h4>
-                <div class="value">Media3</div>
-            </div>
-            <div class="spec-card">
-                <span class="material-symbols-rounded">image</span>
-                <h4>Images</h4>
-                <div class="value">Coil</div>
+
+            <div class="block reveal">
+                <div class="ico"><span class="material-symbols-rounded">code</span></div>
+                <h3>Open source</h3>
+                <p>Every line is on GitHub under GPL v3, and translations are made by the community.</p>
             </div>
         </div>
     </section>
 
-    <section class="cta-section">
-        <h2>Ready to listen?</h2>
-        <p>Download Resona today and experience SoundCloud the way it should be.</p>
-        <div class="hero-actions">
-            <a href="https://github.com/savo-o/resona/releases" target="_blank" class="btn-filled">
-                <span class="material-symbols-rounded">download</span>
-                Download
-            </a>
-            <a href="https://github.com/savo-o/resona" target="_blank" class="btn-tonal">
-                <span class="material-symbols-rounded">code</span>
-                View Source
-            </a>
+    <section id="tech">
+        <div class="label reveal"><span class="material-symbols-rounded">memory</span> Under the hood</div>
+        <h2 class="title reveal">Modern Android,<br>no shortcuts.</h2>
+        <p class="lede reveal">Kotlin and Compose from top to bottom, Media3 for playback, Room for the library, and unit tested database migrations.</p>
+        <div class="chips">
+            <span class="chip reveal"><span class="material-symbols-rounded">code</span> Kotlin</span>
+            <span class="chip reveal"><span class="material-symbols-rounded">brush</span> Jetpack Compose</span>
+            <span class="chip reveal"><span class="material-symbols-rounded">play_circle</span> Media3</span>
+            <span class="chip reveal"><span class="material-symbols-rounded">database</span> Room</span>
+            <span class="chip reveal"><span class="material-symbols-rounded">dns</span> Retrofit</span>
+            <span class="chip reveal"><span class="material-symbols-rounded">smart_toy</span> Hilt</span>
+            <span class="chip reveal"><span class="material-symbols-rounded">image</span> Coil</span>
+            <span class="chip reveal"><span class="material-symbols-rounded">science</span> Robolectric</span>
+        </div>
+    </section>
+
+    <section>
+        <div class="cta reveal">
+            <h2>Ready to press play?</h2>
+            <p>Grab the latest APK from GitHub releases. No store, no account, no ads.</p>
+            <div class="actions">
+                <a class="btn btn-filled" href="https://github.com/savo-o/resona/releases" target="_blank">
+                    <span class="material-symbols-rounded">download</span> Download
+                </a>
+                <a class="btn btn-tonal" href="https://github.com/savo-o/resona" target="_blank">
+                    <span class="material-symbols-rounded">star</span> Star on GitHub
+                </a>
+            </div>
         </div>
     </section>
 
     <footer>
         <p>Resona is open source under <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank">GPL v3</a>. Made with care by <a href="https://github.com/savo-o" target="_blank">savo-o</a>.</p>
         <p>Want Resona in your language? Get a ready-made one or share yours in the <a href="https://savo-o.github.io/resona-status/translations/" target="_blank">translation catalog</a>.</p>
+        <p>Not affiliated with SoundCloud. See the <a href="eula.html">disclaimer</a>.</p>
     </footer>
+</main>
 
-    <script>
-        function toggleTheme() {
-            const root = document.documentElement;
-            const icon = document.getElementById('themeIcon');
-            if (root.getAttribute('data-theme') === 'dark') {
-                root.removeAttribute('data-theme');
-                icon.textContent = 'dark_mode';
-                localStorage.setItem('theme', 'light');
-            } else {
-                root.setAttribute('data-theme', 'dark');
-                icon.textContent = 'light_mode';
-                localStorage.setItem('theme', 'dark');
-            }
-        }
+<script>
+    function toggleTheme() {
+        const root = document.documentElement;
+        const icon = document.getElementById('themeIcon');
+        const dark = root.getAttribute('data-theme') === 'dark';
+        if (dark) root.removeAttribute('data-theme'); else root.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', dark ? 'light' : 'dark');
+        icon.textContent = dark ? 'dark_mode' : 'light_mode';
+    }
+    document.getElementById('themeIcon').textContent =
+        document.documentElement.getAttribute('data-theme') === 'dark' ? 'light_mode' : 'dark_mode';
 
-        function resetTheme() {
-            localStorage.removeItem('theme');
-            const root = document.documentElement;
-            const icon = document.getElementById('themeIcon');
-            if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                root.setAttribute('data-theme', 'dark');
-                icon.textContent = 'light_mode';
-            } else {
-                root.removeAttribute('data-theme');
-                icon.textContent = 'dark_mode';
-            }
-        }
-
-        if (document.documentElement.getAttribute('data-theme') === 'dark') {
-            document.getElementById('themeIcon').textContent = 'light_mode';
-        }
-
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-            if (!localStorage.getItem('theme')) {
-                const root = document.documentElement;
-                const icon = document.getElementById('themeIcon');
-                if (e.matches) {
-                    root.setAttribute('data-theme', 'dark');
-                    icon.textContent = 'light_mode';
-                } else {
-                    root.removeAttribute('data-theme');
-                    icon.textContent = 'dark_mode';
-                }
-            }
+    const io = new IntersectionObserver((entries) => {
+        entries.forEach((entry, i) => {
+            if (!entry.isIntersecting) return;
+            entry.target.style.animationDelay = Math.min(i * 55, 220) + 'ms';
+            entry.target.classList.add('in');
+            io.unobserve(entry.target);
         });
+    }, { threshold: 0.15, rootMargin: '0px 0px -6% 0px' });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
 
-        (function () {
-            const loader = document.getElementById('loader');
-            const shownAt = performance.now();
-            let revealed = false;
-            function reveal() {
-                if (revealed) return;
-                revealed = true;
-                loader.classList.add('loader-hidden');
-                document.body.classList.add('content-ready');
-                setTimeout(() => loader.remove(), 550);
-            }
-            window.addEventListener('load', () => {
-                setTimeout(reveal, Math.max(0, 700 - (performance.now() - shownAt)));
-            });
-            setTimeout(reveal, 4000);
-        })();
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
-                }
-            });
-        }, { threshold: 0.1 });
-
-        document.querySelectorAll('.feature-card, .spec-card, .screenshot-item').forEach(el => {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(20px)';
-            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-            observer.observe(el);
+    const phone = document.getElementById('phone');
+    const stage = document.getElementById('stage');
+    if (window.matchMedia('(hover: hover)').matches) {
+        stage.addEventListener('pointermove', (e) => {
+            const r = stage.getBoundingClientRect();
+            phone.style.setProperty('--ry', (((e.clientX - r.left) / r.width - 0.5) * 12).toFixed(2) + 'deg');
+            phone.style.setProperty('--rx', (-((e.clientY - r.top) / r.height - 0.5) * 10).toFixed(2) + 'deg');
         });
-    </script>
+        stage.addEventListener('pointerleave', () => {
+            phone.style.setProperty('--ry', '0deg');
+            phone.style.setProperty('--rx', '0deg');
+        });
+    }
+
+    const comments = [
+        ['maya', 'chills every time'],
+        ['ivan', 'bass here is insane'],
+        ['nova', 'this part goes hard'],
+        ['sasha', 'on repeat since friday']
+    ];
+    const box = document.getElementById('comment');
+    const who = document.getElementById('who');
+    const txt = document.getElementById('txt');
+    let i = 0;
+    setInterval(() => {
+        i = (i + 1) % comments.length;
+        who.textContent = comments[i][0];
+        txt.textContent = comments[i][1];
+        box.classList.remove('swap');
+        void box.offsetWidth;
+        box.classList.add('swap');
+    }, 2600);
+</script>
 </body>
 </html>

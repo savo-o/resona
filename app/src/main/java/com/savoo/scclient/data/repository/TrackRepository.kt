@@ -143,6 +143,12 @@ class TrackRepository @Inject constructor(
         }.getOrNull()
     }
 
+    suspend fun deleteComment(commentId: Long) {
+        val code = webBridge.deleteComment(commentId)
+        DebugLog.log(TAG, "deleteComment($commentId) -> $code")
+        if (code !in 200..299 && code != 404) error("deleteComment failed: HTTP $code")
+    }
+
     suspend fun getTrackComments(trackId: Long): List<TrackComment> =
         api.getTrackComments(trackId).collection
             .filter { it.timestampMs != null && it.body.isNotBlank() }

@@ -101,6 +101,7 @@ import com.savoo.scclient.data.repository.HapticsIntensity
 import com.savoo.scclient.data.repository.HomeSectionConfig
 import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.ArtworkGlowSource
+import com.savoo.scclient.data.repository.TimedCommentsRate
 import com.savoo.scclient.data.repository.DividerStyle
 import com.savoo.scclient.data.repository.DrmTrackHiding
 import com.savoo.scclient.data.repository.PlayerBackgroundStyle
@@ -201,6 +202,7 @@ class SettingsViewModel @Inject constructor(
     fun setArtworkGlowSource(source: ArtworkGlowSource) = viewModelScope.launch { repository.setArtworkGlowSource(source) }
     fun setMarqueeTitles(value: Boolean) = viewModelScope.launch { repository.setMarqueeTitles(value) }
     fun setTimedCommentsEnabled(value: Boolean) = viewModelScope.launch { repository.setTimedCommentsEnabled(value) }
+    fun setTimedCommentsRate(rate: TimedCommentsRate) = viewModelScope.launch { repository.setTimedCommentsRate(rate) }
     fun setDrmTrackHiding(mode: DrmTrackHiding) = viewModelScope.launch { repository.setDrmTrackHiding(mode) }
 
     data class CustomTranslationState(
@@ -856,6 +858,37 @@ fun SettingsScreen(
                     checked = settings.timedCommentsEnabled,
                     onCheckedChange = { viewModel.setTimedCommentsEnabled(it) }
                 )
+                if (settings.timedCommentsEnabled) {
+                    val rates = listOf(
+                        TimedCommentsRate.OFTEN,
+                        TimedCommentsRate.NORMAL,
+                        TimedCommentsRate.RARE,
+                        TimedCommentsRate.EXACT,
+                    )
+                    val rateLabels = listOf(
+                        R.string.settings_timed_comments_often,
+                        R.string.settings_timed_comments_normal,
+                        R.string.settings_timed_comments_rare,
+                        R.string.settings_timed_comments_exact,
+                    )
+                    ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        rates.forEachIndexed { index, rate ->
+                            val shapes = when (index) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                rates.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            }
+                            ToggleButton(
+                                checked = settings.timedCommentsRate == rate,
+                                onCheckedChange = { checked -> if (checked) { haptic(); viewModel.setTimedCommentsRate(rate) } },
+                                modifier = Modifier.weight(1f),
+                                shapes = shapes,
+                            ) {
+                                Text(stringResource(rateLabels[index]), style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
+                }
                 SettingsDivider()
                 SwitchItem(
                     title = stringResource(R.string.settings_lyrics_genius_fallback),

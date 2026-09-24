@@ -181,6 +181,7 @@
     <string name="player_shuffle">Перемешать</string>
     <string name="player_more_like_this">Ещё похожее</string>
     <string name="player_comments">Комментарии</string>
+    <string name="player_comments_empty">Комментариев пока нет. Будьте первым.</string>
     <string name="player_comment_hint">Комментарий на %s</string>
     <string name="player_comment_send">Отправить</string>
     <string name="player_comment_sent">Комментарий опубликован</string>
@@ -201,6 +202,8 @@
     <string name="player_repeat">Повтор</string>
     <string name="player_lyrics">Текст песни</string>
     <string name="player_lyrics_none_found">Текст для этого трека не найден</string>
+    <string name="player_lyrics_force_lrclib">Загрузить текст с LRCLIB</string>
+    <string name="player_lyrics_force_genius">Загрузить текст с Genius</string>
     <string name="player_lyrics_back_to_current">К текущей строке</string>
     <string name="player_lyrics_source">Текст с %s</string>
     <string name="player_lyrics_offset_earlier">Показывать текст раньше</string>
@@ -356,6 +359,11 @@
     <string name="settings_marquee_titles_desc">Длинные названия треков прокручиваются, а не обрезаются</string>
     <string name="settings_timed_comments">Комментарии по времени</string>
     <string name="settings_timed_comments_desc">Комментарии SoundCloud появляются над ползунком в свой момент трека</string>
+    <string name="settings_timed_comments_often">Часто</string>
+    <string name="settings_timed_comments_normal">Средне</string>
+    <string name="settings_timed_comments_rare">Редко</string>
+    <string name="settings_timed_comments_exact">По моментам</string>
+    <string name="player_comment_delete">Удалить комментарий</string>
     <string name="settings_pixel_glow">Свечение за обложкой</string>
     <string name="settings_pixel_glow_desc">Мягкий круговой градиент в цвет текущего трека, тот же, что в Legacy Orb</string>
     <string name="settings_player_style_pixel">Pixel</string>
