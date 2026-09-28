@@ -221,6 +221,14 @@ class PlayerViewModel @Inject constructor(
     val pixelGlowEnabled = settingsRepository.settings.map { it.pixelGlowEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    fun shareTrack(track: Track, onReady: (String?) -> Unit) {
+        track.permalinkUrl?.takeIf { it.isNotBlank() }?.let { onReady(it); return }
+        viewModelScope.launch {
+            val url = runCatching { trackRepository.getTrack(track.id).permalinkUrl }.getOrNull()
+            onReady(url?.takeIf { it.isNotBlank() })
+        }
+    }
+
     fun dismissPlayerHint() {
         viewModelScope.launch { settingsRepository.setPlayerHintShown(true) }
     }

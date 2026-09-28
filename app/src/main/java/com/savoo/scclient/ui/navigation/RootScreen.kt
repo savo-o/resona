@@ -52,6 +52,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.savoo.scclient.R
+import android.widget.Toast
+import androidx.annotation.StringRes
+import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.remote.DeepLinkResult
+import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.savoo.scclient.ui.screens.account.AccountScreen
 import com.savoo.scclient.ui.screens.artist.ArtistScreen
 import com.savoo.scclient.ui.screens.charts.ChartsScreen
@@ -112,15 +119,41 @@ private fun slideTransition(
     return enter to exit
 }
 
+private sealed interface DeepLinkOutcome {
+    data class OpenArtist(val userId: Long) : DeepLinkOutcome
+    data class OpenPlaylist(val playlistId: Long) : DeepLinkOutcome
+    data class PlayTrack(val track: Track) : DeepLinkOutcome
+    data class Failed(@StringRes val messageRes: Int) : DeepLinkOutcome
+}
+
+@UnstableApi
+private suspend fun resolveDeepLink(entryPoint: DeepLinkEntryPoint, url: String): DeepLinkOutcome =
+    withContext(Dispatchers.IO) {
+        entryPoint.soundCloudImportRepository().resolveUrl(url).fold(
+            onSuccess = { result ->
+                when (result) {
+                    is DeepLinkResult.User -> DeepLinkOutcome.OpenArtist(result.userId)
+                    is DeepLinkResult.Playlist -> DeepLinkOutcome.OpenPlaylist(result.playlistId)
+                    is DeepLinkResult.Track -> runCatching { entryPoint.trackRepository().getTrack(result.trackId) }
+                        .fold(
+                            onSuccess = { DeepLinkOutcome.PlayTrack(it) },
+                            onFailure = { DeepLinkOutcome.Failed(R.string.search_error_track_gone_title) },
+                        )
+                }
+            },
+            onFailure = { DeepLinkOutcome.Failed(R.string.deep_link_failed) },
+        )
+    }
+
 @UnstableApi
 @Composable
-fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
+fun RootScreen(initialDeepLink: DeepLinkTarget? = null, deepLinkKey: Int = 0) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(initialDeepLink) {
+    LaunchedEffect(initialDeepLink, deepLinkKey) {
         when (initialDeepLink) {
             is DeepLinkTarget.Artist -> {
                 navController.navigate(Screen.Artist.createRoute(initialDeepLink.userId))
@@ -141,28 +174,19 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null) {
                 }
             }
             is DeepLinkTarget.ResolveUrl -> {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    try {
-                        val scRepo = dagger.hilt.android.EntryPointAccessors
-                            .fromApplication(
-                                navController.context.applicationContext,
-                                com.savoo.scclient.ui.navigation.DeepLinkEntryPoint::class.java
-                            ).soundCloudImportRepository()
-                        scRepo.resolveUrl(initialDeepLink.url).onSuccess { result ->
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                when (result) {
-                                    is com.savoo.scclient.data.remote.DeepLinkResult.User -> {
-                                        navController.navigate(Screen.Artist.createRoute(result.userId))
-                                    }
-                                    is com.savoo.scclient.data.remote.DeepLinkResult.Playlist -> {
-                                        navController.navigate(Screen.Playlist.createRoute(result.playlistId))
-                                    }
-                                    is com.savoo.scclient.data.remote.DeepLinkResult.Track -> {
-                                    }
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {}
+                val context = navController.context
+                val entryPoint = EntryPointAccessors
+                    .fromApplication(context.applicationContext, DeepLinkEntryPoint::class.java)
+                when (val outcome = resolveDeepLink(entryPoint, initialDeepLink.url)) {
+                    is DeepLinkOutcome.OpenArtist -> navController.navigate(Screen.Artist.createRoute(outcome.userId))
+                    is DeepLinkOutcome.OpenPlaylist -> navController.navigate(Screen.Playlist.createRoute(outcome.playlistId))
+                    is DeepLinkOutcome.PlayTrack -> entryPoint.playerController().playQueue(
+                        listOf(outcome.track),
+                        0,
+                        startPositionMs = initialDeepLink.startPositionMs,
+                    )
+                    is DeepLinkOutcome.Failed ->
+                        Toast.makeText(context, outcome.messageRes, Toast.LENGTH_SHORT).show()
                 }
             }
             is DeepLinkTarget.None -> {}

@@ -781,4 +781,13 @@
     <string name="app_lock_enable_warning_title">Перед включением</string>
     <string name="app_lock_enable_warning">Если хранилище ключей на телефоне повредится, например после обновления системы, приложение не сможет проверить PIN-код и удалит все свои данные, чтобы их защитить. Сохраните резервную копию лайков через экспорт.</string>
     <string name="app_lock_biometric_changed">Отпечатки на телефоне изменились. Введите PIN-код, после этого вход по отпечатку снова заработает.</string>
+    <string name="deep_link_failed">Не удалось открыть ссылку</string>
+    <string name="settings_open_links">Открывать ссылки SoundCloud</string>
+    <string name="settings_open_links_on">Ссылки из других приложений открываются в Resona</string>
+    <string name="settings_open_links_off">Выключено. Нажмите, чтобы разрешить в настройках системы</string>
+    <string name="home_link_hint_title">Открывайте ссылки SoundCloud в Resona</string>
+    <string name="home_link_hint_desc">Пока вы это не разрешите, Android открывает их в браузере</string>
+    <string name="home_link_hint_enable">Разрешить</string>
+    <string name="home_link_hint_dismiss">Не сейчас</string>
+    <string name="player_share_failed">Не удалось получить ссылку на этот трек</string>
 </resources>

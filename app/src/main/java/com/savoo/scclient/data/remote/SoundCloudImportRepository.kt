@@ -340,7 +340,9 @@ class SoundCloudImportRepository @Inject constructor(
     suspend fun resolveUrl(url: String): Result<DeepLinkResult> = withContext(Dispatchers.IO) {
         try {
             val clientId = getFreshClientId()
-            val resolvedUrl = resolveRedirectUrl(url) ?: url
+            val trimmed = url.trim()
+            val expanded = if (hostOf(trimmed) == "on.soundcloud.com") resolveRedirectUrl(trimmed) ?: trimmed else trimmed
+            val resolvedUrl = canonicalResolveUrl(expanded)
             val encodedUrl = java.net.URLEncoder.encode(resolvedUrl, "UTF-8")
             val resolveUrl = "https://api-v2.soundcloud.com/resolve?url=$encodedUrl&client_id=$clientId"
 
@@ -371,6 +373,24 @@ class SoundCloudImportRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun hostOf(rawUrl: String): String? =
+        (rawUrl.toHttpUrlOrNull() ?: "https://$rawUrl".toHttpUrlOrNull())?.host
+
+    private fun canonicalResolveUrl(rawUrl: String): String {
+        val parsed = rawUrl.toHttpUrlOrNull() ?: "https://$rawUrl".toHttpUrlOrNull() ?: return rawUrl
+        val host = when (parsed.host) {
+            "m.soundcloud.com", "www.soundcloud.com" -> "soundcloud.com"
+            else -> parsed.host
+        }
+        return parsed.newBuilder()
+            .scheme("https")
+            .host(host)
+            .query(null)
+            .fragment(null)
+            .build()
+            .toString()
     }
 
     private fun isSoundCloudHost(rawUrl: String): Boolean {

@@ -826,6 +826,7 @@ class PlayerController @Inject constructor(
         repeatAll: Boolean = false,
         tag: String? = null,
         startExact: Boolean = true,
+        startPositionMs: Long = 0L,
     ) {
         if (sourceTracks.isEmpty()) return
         val requested = sourceTracks[startIndex.coerceIn(0, sourceTracks.lastIndex)]
@@ -876,7 +877,7 @@ class PlayerController @Inject constructor(
 
         _state.update { it.copy(loadingTrackId = queue[queueIndex].track.id) }
         updateQueueState()
-        doPlay(queue[queueIndex].track, queueIndex, ++playRequestId)
+        doPlay(queue[queueIndex].track, queueIndex, ++playRequestId, startPositionMs)
     }
 
     fun playFavorites(filter: FavoriteTrackFilter, index: Int, track: Track, repeatAll: Boolean = false) {
@@ -1232,7 +1233,7 @@ class PlayerController @Inject constructor(
         }
     }
 
-    private fun doPlay(track: Track, requestIndex: Int, requestId: Long) {
+    private fun doPlay(track: Track, requestIndex: Int, requestId: Long, startPositionMs: Long = 0L) {
         scope.launch {
             val resolved = resolveTrack(track)
             if (requestId != playRequestId) return@launch
@@ -1263,7 +1264,12 @@ class PlayerController @Inject constructor(
                 _state.update { it.copy(currentTrack = fullTrack, durationMs = fullTrack.durationMs, loadingTrackId = null) }
                 extractSeedColor(fullTrack.artworkUrl)
                 controller?.apply {
-                    setMediaItems(allItems, index, 0L)
+                    val startAt = if (fullTrack.durationMs > 0) {
+                        startPositionMs.coerceIn(0L, (fullTrack.durationMs - 1000L).coerceAtLeast(0L))
+                    } else {
+                        startPositionMs.coerceAtLeast(0L)
+                    }
+                    setMediaItems(allItems, index, startAt)
                     prepare()
                     play()
                 }

@@ -13,6 +13,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -54,6 +55,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var appLockStore: AppLockStore
 
     private var deepLinkTarget by mutableStateOf<DeepLinkTarget>(DeepLinkTarget.None)
+    private var deepLinkKey by mutableIntStateOf(0)
     private var locked by mutableStateOf(false)
     private var apiWebView: WebView? = null
 
@@ -240,7 +242,7 @@ class MainActivity : FragmentActivity() {
                                 },
                             )
                         }
-                        else -> RootScreen(initialDeepLink = deepLinkTarget)
+                        else -> RootScreen(initialDeepLink = deepLinkTarget, deepLinkKey = deepLinkKey)
                     }
                 }
             }
@@ -252,6 +254,7 @@ class MainActivity : FragmentActivity() {
         // singleTask means a deep link tapped while the app is already running arrives here, not in onCreate.
         setIntent(intent)
         deepLinkTarget = DeepLinkTarget.fromIntent(intent)
+        deepLinkKey++
     }
 
     override fun onDestroy() {

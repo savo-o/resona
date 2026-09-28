@@ -157,6 +157,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import android.content.Intent
+import android.widget.Toast
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.LyricsResult
 import com.savoo.scclient.data.model.LyricsSource
@@ -210,6 +211,22 @@ fun PlayerSheet(
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
     val track = state.currentTrack
     val haptics = rememberHaptics()
+    val shareContext = LocalContext.current
+    val onShare: () -> Unit = {
+        state.currentTrack?.let { current ->
+            viewModel.shareTrack(current) { url ->
+                if (url != null) {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, url)
+                    }
+                    shareContext.startActivity(Intent.createChooser(intent, null))
+                } else {
+                    Toast.makeText(shareContext, R.string.player_share_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
     var skippedTrack by remember { mutableStateOf<com.savoo.scclient.player.SkippedTrack?>(null) }
     val undoAction by viewModel.undoController.current.collectAsState()
     val bulkDownload by viewModel.bulkDownload.collectAsState()
@@ -364,6 +381,7 @@ fun PlayerSheet(
             isOffline = viewModel.isOffline.collectAsState().value,
             isSavingOffline = viewModel.isSavingOffline.collectAsState().value,
             isMixPlaying = viewModel.isMixPlaying.collectAsState().value,
+            onShare = onShare,
             glowColor = glowColor,
             seekBarStyle = viewModel.seekBarStyle.collectAsState().value,
             playerStyle = viewModel.playerStyle.collectAsState().value,
@@ -415,6 +433,7 @@ private fun FullPlayerSheet(
     isOffline: Boolean,
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
+    onShare: () -> Unit,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
     playerStyle: PlayerStyle,
@@ -476,6 +495,7 @@ private fun FullPlayerSheet(
                 isOffline = isOffline,
                 isSavingOffline = isSavingOffline,
                 isMixPlaying = isMixPlaying,
+                onShare = onShare,
                 glowColor = glowColor,
                 seekBarStyle = seekBarStyle,
                 backgroundStyle = backgroundStyle,
@@ -518,6 +538,7 @@ private fun FullPlayerSheet(
             isOffline = isOffline,
             isSavingOffline = isSavingOffline,
             isMixPlaying = isMixPlaying,
+            onShare = onShare,
             palette = pixelPalette,
             seekBarStyle = seekBarStyle,
             glowColor = glowColor,
@@ -847,6 +868,7 @@ private fun PixelPlayerContent(
     isOffline: Boolean,
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
+    onShare: () -> Unit,
     palette: PixelPalette,
     seekBarStyle: SeekBarStyle,
     glowColor: Color?,
@@ -1535,13 +1557,7 @@ private fun PixelPlayerContent(
                         onClick = {
                             haptic()
                             showOverflowMenu = false
-                            state.currentTrack?.permalinkUrl?.let { url ->
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, url)
-                                }
-                                context.startActivity(Intent.createChooser(intent, null))
-                            }
+                            onShare()
                         },
                     )
                 }
@@ -2410,6 +2426,7 @@ private fun ClassicPlayerContent(
     isOffline: Boolean,
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
+    onShare: () -> Unit,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
     backgroundStyle: PlayerBackgroundStyle,
@@ -2718,13 +2735,7 @@ private fun ClassicPlayerContent(
                                 onClick = {
                                     haptic()
                                     showOverflowMenu = false
-                                    state.currentTrack?.permalinkUrl?.let { url ->
-                                        val intent = Intent(Intent.ACTION_SEND).apply {
-                                            type = "text/plain"
-                                            putExtra(Intent.EXTRA_TEXT, url)
-                                        }
-                                        context.startActivity(Intent.createChooser(intent, null))
-                                    }
+                                    onShare()
                                 },
                             )
                         }

@@ -130,6 +130,7 @@ data class AppSettings(
     val backgroundMode: AppBackgroundMode = AppBackgroundMode.DYNAMIC,
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
     val playerHintShown: Boolean = false,
+    val linkHintDismissed: Boolean = false,
     val pixelGlowEnabled: Boolean = true,
     val cacheLimitMb: Int = DefaultCacheLimitMb,
     val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
@@ -183,6 +184,7 @@ class SettingsRepository @Inject constructor(
         val BACKGROUND_MODE = stringPreferencesKey("background_mode")
         val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
         val PLAYER_HINT_SHOWN = booleanPreferencesKey("player_hint_shown")
+        val LINK_HINT_DISMISSED = booleanPreferencesKey("link_hint_dismissed")
         val PIXEL_GLOW_ENABLED = booleanPreferencesKey("pixel_glow_enabled")
         val CACHE_LIMIT_MB = intPreferencesKey("cache_limit_mb")
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
@@ -259,6 +261,7 @@ class SettingsRepository @Inject constructor(
             } ?: AppBackgroundMode.DYNAMIC,
             backgroundCustomColor = prefs[Keys.BACKGROUND_CUSTOM_COLOR]?.let { Color(it) } ?: Color(0xFF1B1B1F),
             playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
+            linkHintDismissed = prefs[Keys.LINK_HINT_DISMISSED] ?: false,
             pixelGlowEnabled = prefs[Keys.PIXEL_GLOW_ENABLED] ?: true,
             cacheLimitMb = prefs[Keys.CACHE_LIMIT_MB] ?: DefaultCacheLimitMb,
             crossfadeSeconds = (prefs[Keys.CROSSFADE_SECONDS] ?: DefaultCrossfadeSeconds)
@@ -424,6 +427,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setPlayerHintShown(value: Boolean) {
         context.dataStore.edit { it[Keys.PLAYER_HINT_SHOWN] = value }
+    }
+
+    suspend fun setLinkHintDismissed(value: Boolean) {
+        context.dataStore.edit { it[Keys.LINK_HINT_DISMISSED] = value }
     }
 
     suspend fun setPixelGlowEnabled(value: Boolean) {

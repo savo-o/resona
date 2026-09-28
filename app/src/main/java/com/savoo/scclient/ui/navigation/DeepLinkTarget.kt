@@ -7,16 +7,12 @@ enum class ShortcutTarget { FAVORITES, OFFLINE, SEARCH }
 sealed class DeepLinkTarget {
     data class Artist(val userId: Long) : DeepLinkTarget()
     data class Playlist(val playlistId: Long) : DeepLinkTarget()
-    data class ResolveUrl(val url: String) : DeepLinkTarget()
+    data class ResolveUrl(val url: String, val startPositionMs: Long = 0L) : DeepLinkTarget()
     data class Shortcut(val target: ShortcutTarget) : DeepLinkTarget()
     data object None : DeepLinkTarget()
 
     companion object {
         const val EXTRA_SHORTCUT_TARGET = "shortcut_target"
-
-        private val VALID_HOSTS = setOf(
-            "soundcloud.com", "m.soundcloud.com", "www.soundcloud.com", "on.soundcloud.com"
-        )
 
         fun fromIntent(intent: Intent): DeepLinkTarget {
             intent.getStringExtra(EXTRA_SHORTCUT_TARGET)?.let { raw ->
@@ -37,7 +33,7 @@ sealed class DeepLinkTarget {
             val host = data.host ?: return None
             val path = data.pathSegments ?: return None
 
-            if (host !in VALID_HOSTS) return None
+            if (host !in SoundCloudLinks.hosts) return None
             if (path.isEmpty()) return None
 
             val normalizedUrl = data.toString()
@@ -45,7 +41,7 @@ sealed class DeepLinkTarget {
                 .replace("www.soundcloud.com", "soundcloud.com")
 
             return when (host) {
-                "on.soundcloud.com" -> ResolveUrl(data.toString())
+                "on.soundcloud.com" -> ResolveUrl(data.toString(), SoundCloudLinks.startPositionMs(rawUrl))
                 else -> when (path[0]) {
                     "users" -> {
                         val userId = path.getOrNull(1)?.toLongOrNull()
@@ -55,7 +51,7 @@ sealed class DeepLinkTarget {
                         val playlistId = path.getOrNull(1)?.toLongOrNull()
                         if (playlistId != null) Playlist(playlistId) else ResolveUrl(normalizedUrl)
                     }
-                    else -> ResolveUrl(normalizedUrl)
+                    else -> ResolveUrl(normalizedUrl, SoundCloudLinks.startPositionMs(rawUrl))
                 }
             }
         }

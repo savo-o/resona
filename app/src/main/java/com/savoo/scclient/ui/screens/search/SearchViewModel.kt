@@ -9,6 +9,7 @@ import com.savoo.scclient.data.model.Playlist
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.DeepLinkResult
+import com.savoo.scclient.ui.navigation.SoundCloudLinks
 import com.savoo.scclient.data.remote.SoundCloudImportRepository
 import com.savoo.scclient.data.repository.SearchHistoryManager
 import com.savoo.scclient.data.repository.TrackRepository
@@ -133,7 +134,11 @@ class SearchViewModel @Inject constructor(
                         is DeepLinkResult.Track -> {
                             val track = runCatching { repository.getTrack(result.trackId) }.getOrNull()
                             if (track != null) {
-                                playerController.playQueue(listOf(track), 0)
+                                playerController.playQueue(
+                                    listOf(track),
+                                    0,
+                                    startPositionMs = SoundCloudLinks.startPositionMs(url),
+                                )
                             } else {
                                 _uiState.value = _uiState.value.copy(
                                     error = SearchError(SearchErrorKind.TRACK_GONE)

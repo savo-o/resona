@@ -24,6 +24,16 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.savoo.scclient.ui.navigation.SoundCloudLinks
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -117,6 +127,13 @@ fun HomeScreen(
     val mixDataLoading by viewModel.isMixLoading.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val homeSections by viewModel.homeSections.collectAsState()
+    val linkHintDismissed by viewModel.linkHintDismissed.collectAsState()
+    val context = LocalContext.current
+    var linksEnabled by remember { mutableStateOf(SoundCloudLinks.isHandlingEnabled(context)) }
+    LifecycleResumeEffect(Unit) {
+        linksEnabled = SoundCloudLinks.isHandlingEnabled(context)
+        onPauseOrDispose { }
+    }
     val haptics = rememberHaptics()
 
     val recentTracks by viewModel.recentTracks.collectAsState()
@@ -161,6 +178,23 @@ fun HomeScreen(
                 onStatistics = onStatistics,
                 onSettings = onSettings,
             )
+
+            AnimatedVisibility(
+                visible = !linkHintDismissed && !linksEnabled,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                LinkHandlingHint(
+                    onEnable = {
+                        haptics.click()
+                        SoundCloudLinks.openHandlingSettings(context)
+                    },
+                    onDismiss = {
+                        haptics.click()
+                        viewModel.dismissLinkHint()
+                    },
+                )
+            }
 
             val hero: @Composable () -> Unit = {
                 val isMixQueueActive = playerState.queueTag == HomeViewModel.MIX_QUEUE_TAG
@@ -848,5 +882,52 @@ private fun HomePlaylistCard(playlist: FavoritePlaylist, onClick: () -> Unit, mo
             overflow = TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun LinkHandlingHint(onEnable: () -> Unit, onDismiss: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+    ) {
+        Column(modifier = Modifier.padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Link,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    stringResource(R.string.home_link_hint_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                stringResource(R.string.home_link_hint_desc),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                modifier = Modifier.padding(end = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.home_link_hint_dismiss))
+                }
+                TextButton(onClick = onEnable) {
+                    Text(stringResource(R.string.home_link_hint_enable))
+                }
+            }
+        }
     }
 }

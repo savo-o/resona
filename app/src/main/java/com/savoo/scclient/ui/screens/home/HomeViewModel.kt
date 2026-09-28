@@ -133,6 +133,13 @@ class HomeViewModel @Inject constructor(
     val mixDiscoveryEnabled = settingsRepository.settings.map { it.mixDiscoveryEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val linkHintDismissed = settingsRepository.settings.map { it.linkHintDismissed }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun dismissLinkHint() {
+        viewModelScope.launch { settingsRepository.setLinkHintDismissed(true) }
+    }
+
     val homeSections = settingsRepository.settings.map { it.homeSections }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.DefaultHomeSections)
 

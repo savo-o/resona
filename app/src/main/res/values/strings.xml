@@ -773,4 +773,13 @@
     <string name="app_lock_enable_warning_title">Before you turn it on</string>
     <string name="app_lock_enable_warning">If the phone\'s key storage gets damaged, for example after a system update, the app cannot check the PIN and will erase all its data to protect it. Export your likes to keep a backup.</string>
     <string name="app_lock_biometric_changed">Fingerprints on this phone have changed. Enter the PIN to unlock, fingerprint unlock will work again after that.</string>
+    <string name="deep_link_failed">Couldn\'t open the link</string>
+    <string name="settings_open_links">Open SoundCloud links</string>
+    <string name="settings_open_links_on">Links from other apps open in Resona</string>
+    <string name="settings_open_links_off">Off. Tap to allow it in system settings</string>
+    <string name="home_link_hint_title">Open SoundCloud links in Resona</string>
+    <string name="home_link_hint_desc">Android sends them to the browser until you allow it</string>
+    <string name="home_link_hint_enable">Allow</string>
+    <string name="home_link_hint_dismiss">Not now</string>
+    <string name="player_share_failed">Couldn\'t get a link for this track</string>
 </resources>
