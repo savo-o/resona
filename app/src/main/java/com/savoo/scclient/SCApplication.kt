@@ -8,6 +8,8 @@ import coil.ImageLoaderFactory
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.debug.CrashReporter
 import com.savoo.scclient.debug.ScreenshotModeInterceptor
+import com.savoo.scclient.security.AppLockGuard
+import com.savoo.scclient.security.DuressWipe
 import com.savoo.scclient.ui.navigation.AppShortcuts
 import com.savoo.scclient.work.AutoExportManager
 import dagger.hilt.android.HiltAndroidApp
@@ -30,6 +32,12 @@ class SCApplication : Application(), ImageLoaderFactory, Configuration.Provider 
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
     override fun onCreate() {
+        if (DuressWipe.isRestartProcess(this)) {
+            super.onCreate()
+            return
+        }
+        DuressWipe.runIfPending(this)
+        AppLockGuard.verifyOrWipe(this)
         CrashReporter.install(this)
         super.onCreate()
         appScope.launch {

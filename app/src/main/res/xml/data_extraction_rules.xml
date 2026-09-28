@@ -5,11 +5,15 @@
         <exclude domain="file" path="webview/" />
         <exclude domain="sharedpref" path="sc_auth_secure_prefs.xml" />
         <exclude domain="sharedpref" path="telegram_import_secure_prefs.xml" />
+        <exclude domain="sharedpref" path="app_lock_secure_prefs.xml" />
+        <exclude domain="sharedpref" path="app_lock_state.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="app_webview/" />
         <exclude domain="file" path="webview/" />
         <exclude domain="sharedpref" path="sc_auth_secure_prefs.xml" />
         <exclude domain="sharedpref" path="telegram_import_secure_prefs.xml" />
+        <exclude domain="sharedpref" path="app_lock_secure_prefs.xml" />
+        <exclude domain="sharedpref" path="app_lock_state.xml" />
     </device-transfer>
 </data-extraction-rules>

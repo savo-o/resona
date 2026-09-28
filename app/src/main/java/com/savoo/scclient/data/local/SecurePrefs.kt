@@ -21,6 +21,9 @@ fun createSecurePrefs(context: Context, fileName: String): SharedPreferences =
         recoverSecurePrefs(context, fileName, e)
     }
 
+fun openSecurePrefsStrict(context: Context, fileName: String): SharedPreferences =
+    buildSecurePrefs(context, fileName)
+
 private fun buildSecurePrefs(context: Context, fileName: String): SharedPreferences {
     val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)

@@ -4,4 +4,6 @@
     <exclude domain="file" path="webview/" />
     <exclude domain="sharedpref" path="sc_auth_secure_prefs.xml" />
     <exclude domain="sharedpref" path="telegram_import_secure_prefs.xml" />
+    <exclude domain="sharedpref" path="app_lock_secure_prefs.xml" />
+    <exclude domain="sharedpref" path="app_lock_state.xml" />
 </full-backup-content>

@@ -7,7 +7,6 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.webkit.WebView
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,6 +18,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.luminance
 import androidx.core.view.WindowCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.util.UnstableApi
 import com.savoo.scclient.data.repository.DarkModeOption
 import com.savoo.scclient.data.repository.LanguageOption
@@ -30,8 +30,11 @@ import com.savoo.scclient.i18n.CustomStringsDisableReason
 import com.savoo.scclient.i18n.withCustomStrings
 import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.security.AppLockStore
+import com.savoo.scclient.security.DuressWipe
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 import com.savoo.scclient.ui.navigation.RootScreen
+import com.savoo.scclient.ui.screens.lock.LockScreen
 import com.savoo.scclient.ui.screens.onboarding.EulaGateScreen
 import com.savoo.scclient.ui.screens.onboarding.OnboardingScreen
 import com.savoo.scclient.ui.theme.AppColorTheme
@@ -43,13 +46,15 @@ import javax.inject.Inject
 
 @UnstableApi
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var playerController: PlayerController
     @Inject lateinit var webBridge: WebViewApiBridge
+    @Inject lateinit var appLockStore: AppLockStore
 
     private var deepLinkTarget by mutableStateOf<DeepLinkTarget>(DeepLinkTarget.None)
+    private var locked by mutableStateOf(false)
     private var apiWebView: WebView? = null
 
     override fun attachBaseContext(newBase: Context) {
@@ -88,6 +93,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         applyOrientationLock()
+        locked = appLockStore.needsUnlock()
 
         when (CustomStrings.consumeDisableNotice(this)) {
             CustomStringsDisableReason.CRASHES ->
@@ -210,6 +216,13 @@ class MainActivity : ComponentActivity() {
                     var onboardingDismissed by androidx.compose.runtime.remember { mutableStateOf(false) }
                     val scope = rememberCoroutineScope()
                     when {
+                        locked -> {
+                            LockScreen(
+                                store = appLockStore,
+                                onUnlocked = { locked = false },
+                                onDuress = { DuressWipe.trigger(this@MainActivity) },
+                            )
+                        }
                         !settings.eulaAccepted && !eulaDismissed -> {
                             EulaGateScreen(
                                 onAccept = {

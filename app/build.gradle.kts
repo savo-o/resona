@@ -173,6 +173,8 @@ dependencies {
 
     implementation(libs.datastore.preferences)
     implementation(libs.security.crypto)
+    implementation(libs.biometric)
+    implementation(libs.fragment.ktx)
 
     implementation(libs.work.runtime.ktx)
     implementation(libs.hilt.work)
