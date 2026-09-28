@@ -111,5 +111,8 @@ data class Playlist(
     @Json(name = "likes_count") val likesCount: Long? = null,
 )
 
+val Playlist.displayArtworkUrl: String?
+    get() = artworkUrl ?: tracks?.firstNotNullOfOrNull { it.artworkUrl }
+
 val Playlist.releaseYear: String?
     get() = (releaseDate ?: createdAt)?.take(4)?.takeIf { it.length == 4 && it.all(Char::isDigit) }

@@ -227,7 +227,7 @@ class SoundCloudImportRepository @Inject constructor(
                             val plJson = item.getJSONObject("playlist")
                             val playlistId = plJson.getLong("id")
                             val title = plJson.getString("title")
-                            val artworkUrl = plJson.optString("artwork_url").ifEmpty { null }
+                            val artworkUrl = plJson.optString("artwork_url").ifEmpty { null } ?: firstTrackArtwork(plJson)
                             val trackCount = plJson.optInt("track_count", 0)
                             val permalinkUrl = plJson.optString("permalink_url").ifEmpty { null }
                             val userJson = plJson.optJSONObject("user")
@@ -302,7 +302,7 @@ class SoundCloudImportRepository @Inject constructor(
                         val plJson = item.getJSONObject("playlist")
                         val playlistId = plJson.getLong("id")
                         val title = plJson.getString("title")
-                        val artworkUrl = plJson.optString("artwork_url").ifEmpty { null }
+                        val artworkUrl = plJson.optString("artwork_url").ifEmpty { null } ?: firstTrackArtwork(plJson)
                         val trackCount = plJson.optInt("track_count", 0)
                         val permalinkUrl = plJson.optString("permalink_url").ifEmpty { null }
                         val userJson = plJson.optJSONObject("user")
@@ -373,6 +373,14 @@ class SoundCloudImportRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun firstTrackArtwork(playlistJson: org.json.JSONObject): String? {
+        val tracks = playlistJson.optJSONArray("tracks") ?: return null
+        for (i in 0 until tracks.length()) {
+            tracks.optJSONObject(i)?.optString("artwork_url")?.ifEmpty { null }?.let { return it }
+        }
+        return null
     }
 
     private fun hostOf(rawUrl: String): String? =

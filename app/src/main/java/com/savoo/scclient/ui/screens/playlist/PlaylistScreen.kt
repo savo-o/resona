@@ -64,6 +64,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.Playlist
+import com.savoo.scclient.data.model.displayArtworkUrl
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.releaseYear
 import com.savoo.scclient.data.model.restrictionReason
@@ -150,13 +151,19 @@ class PlaylistViewModel @Inject constructor(
                     }.getOrDefault(emptyList()).filter { it.id != playlist.id }
                     _uiState.update { it.copy(moreByOwner = more) }
                 }
+                fillFavoriteArtwork(playlist.id, playlist.displayArtworkUrl)
                 if (rawTracks.any { it.title.isBlank() }) {
                     resolveTracks(rawTracks)
+                    fillFavoriteArtwork(playlist.id, _uiState.value.tracks.firstNotNullOfOrNull { it.artworkUrl })
                 }
             }.onFailure { e ->
                 _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
             }
         }
+    }
+
+    private suspend fun fillFavoriteArtwork(playlistId: Long, artworkUrl: String?) {
+        if (artworkUrl != null) favoritesDao.fillPlaylistArtwork(playlistId, artworkUrl)
     }
 
     private suspend fun resolveTracks(rawTracks: List<Track>) {
@@ -210,7 +217,9 @@ class PlaylistViewModel @Inject constructor(
                     FavoritePlaylist(
                         playlistId = playlist.id,
                         title = playlist.title,
-                        artworkUrl = playlist.artworkUrl,
+                        artworkUrl = playlist.artworkUrl
+                            ?: _uiState.value.tracks.firstNotNullOfOrNull { it.artworkUrl }
+                            ?: playlist.displayArtworkUrl,
                         trackCount = playlist.trackCount,
                         username = playlist.user.username,
                         permalinkUrl = playlist.permalinkUrl,
@@ -438,7 +447,7 @@ fun PlaylistScreen(
                                             id = other.id,
                                             title = other.title,
                                             subtitle = other.releaseYear,
-                                            artworkUrl = other.artworkUrl ?: other.tracks?.firstOrNull { it.artworkUrl != null }?.artworkUrl,
+                                            artworkUrl = other.displayArtworkUrl,
                                         )
                                     },
                                     onClick = onPlaylistClick,

@@ -1,5 +1,7 @@
 package com.savoo.scclient.ui.screens.account
 
+import com.savoo.scclient.ui.components.badgeIcon
+import com.savoo.scclient.ui.components.badgeTint
 import com.savoo.scclient.ui.components.badgeTitle
 import com.savoo.scclient.ui.components.followersCountText
 import androidx.compose.animation.core.Spring
@@ -21,12 +23,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Handyman
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -272,17 +271,9 @@ private fun LoggedInContent(
             badges.forEach { badge ->
                 Spacer(Modifier.width(4.dp))
                 Icon(
-                    imageVector = when (badge) {
-                        "developer" -> Icons.Filled.Handyman
-                        "supporter" -> Icons.Filled.Star
-                        else -> Icons.Filled.Verified
-                    },
+                    imageVector = badgeIcon(badge),
                     contentDescription = badgeTitle(badge),
-                    tint = when (badge) {
-                        "developer" -> MaterialTheme.colorScheme.tertiary
-                        "supporter" -> MaterialTheme.colorScheme.secondary
-                        else -> MaterialTheme.colorScheme.primary
-                    },
+                    tint = badgeTint(badge),
                     modifier = Modifier
                         .size(20.dp)
                         .clickable { selectedBadge = badge },

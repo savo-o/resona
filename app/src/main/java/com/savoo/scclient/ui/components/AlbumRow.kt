@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,16 +25,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
+import androidx.compose.ui.unit.dp
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Playlist
+import com.savoo.scclient.data.model.displayArtworkUrl
+
+@Composable
+fun playlistSubtitle(username: String, trackCount: Int): String =
+    listOfNotNull(
+        username.ifBlank { null },
+        pluralStringResource(R.plurals.detail_tracks_count, trackCount, trackCount),
+    ).joinToString(" · ")
 
 @Composable
 fun AlbumRow(
@@ -43,8 +50,8 @@ fun AlbumRow(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
         label = "albumRowScale"
     )
 
@@ -54,18 +61,17 @@ fun AlbumRow(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(interactionSource = interactionSource, indication = null, onClick = { haptic(); onClick() }),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(20.dp),
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TrackArtwork(
-                artworkUrl = playlist.artworkUrl ?: playlist.tracks?.firstOrNull()?.artworkUrl,
+                artworkUrl = playlist.displayArtworkUrl,
                 contentDescription = playlist.title,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.size(56.dp),
+                modifier = Modifier.size(52.dp),
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -74,17 +80,17 @@ fun AlbumRow(
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = playlist.user.username,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = playlistSubtitle(playlist.user.username, playlist.trackCount),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = stringResource(R.string.playlist_tracks_count, playlist.trackCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

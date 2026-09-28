@@ -276,7 +276,6 @@
     <string name="artist_id">ID: %d</string>
     <string name="artist_error">Ошибка: %s</string>
     <string name="playlist_by">%s</string>
-    <string name="playlist_tracks_count">%d треков</string>
     <string name="detail_popular">Популярное</string>
     <string name="detail_show_more">Показать ещё</string>
     <string name="detail_show_less">Свернуть</string>
@@ -606,7 +605,7 @@
     <!-- Badges -->
     <string name="badge_developer">Значок разработчика</string>
     <string name="badge_developer_desc">Этот пользователь разрабатывает Resona.</string>
-    <string name="badge_supporter">Значок сторонника</string>
+    <string name="badge_supporter">Значок саппортера</string>
     <string name="badge_supporter_desc">Этот пользователь поддерживает Resona.</string>
     <string name="badge_unknown">Неизвестный значок.</string>
     <string name="badge_received">%2$s есть у пользователя %1$s.</string>
@@ -790,4 +789,11 @@
     <string name="home_link_hint_enable">Разрешить</string>
     <string name="home_link_hint_dismiss">Не сейчас</string>
     <string name="player_share_failed">Не удалось получить ссылку на этот трек</string>
+    <string name="favorite_remove_action">Убрать из избранного</string>
+    <string name="favorite_artists_search_hint">Поиск по исполнителям</string>
+    <string name="favorite_playlists_search_hint">Поиск по плейлистам</string>
+    <string name="about_tagline">Клиент SoundCloud для Android</string>
+    <string name="about_telegram">Telegram</string>
+    <string name="about_github_desc">Исходный код и релизы</string>
+    <string name="about_telegram_desc">Новости и сообщество</string>
 </resources>

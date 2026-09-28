@@ -133,6 +133,12 @@ interface FavoritesDao {
     @Query("SELECT * FROM favorite_playlists ORDER BY addedAt DESC")
     fun getAllPlaylists(): Flow<List<FavoritePlaylist>>
 
+    @Query("SELECT playlistId FROM favorite_playlists WHERE artworkUrl IS NULL")
+    suspend fun getPlaylistIdsWithoutArtwork(): List<Long>
+
+    @Query("UPDATE favorite_playlists SET artworkUrl = :artworkUrl WHERE playlistId = :playlistId AND artworkUrl IS NULL")
+    suspend fun fillPlaylistArtwork(playlistId: Long, artworkUrl: String)
+
     @Query("SELECT EXISTS(SELECT 1 FROM favorite_playlists WHERE playlistId = :playlistId)")
     fun isPlaylistFavorite(playlistId: Long): Flow<Boolean>
 

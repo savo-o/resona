@@ -23,9 +23,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Handyman
 import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -66,6 +64,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.Playlist
+import com.savoo.scclient.data.model.displayArtworkUrl
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.model.releaseYear
@@ -86,6 +85,8 @@ import com.savoo.scclient.ui.components.TrackSelectionBar
 import com.savoo.scclient.ui.components.TrackSort
 import com.savoo.scclient.ui.components.TrackSortButton
 import com.savoo.scclient.ui.components.applySortOption
+import com.savoo.scclient.ui.components.badgeIcon
+import com.savoo.scclient.ui.components.badgeTint
 import com.savoo.scclient.ui.components.badgeTitle
 import com.savoo.scclient.ui.components.followersCountText
 import com.savoo.scclient.ui.components.hiResArtwork
@@ -561,7 +562,7 @@ private fun Playlist.toCardItem(subtitle: String) = DetailCardItem(
     id = id,
     title = title,
     subtitle = subtitle,
-    artworkUrl = artworkUrl ?: tracks?.firstOrNull { it.artworkUrl != null }?.artworkUrl,
+    artworkUrl = displayArtworkUrl,
 )
 
 @Composable
@@ -639,13 +640,9 @@ private fun ArtistHero(
                 badges.forEach { badge ->
                     Spacer(Modifier.width(6.dp))
                     Icon(
-                        imageVector = if (badge == "developer") Icons.Filled.Handyman else Icons.Filled.Star,
+                        imageVector = badgeIcon(badge),
                         contentDescription = badgeTitle(badge),
-                        tint = when (badge) {
-                            "developer" -> MaterialTheme.colorScheme.tertiary
-                            "supporter" -> MaterialTheme.colorScheme.secondary
-                            else -> MaterialTheme.colorScheme.primary
-                        },
+                        tint = badgeTint(badge),
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)

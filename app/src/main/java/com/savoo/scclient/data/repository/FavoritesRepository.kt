@@ -5,8 +5,11 @@ import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.model.FavoriteTrack
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.data.model.displayArtworkUrl
 import com.savoo.scclient.debug.DebugLog
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,6 +34,19 @@ class FavoritesRepository @Inject constructor(
     private val tokenStore: TokenStore,
     private val settingsRepository: SettingsRepository,
 ) {
+    private val artworkFillMutex = Mutex()
+    private var artworkFillDone = false
+
+    suspend fun fillMissingPlaylistArtwork() = artworkFillMutex.withLock {
+        if (artworkFillDone) return@withLock
+        favoritesDao.getPlaylistIdsWithoutArtwork().forEach { id ->
+            runCatching { trackRepository.getPlaylist(id).displayArtworkUrl }
+                .getOrNull()
+                ?.let { favoritesDao.fillPlaylistArtwork(id, it) }
+        }
+        artworkFillDone = true
+    }
+
     suspend fun toggleTrackFavorite(track: Track) {
         val wasFavorite = favoritesDao.isTrackFavoriteSync(track.id)
         DebugLog.log(TAG, "toggleTrackFavorite(${track.id}): wasFavorite=$wasFavorite")

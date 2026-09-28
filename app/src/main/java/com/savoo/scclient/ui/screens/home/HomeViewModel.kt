@@ -158,6 +158,7 @@ class HomeViewModel @Inject constructor(
     val isRefreshing = _isRefreshing.asStateFlow()
 
     init {
+        viewModelScope.launch { favoritesRepository.fillMissingPlaylistArtwork() }
         viewModelScope.launch {
             tokenStore.isLoggedIn.collect { loggedIn ->
                 if (loggedIn) {

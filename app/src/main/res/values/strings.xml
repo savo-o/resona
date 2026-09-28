@@ -270,7 +270,6 @@
     <string name="artist_id">ID: %d</string>
     <string name="artist_error">Error: %s</string>
     <string name="playlist_by">%s</string>
-    <string name="playlist_tracks_count">%d tracks</string>
     <string name="detail_popular">Popular</string>
     <string name="detail_show_more">Show more</string>
     <string name="detail_show_less">Show less</string>
@@ -782,4 +781,11 @@
     <string name="home_link_hint_enable">Allow</string>
     <string name="home_link_hint_dismiss">Not now</string>
     <string name="player_share_failed">Couldn\'t get a link for this track</string>
+    <string name="favorite_remove_action">Remove from favorites</string>
+    <string name="favorite_artists_search_hint">Search artists</string>
+    <string name="favorite_playlists_search_hint">Search playlists</string>
+    <string name="about_tagline">SoundCloud client for Android</string>
+    <string name="about_telegram">Telegram</string>
+    <string name="about_github_desc">Source code and releases</string>
+    <string name="about_telegram_desc">News and community</string>
 </resources>
