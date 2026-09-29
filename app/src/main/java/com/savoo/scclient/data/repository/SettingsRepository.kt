@@ -131,6 +131,7 @@ data class AppSettings(
     val backgroundCustomColor: Color = Color(0xFF1B1B1F),
     val playerHintShown: Boolean = false,
     val linkHintDismissed: Boolean = false,
+    val recapDismissedYear: Int = 0,
     val pixelGlowEnabled: Boolean = true,
     val beatPulseEnabled: Boolean = false,
     val cacheLimitMb: Int = DefaultCacheLimitMb,
@@ -186,6 +187,7 @@ class SettingsRepository @Inject constructor(
         val BACKGROUND_CUSTOM_COLOR = intPreferencesKey("background_custom_color")
         val PLAYER_HINT_SHOWN = booleanPreferencesKey("player_hint_shown")
         val LINK_HINT_DISMISSED = booleanPreferencesKey("link_hint_dismissed")
+        val RECAP_DISMISSED_YEAR = intPreferencesKey("recap_dismissed_year")
         val PIXEL_GLOW_ENABLED = booleanPreferencesKey("pixel_glow_enabled")
         val BEAT_PULSE_ENABLED = booleanPreferencesKey("beat_pulse_enabled")
         val CACHE_LIMIT_MB = intPreferencesKey("cache_limit_mb")
@@ -264,6 +266,7 @@ class SettingsRepository @Inject constructor(
             backgroundCustomColor = prefs[Keys.BACKGROUND_CUSTOM_COLOR]?.let { Color(it) } ?: Color(0xFF1B1B1F),
             playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
             linkHintDismissed = prefs[Keys.LINK_HINT_DISMISSED] ?: false,
+            recapDismissedYear = prefs[Keys.RECAP_DISMISSED_YEAR] ?: 0,
             pixelGlowEnabled = prefs[Keys.PIXEL_GLOW_ENABLED] ?: true,
             beatPulseEnabled = prefs[Keys.BEAT_PULSE_ENABLED] ?: false,
             cacheLimitMb = prefs[Keys.CACHE_LIMIT_MB] ?: DefaultCacheLimitMb,
@@ -434,6 +437,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setLinkHintDismissed(value: Boolean) {
         context.dataStore.edit { it[Keys.LINK_HINT_DISMISSED] = value }
+    }
+
+    suspend fun setRecapDismissedYear(year: Int) {
+        context.dataStore.edit { it[Keys.RECAP_DISMISSED_YEAR] = year }
     }
 
     suspend fun setPixelGlowEnabled(value: Boolean) {

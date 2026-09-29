@@ -488,6 +488,85 @@
     <string name="debug_menu_copy_report_desc">Copies build, device and client info to clipboard</string>
     <string name="debug_menu_copy">Copy</string>
     <string name="debug_menu_report_copied">Debug report copied</string>
+    <string name="home_recap_kicker">Recap %1$d</string>
+    <string name="home_recap_desc">Your minutes, favourite artists and discoveries of the year are ready</string>
+    <string name="home_recap_open">Watch</string>
+    <string name="home_recap_dismiss">Hide</string>
+    <string name="account_edit_profile">Edit profile</string>
+    <string name="profile_edit_title">Profile</string>
+    <string name="profile_edit_change_photo">Change photo</string>
+    <string name="profile_edit_remove_photo">Remove photo</string>
+    <string name="profile_edit_display_name">Display name</string>
+    <string name="profile_edit_first_name">First name</string>
+    <string name="profile_edit_last_name">Last name</string>
+    <string name="profile_edit_city">City</string>
+    <string name="profile_edit_bio">Bio</string>
+    <string name="profile_edit_hint">Changes are saved to your SoundCloud profile right away</string>
+    <string name="profile_edit_name_required">The display name cannot be empty</string>
+    <string name="profile_edit_error">Could not save: %1$s</string>
+    <string name="profile_edit_save">Save</string>
+    <string name="profile_edit_saved">Profile updated</string>
+    <string name="recap_close">Close</string>
+    <string name="recap_kicker_intro">Your recap</string>
+    <string name="recap_intro_full_year">Your year in music. Let\'s go.</string>
+    <string name="recap_intro_since">Since %1$s, when you started listening in Resona</string>
+    <string name="recap_kicker_minutes">Minutes of music this year</string>
+    <plurals name="recap_days_nonstop">
+        <item quantity="one">That is %s day nonstop</item>
+        <item quantity="other">That is %s days nonstop</item>
+    </plurals>
+    <plurals name="recap_hours_nonstop">
+        <item quantity="one">That is %s hour nonstop</item>
+        <item quantity="other">That is %s hours nonstop</item>
+    </plurals>
+    <plurals name="recap_plays">
+        <item quantity="one">%s play</item>
+        <item quantity="other">%s plays</item>
+    </plurals>
+    <plurals name="recap_tracks">
+        <item quantity="one">%s track</item>
+        <item quantity="other">%s tracks</item>
+    </plurals>
+    <plurals name="recap_artists">
+        <item quantity="one">%s artist</item>
+        <item quantity="other">%s artists</item>
+    </plurals>
+    <string name="recap_kicker_top_artist">Your artist of the year</string>
+    <plurals name="recap_minutes_together">
+        <item quantity="one">%s minute together</item>
+        <item quantity="other">%s minutes together</item>
+    </plurals>
+    <string name="recap_minutes_short">%s min</string>
+    <string name="recap_kicker_top_tracks">Tracks you played the most</string>
+    <string name="recap_kicker_genres">Your vibe</string>
+    <string name="recap_genres_caption">The genre you heard the most</string>
+    <string name="recap_kicker_rhythm">Your rhythm</string>
+    <string name="recap_listener_morning">Morning listener</string>
+    <string name="recap_listener_day">Daytime listener</string>
+    <string name="recap_listener_evening">Evening listener</string>
+    <string name="recap_listener_night">Night owl</string>
+    <string name="recap_peak_hour">Music played most often around %s</string>
+    <string name="recap_top_month">Most musical month: %s</string>
+    <string name="recap_kicker_discovery">Discovery of the year</string>
+    <string name="recap_first_heard">First heard on %s</string>
+    <plurals name="recap_minutes_since">
+        <item quantity="one">%s minute since then</item>
+        <item quantity="other">%s minutes since then</item>
+    </plurals>
+    <string name="recap_kicker_skipped">This one did not land</string>
+    <plurals name="recap_skipped_times">
+        <item quantity="one">Skipped %s time</item>
+        <item quantity="other">Skipped %s times</item>
+    </plurals>
+    <string name="recap_kicker_summary">Your %1$d in one picture</string>
+    <string name="recap_share">Share</string>
+    <string name="recap_replay">Watch again</string>
+    <string name="recap_card_top_artists">Top artists</string>
+    <string name="recap_card_top_tracks">Top tracks</string>
+    <string name="debug_menu_recap_open">Open recap</string>
+    <string name="debug_menu_recap_demo">Demo</string>
+    <string name="debug_menu_recap">Year recap</string>
+    <string name="debug_menu_recap_desc">Raw numbers the year recap will be built from. Shown without the date window and the 10 hour threshold</string>
     <string name="debug_menu_lyrics_sync">Lyrics sync</string>
     <string name="debug_menu_lyrics_sync_count">Tracks with a correction: %d</string>
     <string name="debug_menu_lyrics_sync_desc">Copies offset, stretch and LRCLIB durations for every corrected track as CSV</string>

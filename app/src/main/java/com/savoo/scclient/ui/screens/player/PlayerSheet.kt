@@ -619,7 +619,7 @@ private fun rememberPlayerPalette(): PlayerPalette {
 
 // Swallows whatever scroll the lyrics list itself didn't use, so it never reaches the bottom sheet's
 // own nested-scroll connection - otherwise scrolling past the first line drags the whole player closed.
-private val sheetDragGuard = object : NestedScrollConnection {
+internal val sheetDragGuard = object : NestedScrollConnection {
     override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) = available
     override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available
 }
@@ -1028,6 +1028,12 @@ private fun PixelPlayerContent(
                 mutedColor = palette.onBackgroundMuted,
                 surfaceColor = palette.surface,
                 track = state.currentTrack,
+                positionMs = state.positionMs,
+                durationMs = state.durationMs,
+                isPlaying = state.isPlaying,
+                onTogglePlay = onTogglePlay,
+                onNext = onNext,
+                onPrev = onPrev,
             )
         },
         lyricsInline = {
@@ -1042,6 +1048,8 @@ private fun PixelPlayerContent(
                 mutedColor = palette.onBackgroundMuted,
                 surfaceColor = palette.surface,
                 track = state.currentTrack,
+                positionMs = state.positionMs,
+                isPlaying = state.isPlaying,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 14.dp)
@@ -1808,7 +1816,7 @@ private fun ExpressiveMenuItem(
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun PixelIconButton(
+internal fun PixelIconButton(
     icon: ImageVector,
     contentDescription: String?,
     onClick: () -> Unit,
@@ -1837,7 +1845,7 @@ private fun PixelIconButton(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun PixelPillButton(
+internal fun PixelPillButton(
     icon: ImageVector,
     contentDescription: String?,
     onClick: () -> Unit,
@@ -1868,274 +1876,7 @@ private fun PixelPillButton(
 }
 
 @Composable
-private fun PlayerLyricsScreen(
-    onClose: () -> Unit,
-    backgroundColor: Color,
-    result: LyricsResult?,
-    activeIndex: Int,
-    onSeek: (Long) -> Unit,
-    sync: LyricsSyncState,
-    onSyncAction: (LyricsSyncAction) -> Unit,
-    accent: Color,
-    onColor: Color,
-    mutedColor: Color,
-    surfaceColor: Color,
-    track: Track?,
-) {
-    Dialog(
-        onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-    ) {
-        Surface(Modifier.fillMaxSize(), color = backgroundColor) {
-            Column(Modifier.fillMaxSize().padding(WindowInsets.safeDrawing.asPaddingValues())) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.player_close_lyrics), tint = onColor)
-                    }
-                }
-                LyricsView(
-                    result = result,
-                    activeIndex = activeIndex,
-                    onSeek = onSeek,
-                    sync = sync,
-                    onSyncAction = onSyncAction,
-                    accent = accent,
-                    onColor = onColor,
-                    mutedColor = mutedColor,
-                    surfaceColor = surfaceColor,
-                    centered = true,
-                    track = track,
-                    modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(sheetDragGuard),
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun LyricsView(
-    result: LyricsResult?,
-    activeIndex: Int,
-    onSeek: (Long) -> Unit,
-    sync: LyricsSyncState,
-    onSyncAction: (LyricsSyncAction) -> Unit,
-    accent: Color,
-    onColor: Color,
-    mutedColor: Color,
-    surfaceColor: Color,
-    modifier: Modifier = Modifier,
-    offsetControlTopPadding: Dp = 4.dp,
-    centered: Boolean = false,
-    track: Track? = null,
-) {
-    var shareFrom by remember { mutableStateOf<Int?>(null) }
-    val cardLines = remember(result) {
-        when (result) {
-            is LyricsResult.Synced -> result.lines.map { it.text }
-            is LyricsResult.Plain -> result.text.lines()
-            else -> emptyList()
-        }
-    }
-    val canShare = track != null && cardLines.any { it.isNotBlank() }
-    val shareHaptic = rememberHapticTick()
-    val openShare: (Int) -> Unit = { index -> if (canShare) { shareHaptic(); shareFrom = index } }
-    val from = shareFrom
-    if (from != null && track != null) {
-        LyricsCardSheet(
-            lines = cardLines,
-            initialIndex = from,
-            track = track,
-            accent = accent,
-            onDismiss = { shareFrom = null },
-        )
-    }
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        when (result) {
-            null -> LoadingIndicator(color = accent)
-            LyricsResult.NotFound -> Text(
-                stringResource(R.string.player_lyrics_none_found),
-                style = MaterialTheme.typography.bodyMedium,
-                color = mutedColor,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 32.dp),
-            )
-            is LyricsResult.Plain -> Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                if (canShare) {
-                    LyricsSharePill(
-                        onClick = { openShare(0) },
-                        mutedColor = mutedColor,
-                        surfaceColor = surfaceColor,
-                        modifier = Modifier.padding(top = offsetControlTopPadding),
-                    )
-                }
-                Text(
-                    result.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = onColor,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .combinedClickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {},
-                            onLongClick = { openShare(0) },
-                        )
-                        .padding(horizontal = 24.dp, vertical = 24.dp),
-                )
-                Text(
-                    stringResource(R.string.player_lyrics_source, result.source),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = mutedColor,
-                    modifier = Modifier.padding(bottom = 24.dp),
-                )
-            }
-            is LyricsResult.Synced -> {
-                val lines = result.lines
-                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    var syncExpanded by rememberSaveable { mutableStateOf(false) }
-                    val shareAlpha by animateFloatAsState(
-                        targetValue = if (syncExpanded) 0f else 1f,
-                        animationSpec = tween(180),
-                        label = "lyricsShareAlpha",
-                    )
-                    LyricsSyncControls(
-                        state = sync,
-                        onAction = onSyncAction,
-                        mutedColor = mutedColor,
-                        surfaceColor = surfaceColor,
-                        accent = accent,
-                        expanded = syncExpanded,
-                        onExpandedChange = { syncExpanded = it },
-                        modifier = Modifier.padding(top = offsetControlTopPadding, bottom = 4.dp, start = 16.dp, end = 16.dp),
-                        trailing = if (canShare) {
-                            {
-                                LyricsSharePill(
-                                    onClick = { openShare(activeIndex.coerceAtLeast(0)) },
-                                    mutedColor = mutedColor,
-                                    surfaceColor = surfaceColor,
-                                    enabled = !syncExpanded,
-                                    modifier = Modifier.graphicsLayer { alpha = shareAlpha },
-                                )
-                            }
-                        } else null,
-                    )
-                    BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                        val listState = rememberLazyListState()
-                        val lineHeights = remember(lines) { mutableStateMapOf<Int, Int>() }
-                        var previousIndex by remember(lines) { mutableStateOf(-1) }
-                        var userBrowsing by remember(lines) { mutableStateOf(false) }
-                        val scope = rememberCoroutineScope()
-                        val viewportPx = with(LocalDensity.current) { maxHeight.toPx() }
-                        val targetIndex = activeIndex.coerceIn(0, lines.lastIndex.coerceAtLeast(0))
-                        val lineHeightPx = lineHeights[targetIndex] ?: 0
-
-                        // Jump straight to wherever playback already is when a new track's lyrics arrive - the player
-                        // screen can stay open across track changes and lyrics can be opened mid-song, and without this
-                        // the list either kept the previous track's scroll offset or sat at the top until the next line.
-                        LaunchedEffect(listState) {
-                            listState.interactionSource.interactions.collect { interaction ->
-                                if (interaction is DragInteraction.Start) userBrowsing = true
-                            }
-                        }
-
-                        fun centerOffset(): Int {
-                            val targetTop = ((viewportPx - lineHeightPx) / 2f).coerceAtLeast(0f)
-                            return (viewportPx * 0.5f - targetTop).roundToInt()
-                        }
-
-                        LaunchedEffect(targetIndex, lines, viewportPx, lineHeightPx) {
-                            if (lines.isEmpty()) return@LaunchedEffect
-                            if (userBrowsing && previousIndex != -1) {
-                                previousIndex = targetIndex
-                                return@LaunchedEffect
-                            }
-                            val scrollOffset = centerOffset()
-                            if (previousIndex == -1 || previousIndex == targetIndex) {
-                                listState.scrollToItem(targetIndex, scrollOffset)
-                            } else {
-                                listState.animateScrollToItem(targetIndex, scrollOffset)
-                            }
-                            previousIndex = targetIndex
-                        }
-
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = maxHeight * 0.5f, horizontal = 8.dp),
-                        ) {
-                            itemsIndexed(lines) { index, line ->
-                                LyricsLineItem(
-                                    centered = centered,
-                                    text = line.text,
-                                    isActive = index == activeIndex,
-                                    isPast = index < activeIndex,
-                                    onColor = onColor,
-                                    mutedColor = mutedColor,
-                                    onClick = {
-                                        userBrowsing = false
-                                        onSeek(line.timeMs)
-                                    },
-                                    onLongClick = { openShare(index) },
-                                    onHeightChanged = { lineHeights[index] = it },
-                                )
-                            }
-                        }
-
-                        val activeAbove by remember(listState, targetIndex) {
-                            derivedStateOf { listState.firstVisibleItemIndex > targetIndex }
-                        }
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = userBrowsing,
-                            enter = fadeIn() + scaleIn(initialScale = 0.8f),
-                            exit = fadeOut() + scaleOut(targetScale = 0.8f),
-                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
-                        ) {
-                            val haptic = rememberHapticTick()
-                            Surface(
-                                onClick = {
-                                    haptic()
-                                    userBrowsing = false
-                                    scope.launch { listState.animateScrollToItem(targetIndex, centerOffset()) }
-                                },
-                                shape = RoundedCornerShape(50),
-                                color = surfaceColor.copy(alpha = 0.95f),
-                                contentColor = onColor,
-                                shadowElevation = 4.dp,
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(start = 10.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
-                                ) {
-                                    Icon(
-                                        if (activeAbove) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        stringResource(R.string.player_lyrics_back_to_current),
-                                        style = MaterialTheme.typography.labelMedium,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-        }
-    }
-}
-
-@Composable
-private fun LyricsSyncControls(
+internal fun LyricsSyncControls(
     state: LyricsSyncState,
     onAction: (LyricsSyncAction) -> Unit,
     mutedColor: Color,
@@ -2300,7 +2041,7 @@ private fun LyricsStepper(
 }
 
 @Composable
-private fun LyricsSharePill(
+internal fun LyricsSharePill(
     onClick: () -> Unit,
     mutedColor: Color,
     surfaceColor: Color,
@@ -2325,56 +2066,6 @@ private fun LyricsSharePill(
 
 private const val LYRICS_OFFSET_STEP_MS = 500L
 private const val LYRICS_DRIFT_STEP_MS_PER_MIN = 100L
-
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun LyricsLineItem(
-    text: String,
-    centered: Boolean,
-    isActive: Boolean,
-    isPast: Boolean,
-    onColor: Color,
-    mutedColor: Color,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onHeightChanged: (Int) -> Unit,
-) {
-    val haptic = rememberHapticTick()
-    val scale by animateFloatAsState(
-        targetValue = if (isActive) 1f else 0.92f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
-        label = "lyricScale",
-    )
-    val color by animateColorAsState(
-        targetValue = when {
-            isActive -> onColor
-            isPast -> mutedColor.copy(alpha = 0.35f)
-            else -> mutedColor.copy(alpha = 0.6f)
-        },
-        animationSpec = tween(500, easing = FastOutSlowInEasing),
-        label = "lyricColor",
-    )
-    Text(
-        text,
-        style = MaterialTheme.typography.headlineSmall,
-        color = color,
-        textAlign = if (centered) TextAlign.Center else TextAlign.Start,
-        modifier = Modifier
-            .fillMaxWidth()
-            .onSizeChanged { onHeightChanged(it.height) }
-            .graphicsLayer {
-                scaleX = scale; scaleY = scale
-                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (centered) 0.5f else 0f, 0.5f)
-            }
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = { haptic(); onClick() },
-                onLongClick = onLongClick,
-            )
-            .padding(vertical = if (centered) 4.dp else 10.dp),
-    )
-}
 
 private fun moreLikeThis(
     scope: kotlinx.coroutines.CoroutineScope,
@@ -2639,6 +2330,12 @@ private fun ClassicPlayerContent(
                 mutedColor = palette.onMuted,
                 surfaceColor = palette.card,
                 track = state.currentTrack,
+                positionMs = state.positionMs,
+                durationMs = state.durationMs,
+                isPlaying = state.isPlaying,
+                onTogglePlay = onTogglePlay,
+                onNext = onNext,
+                onPrev = onPrev,
             )
         },
         lyricsInline = {
@@ -2653,6 +2350,8 @@ private fun ClassicPlayerContent(
                 mutedColor = palette.onMuted,
                 surfaceColor = palette.card,
                 track = state.currentTrack,
+                positionMs = state.positionMs,
+                isPlaying = state.isPlaying,
                 modifier = Modifier
                     .fillMaxSize()
                     .nestedScroll(sheetDragGuard),

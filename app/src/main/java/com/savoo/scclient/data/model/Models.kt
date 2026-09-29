@@ -52,6 +52,8 @@ data class User(
     @Json(name = "permalink_url") val permalinkUrl: String? = null,
     @Json(name = "description") val description: String? = null,
     @Json(name = "city") val city: String? = null,
+    @Json(name = "first_name") val firstName: String? = null,
+    @Json(name = "last_name") val lastName: String? = null,
     @Json(name = "track_count") val trackCount: Int? = null,
     @Json(name = "verified") val verified: Boolean? = null,
 )

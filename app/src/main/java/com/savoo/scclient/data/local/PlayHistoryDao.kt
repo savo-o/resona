@@ -39,6 +39,35 @@ data class SkipStat(
     val lastSkippedAt: Long,
 )
 
+data class RecapTotals(
+    val totalMs: Long,
+    val playCount: Int,
+    val trackCount: Int,
+    val artistCount: Int,
+)
+
+data class PlayMoment(
+    val playedAt: Long,
+    val msPlayed: Long,
+)
+
+data class ArtistDiscoveryStat(
+    val artistId: Long,
+    val artistName: String,
+    val artworkUrl: String?,
+    val firstPlayedAt: Long,
+    val totalMs: Long,
+    val playCount: Int,
+)
+
+data class TrackSkipStat(
+    val trackId: Long,
+    val title: String,
+    val artistName: String,
+    val artworkUrl: String?,
+    val skipCount: Int,
+)
+
 const val MIN_COUNTED_MS = 5_000L
 
 @Dao
@@ -119,4 +148,72 @@ interface PlayHistoryDao {
         LIMIT 1
     """)
     fun topGenre(since: Long = 0L, minMs: Long = MIN_COUNTED_MS): Flow<String?>
+
+    @Query("SELECT MIN(playedAt) FROM play_history")
+    suspend fun firstPlayedAt(): Long?
+
+    @Query("""
+        SELECT COALESCE(SUM(msPlayed), 0) AS totalMs,
+            COALESCE(SUM(CASE WHEN msPlayed >= :minMs THEN 1 ELSE 0 END), 0) AS playCount,
+            COUNT(DISTINCT CASE WHEN msPlayed >= :minMs THEN trackId END) AS trackCount,
+            COUNT(DISTINCT CASE WHEN msPlayed >= :minMs THEN artistId END) AS artistCount
+        FROM play_history
+        WHERE playedAt >= :since AND playedAt < :until
+    """)
+    suspend fun recapTotals(since: Long, until: Long, minMs: Long = MIN_COUNTED_MS): RecapTotals
+
+    @Query("SELECT playedAt, msPlayed FROM play_history WHERE playedAt >= :since AND playedAt < :until AND msPlayed > 0")
+    suspend fun playMoments(since: Long, until: Long): List<PlayMoment>
+
+    @Query("""
+        SELECT artistId, artistName, MAX(artworkUrl) AS artworkUrl, SUM(msPlayed) AS totalMs, COUNT(*) AS playCount
+        FROM play_history
+        WHERE msPlayed >= :minMs AND playedAt >= :since AND playedAt < :until
+        GROUP BY artistId
+        ORDER BY totalMs DESC
+        LIMIT :limit
+    """)
+    suspend fun recapTopArtists(since: Long, until: Long, limit: Int, minMs: Long = MIN_COUNTED_MS): List<ArtistListenStat>
+
+    @Query("""
+        SELECT trackId, title, artistName, MAX(artworkUrl) AS artworkUrl, SUM(msPlayed) AS totalMs, COUNT(*) AS playCount
+        FROM play_history
+        WHERE msPlayed >= :minMs AND playedAt >= :since AND playedAt < :until
+        GROUP BY trackId
+        ORDER BY totalMs DESC
+        LIMIT :limit
+    """)
+    suspend fun recapTopTracks(since: Long, until: Long, limit: Int, minMs: Long = MIN_COUNTED_MS): List<TrackListenStat>
+
+    @Query("""
+        SELECT genre FROM play_history
+        WHERE genre IS NOT NULL AND genre != '' AND msPlayed >= :minMs AND playedAt >= :since AND playedAt < :until
+        GROUP BY genre
+        ORDER BY SUM(msPlayed) DESC
+        LIMIT :limit
+    """)
+    suspend fun recapTopGenres(since: Long, until: Long, limit: Int, minMs: Long = MIN_COUNTED_MS): List<String>
+
+    @Query("""
+        SELECT artistId, artistName, MAX(artworkUrl) AS artworkUrl, MIN(playedAt) AS firstPlayedAt,
+            SUM(CASE WHEN playedAt < :until THEN msPlayed ELSE 0 END) AS totalMs,
+            SUM(CASE WHEN playedAt < :until THEN 1 ELSE 0 END) AS playCount
+        FROM play_history
+        WHERE msPlayed >= :minMs
+        GROUP BY artistId
+        HAVING firstPlayedAt >= :discoveredFrom AND firstPlayedAt < :until
+        ORDER BY totalMs DESC
+        LIMIT :limit
+    """)
+    suspend fun recapDiscoveries(discoveredFrom: Long, until: Long, limit: Int, minMs: Long = MIN_COUNTED_MS): List<ArtistDiscoveryStat>
+
+    @Query("""
+        SELECT trackId, title, artistName, MAX(artworkUrl) AS artworkUrl, COUNT(*) AS skipCount
+        FROM play_history
+        WHERE skipped = 1 AND playedAt >= :since AND playedAt < :until
+        GROUP BY trackId
+        ORDER BY skipCount DESC
+        LIMIT :limit
+    """)
+    suspend fun recapMostSkipped(since: Long, until: Long, limit: Int): List<TrackSkipStat>
 }

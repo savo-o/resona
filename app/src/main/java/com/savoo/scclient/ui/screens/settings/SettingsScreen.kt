@@ -954,7 +954,7 @@ fun SettingsScreen(
                 )
             }
 
-            if (settings.developerMode && (BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "canary")) {
+            if (settings.developerMode) {
                 SettingsSectionCard {
                     Row(
                         modifier = Modifier

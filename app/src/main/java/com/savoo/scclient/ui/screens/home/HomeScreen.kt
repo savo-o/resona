@@ -1,5 +1,8 @@
 package com.savoo.scclient.ui.screens.home
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.savoo.scclient.ui.screens.recap.RecapBanner
+import com.savoo.scclient.ui.screens.recap.RecapStoriesDialog
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -128,10 +131,13 @@ fun HomeScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val homeSections by viewModel.homeSections.collectAsState()
     val linkHintDismissed by viewModel.linkHintDismissed.collectAsState()
+    val recapBanner by viewModel.recapBanner.collectAsState()
+    var recapOpen by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     var linksEnabled by remember { mutableStateOf(SoundCloudLinks.isHandlingEnabled(context)) }
     LifecycleResumeEffect(Unit) {
         linksEnabled = SoundCloudLinks.isHandlingEnabled(context)
+        viewModel.loadRecap()
         onPauseOrDispose { }
     }
     val haptics = rememberHaptics()
@@ -147,6 +153,11 @@ fun HomeScreen(
         heroVisible = true
         delay(150)
         sectionsVisible = true
+    }
+
+    val recapStats = recapBanner
+    if (recapOpen && recapStats != null) {
+        RecapStoriesDialog(stats = recapStats, onDismiss = { recapOpen = false })
     }
 
     Scaffold { padding ->
@@ -194,6 +205,26 @@ fun HomeScreen(
                         viewModel.dismissLinkHint()
                     },
                 )
+            }
+
+            AnimatedVisibility(
+                visible = recapBanner != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                recapBanner?.let { stats ->
+                    RecapBanner(
+                        stats = stats,
+                        onOpen = {
+                            haptics.click()
+                            recapOpen = true
+                        },
+                        onDismiss = {
+                            haptics.click()
+                            viewModel.dismissRecap(stats.year)
+                        },
+                    )
+                }
             }
 
             val hero: @Composable () -> Unit = {

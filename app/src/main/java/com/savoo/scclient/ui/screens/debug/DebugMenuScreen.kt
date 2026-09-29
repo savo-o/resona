@@ -69,16 +69,22 @@ import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.LyricsSyncDao
 import com.savoo.scclient.data.remote.ClientIdProvider
+import com.savoo.scclient.data.repository.RecapRepository
+import com.savoo.scclient.data.repository.RecapStats
 import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.debug.ScreenshotModeState
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.screens.home.GreetingDebugState
+import com.savoo.scclient.ui.screens.recap.RecapDemo
+import com.savoo.scclient.ui.screens.recap.RecapStoriesDialog
 import com.savoo.scclient.ui.screens.home.GreetingPeriod
 import com.savoo.scclient.ui.screens.home.greetingIndexForDate
 import com.savoo.scclient.ui.screens.home.greetingPeriodForHour
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -100,6 +106,7 @@ class DebugMenuViewModel @Inject constructor(
     private val database: AppDatabase,
     private val playerController: PlayerController,
     private val lyricsSyncDao: LyricsSyncDao,
+    private val recapRepository: RecapRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -178,6 +185,58 @@ class DebugMenuViewModel @Inject constructor(
             onDone()
         }
     }
+
+    private val _recapReport = MutableStateFlow<String?>(null)
+    val recapReport = _recapReport.asStateFlow()
+
+    fun computeRecap(year: Int) {
+        viewModelScope.launch {
+            _recapReport.value = formatRecap(recapRepository.compute(year))
+        }
+    }
+
+    private val _recapStories = MutableStateFlow<RecapStats?>(null)
+    val recapStories = _recapStories.asStateFlow()
+
+    fun openRecap(year: Int, demo: Boolean) {
+        viewModelScope.launch {
+            _recapStories.value = if (demo) RecapDemo.stats(year) else recapRepository.compute(year)
+        }
+    }
+
+    fun closeRecap() {
+        _recapStories.value = null
+    }
+
+    fun copyRecapToClipboard() {
+        val report = _recapReport.value ?: return
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        clipboard?.setPrimaryClip(ClipData.newPlainText("Resona recap", report))
+    }
+
+    private fun formatRecap(stats: RecapStats): String = buildString {
+        val zone = ZoneId.systemDefault()
+        fun date(ms: Long) = Instant.ofEpochMilli(ms).atZone(zone).toLocalDate()
+        fun minutes(ms: Long) = ms / 60_000
+        appendLine("Year: ${stats.year}  Zone: $zone")
+        appendLine("Period: ${date(stats.periodStart)} .. ${date(stats.periodEnd - 1)}  Started mid-year: ${stats.startedMidYear}")
+        appendLine("Eligible: ${stats.eligible}")
+        appendLine("Minutes: ${minutes(stats.totals.totalMs)}  Plays: ${stats.totals.playCount}")
+        appendLine("Distinct tracks: ${stats.totals.trackCount}  Distinct artists: ${stats.totals.artistCount}")
+        appendLine("Top month: ${stats.topMonth ?: "-"}")
+        appendLine("Minutes by month: ${stats.monthlyMs.joinToString(" ") { minutes(it).toString() }}")
+        appendLine("Minutes by hour: ${stats.hourlyMs.withIndex().joinToString(" ") { "${it.index}h=${minutes(it.value)}" }}")
+        appendLine("Listener time: ${stats.listenerTime ?: "-"}")
+        appendLine("Top genres: ${stats.topGenres.joinToString().ifEmpty { "-" }}")
+        appendLine("Top artists:")
+        stats.topArtists.forEach { appendLine("  ${it.artistName}  ${minutes(it.totalMs)} min, ${it.playCount} plays") }
+        appendLine("Top tracks:")
+        stats.topTracks.forEach { appendLine("  ${it.artistName} - ${it.title}  ${minutes(it.totalMs)} min, ${it.playCount} plays") }
+        appendLine("Discoveries from: ${stats.discoveredFrom?.let { date(it) } ?: "-"}")
+        stats.discoveries.forEach { appendLine("  ${it.artistName}  first ${date(it.firstPlayedAt)}, ${minutes(it.totalMs)} min") }
+        appendLine("Most skipped:")
+        stats.mostSkipped.forEach { appendLine("  ${it.artistName} - ${it.title}  ${it.skipCount} skips") }
+    }.trimEnd()
 
     private fun csvCell(value: String?): String = "\"" + value.orEmpty().replace("\"", "\"\"") + "\""
 
@@ -292,10 +351,16 @@ fun DebugMenuScreen(
     val playerStateSnapshot by viewModel.playerStateSnapshot.collectAsState()
     val greetingOverridePeriod by viewModel.greetingOverridePeriod.collectAsState()
     val greetingOverrideIndex by viewModel.greetingOverrideIndex.collectAsState()
+    val recapReport by viewModel.recapReport.collectAsState()
+    val recapStories by viewModel.recapStories.collectAsState()
     var clientIdOverride by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    recapStories?.let { stats ->
+        RecapStoriesDialog(stats = stats, onDismiss = { viewModel.closeRecap() })
+    }
 
     Scaffold(
         topBar = {
@@ -477,6 +542,60 @@ fun DebugMenuScreen(
                         enabled = lyricsSyncCount > 0,
                     ) {
                         Text(stringResource(R.string.debug_menu_copy))
+                    }
+                }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_menu_recap)) {
+                val currentYear = LocalDate.now().year
+                Text(
+                    stringResource(R.string.debug_menu_recap_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { viewModel.computeRecap(currentYear) }) {
+                        Text(currentYear.toString())
+                    }
+                    TextButton(onClick = { viewModel.computeRecap(currentYear - 1) }) {
+                        Text((currentYear - 1).toString())
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        onClick = {
+                            viewModel.copyRecapToClipboard()
+                            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.debug_menu_report_copied)) }
+                        },
+                        enabled = recapReport != null,
+                    ) {
+                        Text(stringResource(R.string.debug_menu_copy))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = { viewModel.openRecap(currentYear, demo = false) }) {
+                        Text(stringResource(R.string.debug_menu_recap_open))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    TextButton(onClick = { viewModel.openRecap(currentYear, demo = true) }) {
+                        Text(stringResource(R.string.debug_menu_recap_demo))
+                    }
+                }
+                recapReport?.let { report ->
+                    Spacer(Modifier.height(6.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    ) {
+                        SelectionContainer {
+                            Text(
+                                report,
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(10.dp),
+                            )
+                        }
                     }
                 }
             }

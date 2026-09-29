@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -145,6 +147,10 @@ class AccountViewModel @Inject constructor(
         }
     }
 
+    fun onProfileSaved(user: User?) {
+        if (user != null) _uiState.value = _uiState.value.copy(user = user) else loadProfile()
+    }
+
     fun onWebToken(value: String) {
         viewModelScope.launch { tokenStore.saveWebToken(value) }
     }
@@ -170,6 +176,7 @@ fun AccountScreen(
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var editingProfile by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.account_title), maxLines = 1, overflow = TextOverflow.Ellipsis) }) },
@@ -206,7 +213,20 @@ fun AccountScreen(
                         },
                         onLogout = { viewModel.logout() },
                         onSettings = onOpenSettings,
+                        onEditProfile = { editingProfile = true },
                     )
+                    val editUser = state.user
+                    if (editingProfile && editUser != null) {
+                        ProfileEditSheet(
+                            user = editUser,
+                            onDismiss = { editingProfile = false },
+                            onSaved = { updated ->
+                                editingProfile = false
+                                viewModel.onProfileSaved(updated)
+                                scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.profile_edit_saved)) }
+                            },
+                        )
+                    }
                 }
                 else -> LoginScreen(
                     onTokenReceived = { token -> viewModel.onWebToken(token) },
@@ -229,6 +249,7 @@ private fun LoggedInContent(
     onSyncFavoritesNow: () -> Unit = {},
     onLogout: () -> Unit,
     onSettings: () -> Unit,
+    onEditProfile: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var selectedBadge by remember { mutableStateOf<String?>(null) }
@@ -336,6 +357,15 @@ private fun LoggedInContent(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+
+        if (user != null) {
+            Spacer(Modifier.height(12.dp))
+            FilledTonalButton(onClick = onEditProfile, shapes = ButtonDefaults.shapes()) {
+                Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.account_edit_profile))
             }
         }
 

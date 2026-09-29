@@ -128,20 +128,47 @@ class WebViewApiBridge @Inject constructor(
         )
     }
 
-    // Serialized (callMutex) so two near-simultaneous taps can't clobber each other's result via
-    // the shared window state, and polled (not a fixed delay) so a slow-but-successful request
-    // isn't misread as a failure.
+    suspend fun updateMe(json: String): BridgeResponse = executeRequest(
+        method = "PUT",
+        url = "https://api-v2.soundcloud.com/me",
+        jsonBody = json,
+    )
+
+    suspend fun uploadAvatar(base64: String): BridgeResponse = executeRequest(
+        method = "PUT",
+        url = "https://api-v2.soundcloud.com/me/profile/avatar",
+        jsonBody = org.json.JSONObject().put("image_data", base64).toString(),
+        timeoutMs = 45_000,
+    )
+
+    suspend fun deleteAvatar(): BridgeResponse = executeRequest(
+        method = "DELETE",
+        url = "https://api-v2.soundcloud.com/me/profile/avatar",
+    )
+
     private suspend fun executeFetch(
         method: String,
         url: String,
         jsonBody: String? = null,
         contentType: String = "application/json",
         extraQuery: String? = null,
-    ): Int = callMutex.withLock {
-        val wv = webView ?: return@withLock 0
+    ): Int = executeRequest(method, url, jsonBody, contentType, extraQuery).code
+
+    // Serialized (callMutex) so two near-simultaneous taps can't clobber each other's result via
+    // the shared window state, and polled (not a fixed delay) so a slow-but-successful request
+    // isn't misread as a failure.
+    private suspend fun executeRequest(
+        method: String,
+        url: String,
+        jsonBody: String? = null,
+        contentType: String = "application/json",
+        extraQuery: String? = null,
+        timeoutMs: Long = 10_000,
+    ): BridgeResponse = callMutex.withLock {
+        val wv = webView ?: return@withLock BridgeResponse(0, null)
         if (withTimeoutOrNull(8000) { pageReady.await() } == null) {
             Log.w(TAG, "$method $url: page never became ready")
-            return@withLock 0
+            return@withLock BridgeResponse(0, null)
         }
 
         val clientId = clientIdProvider.cachedOrFallback()
@@ -185,7 +212,7 @@ class WebViewApiBridge @Inject constructor(
         withContext(Dispatchers.Main) { wv.evaluateJavascript(js, null) }
 
         val readJs = "(function() { var s = window.$slot; return (s && s.done) ? s.result : null; })()"
-        val raw = withTimeoutOrNull(10_000) {
+        val raw = withTimeoutOrNull(timeoutMs) {
             var result: String? = null
             while (result == null) {
                 result = evalOnMain(wv, readJs)
@@ -202,8 +229,10 @@ class WebViewApiBridge @Inject constructor(
         lastResponsePayload = runCatching {
             org.json.JSONObject(org.json.JSONObject(decoded.orEmpty()).getString("body"))
         }.getOrNull()
-        Log.d(TAG, "$method $url -> $decoded")
-        Regex("\"code\":(\\d+)").find(decoded.orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        Log.d(TAG, "$method $url -> ${decoded?.take(500)}")
+        val code = Regex("\"code\":(\\d+)").find(decoded.orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val body = runCatching { org.json.JSONObject(decoded.orEmpty()).optString("body") }.getOrNull()
+        BridgeResponse(code, body)
     }
 
     private suspend fun appVersion(): String? {
@@ -221,4 +250,8 @@ class WebViewApiBridge @Inject constructor(
         wv.evaluateJavascript(js) { result -> deferred.complete(result?.takeIf { it != "null" }) }
         deferred.await()
     }
+}
+
+data class BridgeResponse(val code: Int, val body: String?) {
+    val isSuccess: Boolean get() = code in 200..299
 }

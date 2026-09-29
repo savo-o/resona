@@ -18,6 +18,9 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.restrictionReason
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.repository.FavoritesRepository
+import com.savoo.scclient.data.repository.RecapMath
+import com.savoo.scclient.data.repository.RecapRepository
+import com.savoo.scclient.data.repository.RecapStats
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
@@ -45,6 +48,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.random.Random
+import java.time.LocalDate
 import javax.inject.Inject
 
 private fun OfflineTrack.toTrack() = Track(
@@ -68,6 +72,7 @@ class HomeViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
     private val favoritesRepository: FavoritesRepository,
     private val settingsRepository: SettingsRepository,
+    private val recapRepository: RecapRepository,
 ) : ViewModel() {
 
     private val _user = MutableStateFlow<User?>(null)
@@ -135,6 +140,27 @@ class HomeViewModel @Inject constructor(
 
     val linkHintDismissed = settingsRepository.settings.map { it.linkHintDismissed }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    private val _recap = MutableStateFlow<RecapStats?>(null)
+
+    val recapBanner = combine(_recap, settingsRepository.settings.map { it.recapDismissedYear }) { stats, dismissedYear ->
+        stats?.takeIf { it.year != dismissedYear }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun loadRecap() {
+        val year = RecapMath.recapYearFor(LocalDate.now())
+        if (year == null) {
+            _recap.value = null
+            return
+        }
+        viewModelScope.launch {
+            _recap.value = runCatching { recapRepository.compute(year) }.getOrNull()?.takeIf { it.eligible }
+        }
+    }
+
+    fun dismissRecap(year: Int) {
+        viewModelScope.launch { settingsRepository.setRecapDismissedYear(year) }
+    }
 
     fun dismissLinkHint() {
         viewModelScope.launch { settingsRepository.setLinkHintDismissed(true) }
