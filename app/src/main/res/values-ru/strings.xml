@@ -796,4 +796,18 @@
     <string name="about_telegram">Telegram</string>
     <string name="about_github_desc">Исходный код и релизы</string>
     <string name="about_telegram_desc">Новости и сообщество</string>
+    <string name="player_sound">Звучание</string>
+    <string name="sound_hint">Темп и тон меняются вместе, как в slowed и sped up версиях.</string>
+    <string name="sound_preset_off">Обычное</string>
+    <string name="sound_preset_slowed_reverb">Slowed + reverb</string>
+    <string name="sound_preset_slowed">Slowed</string>
+    <string name="sound_preset_sped_up">Sped up</string>
+    <string name="sound_preset_nightcore">Nightcore</string>
+    <string name="sound_preset_custom">Своё</string>
+    <string name="sound_rate">Темп и тон</string>
+    <string name="sound_reverb">Реверберация</string>
+    <string name="sound_bass">Басы</string>
+    <string name="sound_percent_format">%d%%</string>
+    <string name="settings_beat_pulse">Пульсация в такт</string>
+    <string name="settings_beat_pulse_desc">Свечение за обложкой реагирует на басы трека</string>
 </resources>

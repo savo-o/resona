@@ -132,6 +132,7 @@ data class AppSettings(
     val playerHintShown: Boolean = false,
     val linkHintDismissed: Boolean = false,
     val pixelGlowEnabled: Boolean = true,
+    val beatPulseEnabled: Boolean = false,
     val cacheLimitMb: Int = DefaultCacheLimitMb,
     val crossfadeSeconds: Int = DefaultCrossfadeSeconds,
     val dividerStyle: DividerStyle = DividerStyle.SUBTLE,
@@ -186,6 +187,7 @@ class SettingsRepository @Inject constructor(
         val PLAYER_HINT_SHOWN = booleanPreferencesKey("player_hint_shown")
         val LINK_HINT_DISMISSED = booleanPreferencesKey("link_hint_dismissed")
         val PIXEL_GLOW_ENABLED = booleanPreferencesKey("pixel_glow_enabled")
+        val BEAT_PULSE_ENABLED = booleanPreferencesKey("beat_pulse_enabled")
         val CACHE_LIMIT_MB = intPreferencesKey("cache_limit_mb")
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
         val DIVIDER_STYLE = stringPreferencesKey("divider_style")
@@ -263,6 +265,7 @@ class SettingsRepository @Inject constructor(
             playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
             linkHintDismissed = prefs[Keys.LINK_HINT_DISMISSED] ?: false,
             pixelGlowEnabled = prefs[Keys.PIXEL_GLOW_ENABLED] ?: true,
+            beatPulseEnabled = prefs[Keys.BEAT_PULSE_ENABLED] ?: false,
             cacheLimitMb = prefs[Keys.CACHE_LIMIT_MB] ?: DefaultCacheLimitMb,
             crossfadeSeconds = (prefs[Keys.CROSSFADE_SECONDS] ?: DefaultCrossfadeSeconds)
                 .coerceIn(MinCrossfadeSeconds, MaxCrossfadeSeconds),
@@ -435,6 +438,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setPixelGlowEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.PIXEL_GLOW_ENABLED] = value }
+    }
+
+    suspend fun setBeatPulseEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.BEAT_PULSE_ENABLED] = value }
     }
 
     suspend fun setDividerStyle(style: DividerStyle) {

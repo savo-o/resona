@@ -46,6 +46,7 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     val controller: PlayerController,
+    val soundEffects: com.savoo.scclient.player.SoundEffects,
     private val favoritesDao: FavoritesDao,
     private val favoritesRepository: FavoritesRepository,
     private val offlineTrackManager: OfflineTrackManager,
@@ -241,6 +242,9 @@ class PlayerViewModel @Inject constructor(
 
     val artworkRingEnabled = settingsRepository.settings.map { it.artworkRingEnabled }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val beatPulseEnabled = settingsRepository.settings.map { it.beatPulseEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val artworkShape = settingsRepository.settings.map { it.artworkShape }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.ArtworkShape.BLOB)

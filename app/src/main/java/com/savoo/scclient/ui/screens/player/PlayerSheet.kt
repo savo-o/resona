@@ -65,6 +65,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
@@ -382,6 +383,11 @@ fun PlayerSheet(
             isSavingOffline = viewModel.isSavingOffline.collectAsState().value,
             isMixPlaying = viewModel.isMixPlaying.collectAsState().value,
             onShare = onShare,
+            pulse = rememberBeatPulse(
+                effects = viewModel.soundEffects,
+                enabled = viewModel.beatPulseEnabled.collectAsState().value,
+                isPlaying = state.isPlaying,
+            ),
             glowColor = glowColor,
             seekBarStyle = viewModel.seekBarStyle.collectAsState().value,
             playerStyle = viewModel.playerStyle.collectAsState().value,
@@ -434,6 +440,7 @@ private fun FullPlayerSheet(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     onShare: () -> Unit,
+    pulse: () -> Float,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
     playerStyle: PlayerStyle,
@@ -496,6 +503,7 @@ private fun FullPlayerSheet(
                 isSavingOffline = isSavingOffline,
                 isMixPlaying = isMixPlaying,
                 onShare = onShare,
+                pulse = pulse,
                 glowColor = glowColor,
                 seekBarStyle = seekBarStyle,
                 backgroundStyle = backgroundStyle,
@@ -539,6 +547,7 @@ private fun FullPlayerSheet(
             isSavingOffline = isSavingOffline,
             isMixPlaying = isMixPlaying,
             onShare = onShare,
+            pulse = pulse,
             palette = pixelPalette,
             seekBarStyle = seekBarStyle,
             glowColor = glowColor,
@@ -674,6 +683,7 @@ private fun PixelArtwork(
     artworkShape: ArtworkShape,
     artworkRingEnabled: Boolean,
     modifier: Modifier = Modifier,
+    pulse: () -> Float = { 0f },
 ) {
     val shape = rememberArtworkShape(artworkShape)
     val ringColor = palette.accent
@@ -690,7 +700,7 @@ private fun PixelArtwork(
         val ringSize = artSize + ringGap * 2 + ringStroke
         Box(modifier = Modifier.size(artSize), contentAlignment = Alignment.Center) {
             if (showGlow) {
-                OrbGlow(glowColor = glowColor, isPlaying = isPlaying, orbSize = artSize * 1.1f)
+                OrbGlow(glowColor = glowColor, isPlaying = isPlaying, orbSize = artSize * 1.1f, pulse = pulse)
             }
             TrackArtwork(
                 artworkUrl = artworkUrl,
@@ -869,6 +879,7 @@ private fun PixelPlayerContent(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     onShare: () -> Unit,
+    pulse: () -> Float,
     palette: PixelPalette,
     seekBarStyle: SeekBarStyle,
     glowColor: Color?,
@@ -1164,6 +1175,7 @@ private fun PixelPlayerContent(
                             artworkShape = artworkShape,
                             artworkRingEnabled = artworkRingEnabled,
                             isPlaying = state.isPlaying,
+                            pulse = pulse,
                             modifier = Modifier
                                 .requiredSize(artSize)
                                 .align(Alignment.BottomCenter),
@@ -1551,6 +1563,13 @@ private fun PixelPlayerContent(
                         onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.SPEED },
                     )
                     PixelMenuItem(
+                        icon = Icons.Filled.GraphicEq,
+                        label = stringResource(R.string.player_sound),
+                        palette = palette,
+                        active = state.soundMode.isActive,
+                        onClick = { haptic(); showOverflowMenu = false; panel = PixelPanel.SOUND },
+                    )
+                    PixelMenuItem(
                         icon = Icons.Filled.Share,
                         label = stringResource(R.string.player_share),
                         palette = palette,
@@ -1629,6 +1648,7 @@ private fun PixelPlayerContent(
                                 onDismiss = { panel = null },
                             )
                             PixelPanel.SPEED -> PlaybackSpeedContent(controller = controller)
+                            PixelPanel.SOUND -> SoundModeContent(controller = controller)
                         }
                     }
                 }
@@ -1637,7 +1657,9 @@ private fun PixelPlayerContent(
     }
 }
 
-private enum class PixelPanel { QUEUE, SLEEP_TIMER, SPEED }
+private const val ORB_PULSE = 0.12f
+
+private enum class PixelPanel { QUEUE, SLEEP_TIMER, SPEED, SOUND }
 
 
 @Composable
@@ -2427,6 +2449,7 @@ private fun ClassicPlayerContent(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     onShare: () -> Unit,
+    pulse: () -> Float,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
     backgroundStyle: PlayerBackgroundStyle,
@@ -2471,6 +2494,7 @@ private fun ClassicPlayerContent(
     var showQueue by remember { mutableStateOf(false) }
     var showSleepTimer by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
+    var showSound by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
     val sleepTimerRemainingMs by controller.sleepTimerRemainingMs.collectAsState()
     val sleepAfterCurrentTrack by controller.sleepAfterCurrentTrack.collectAsState()
@@ -2730,6 +2754,12 @@ private fun ClassicPlayerContent(
                                 onClick = { haptic(); showOverflowMenu = false; showSpeed = true },
                             )
                             ExpressiveMenuItem(
+                                icon = Icons.Filled.GraphicEq,
+                                label = stringResource(R.string.player_sound),
+                                active = state.soundMode.isActive,
+                                onClick = { haptic(); showOverflowMenu = false; showSound = true },
+                            )
+                            ExpressiveMenuItem(
                                 icon = Icons.Filled.Share,
                                 label = stringResource(R.string.player_share),
                                 onClick = {
@@ -2768,6 +2798,7 @@ private fun ClassicPlayerContent(
                             style = backgroundStyle,
                             artworkShape = artworkShape,
                             artworkRingEnabled = artworkRingEnabled,
+                            pulse = pulse,
                             modifier = Modifier
                                 .requiredSize(artSize)
                                 .align(Alignment.BottomCenter),
@@ -3046,6 +3077,9 @@ private fun ClassicPlayerContent(
     if (showQueue) {
         QueueSheet(controller = controller, onDismiss = { showQueue = false })
     }
+    if (showSound) {
+        SoundModeSheet(controller = controller, onDismiss = { showSound = false })
+    }
     if (showSpeed) {
         PlaybackSpeedSheet(controller = controller, onDismiss = { showSpeed = false })
     }
@@ -3077,6 +3111,7 @@ private fun OrbGlow(
     glowColor: Color?,
     isPlaying: Boolean,
     orbSize: Dp,
+    pulse: () -> Float = { 0f },
 ) {
     val colorSpec = tween<Color>(1400, easing = FastOutSlowInEasing)
     val orbA by animateColorAsState(glowColor ?: MaterialTheme.colorScheme.primary, colorSpec, label = "orbColorA")
@@ -3135,7 +3170,8 @@ private fun OrbGlow(
         modifier = Modifier
             .requiredSize(orbSize)
             .graphicsLayer {
-                scaleX = breathe * presence; scaleY = breathe * presence
+                val bump = 1f + pulse() * ORB_PULSE
+                scaleX = breathe * presence * bump; scaleY = breathe * presence * bump
                 alpha = presenceAlpha
                 val rad = Math.toRadians(angleA.toDouble())
                 translationX = (cos(rad) * 70f).toFloat()
@@ -3148,7 +3184,8 @@ private fun OrbGlow(
         modifier = Modifier
             .requiredSize(orbSize * 0.85f)
             .graphicsLayer {
-                scaleX = breathe * presence; scaleY = breathe * presence
+                val bump = 1f + pulse() * ORB_PULSE
+                scaleX = breathe * presence * bump; scaleY = breathe * presence * bump
                 alpha = presenceAlpha
                 val rad = Math.toRadians(angleB.toDouble())
                 translationX = (cos(rad) * 65f).toFloat()
@@ -3171,6 +3208,7 @@ private fun ArtworkOrb(
     artworkShape: ArtworkShape = ArtworkShape.BLOB,
     artworkRingEnabled: Boolean = true,
     modifier: Modifier = Modifier,
+    pulse: () -> Float = { 0f },
 ) {
     val fallback = MaterialTheme.colorScheme.primary
     val presenceAlpha by animateFloatAsState(
@@ -3202,7 +3240,7 @@ private fun ArtworkOrb(
         val ringSize = artSize + ringGap * 2 + ringStroke
         Box(modifier = Modifier.size(artSize), contentAlignment = Alignment.Center) {
             if (style == com.savoo.scclient.data.repository.PlayerBackgroundStyle.ORB) {
-                OrbGlow(glowColor = glowColor, isPlaying = isPlaying, orbSize = orbSize)
+                OrbGlow(glowColor = glowColor, isPlaying = isPlaying, orbSize = orbSize, pulse = pulse)
             } else if (style == com.savoo.scclient.data.repository.PlayerBackgroundStyle.BLURRED_ARTWORK) {
                 // Deliberately bounded (not requiredSize + Unbounded like the orb glow above): an
                 // overflowing blurred layer here would transiently clip on every recomposition that

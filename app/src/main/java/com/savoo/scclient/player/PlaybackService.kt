@@ -1,10 +1,14 @@
 package com.savoo.scclient.player
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -25,6 +29,7 @@ import javax.inject.Inject
 class PlaybackService : MediaSessionService() {
 
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var soundEffects: SoundEffects
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -36,7 +41,19 @@ class PlaybackService : MediaSessionService() {
             .setBackBuffer(60_000, true)
             .build()
 
-        val player = ExoPlayer.Builder(this)
+        val renderersFactory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean,
+            ): AudioSink = DefaultAudioSink.Builder(context)
+                .setEnableFloatOutput(enableFloatOutput)
+                .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                .setAudioProcessors(arrayOf(SoundEffectsAudioProcessor(soundEffects)))
+                .build()
+        }
+
+        val player = ExoPlayer.Builder(this, renderersFactory)
             .setLoadControl(loadControl)
             .setAudioAttributes(AudioAttributes.DEFAULT, true)
             .setHandleAudioBecomingNoisy(true)

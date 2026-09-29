@@ -63,6 +63,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import javax.inject.Inject
+import kotlin.math.roundToInt
 import javax.inject.Singleton
 import androidx.compose.ui.graphics.Color
 
@@ -79,6 +80,7 @@ data class PlaybackState(
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val playbackSpeed: Float = 1f,
+    val soundMode: SoundMode = SoundMode(),
     // Which playQueue() call is currently active, e.g. "home_mix" - lets a caller tell "is MY queue
     // the one playing right now" apart from "does the current track merely also appear in my queue"
     // (the two look the same if you only check track membership, but they're not: e.g. a track played
@@ -109,6 +111,7 @@ class PlayerController @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val unavailableTrackDao: UnavailableTrackDao,
     private val favoritesDao: FavoritesDao,
+    private val soundEffects: SoundEffects,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var controller: MediaController? = null
@@ -264,14 +267,15 @@ class PlayerController @Inject constructor(
             controller?.shuffleModeEnabled = false // shuffling is handled at the queue level, see toggleShuffle()
             controller?.repeatMode = prefs.getInt("repeat_mode", Player.REPEAT_MODE_OFF)
             val savedSpeed = prefs.getFloat("playback_speed", 1f).coerceIn(MIN_PLAYBACK_SPEED, MAX_PLAYBACK_SPEED)
-            controller?.setPlaybackSpeed(savedSpeed)
             _state.update {
                 it.copy(
                     shuffleEnabled = prefs.getBoolean("shuffle_enabled", false),
                     repeatMode = controller?.repeatMode ?: Player.REPEAT_MODE_OFF,
                     playbackSpeed = savedSpeed,
+                    soundMode = loadSoundMode(),
                 )
             }
+            applyPlaybackParameters()
             restorePlayLastTrack()
         }, MoreExecutors.directExecutor())
     }
@@ -357,7 +361,10 @@ class PlayerController @Inject constructor(
         }
 
         override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
-            _state.update { it.copy(playbackSpeed = playbackParameters.speed) }
+            _state.update {
+                val userSpeed = playbackParameters.speed / it.soundMode.rate
+                it.copy(playbackSpeed = (userSpeed * 100).roundToInt() / 100f)
+            }
         }
 
         override fun onRepeatModeChanged(repeatMode: Int) {
@@ -1174,9 +1181,46 @@ class PlayerController @Inject constructor(
 
     fun setPlaybackSpeed(speed: Float) {
         val clamped = speed.coerceIn(MIN_PLAYBACK_SPEED, MAX_PLAYBACK_SPEED)
-        controller?.setPlaybackSpeed(clamped)
         _state.update { it.copy(playbackSpeed = clamped) }
+        applyPlaybackParameters()
         prefs.edit().putFloat("playback_speed", clamped).apply()
+    }
+
+    fun setSoundMode(mode: SoundMode) {
+        val clamped = mode.copy(
+            customRate = mode.customRate.coerceIn(SoundMode.MIN_RATE, SoundMode.MAX_RATE),
+            customReverb = mode.customReverb.coerceIn(0f, 1f),
+            customBass = mode.customBass.coerceIn(0f, 1f),
+        )
+        _state.update { it.copy(soundMode = clamped) }
+        applyPlaybackParameters()
+        prefs.edit()
+            .putString("sound_preset", clamped.preset.name)
+            .putFloat("sound_custom_rate", clamped.customRate)
+            .putFloat("sound_custom_reverb", clamped.customReverb)
+            .putFloat("sound_custom_bass", clamped.customBass)
+            .apply()
+    }
+
+    private fun loadSoundMode(): SoundMode = SoundMode(
+        preset = prefs.getString("sound_preset", null)
+            ?.let { runCatching { SoundPreset.valueOf(it) }.getOrNull() }
+            ?: SoundPreset.OFF,
+        customRate = prefs.getFloat("sound_custom_rate", 1f).coerceIn(SoundMode.MIN_RATE, SoundMode.MAX_RATE),
+        customReverb = prefs.getFloat("sound_custom_reverb", 0f).coerceIn(0f, 1f),
+        customBass = prefs.getFloat("sound_custom_bass", 0f).coerceIn(0f, 1f),
+    )
+
+    private fun applyPlaybackParameters() {
+        val current = _state.value
+        val mode = current.soundMode
+        soundEffects.reverb = mode.reverb
+        soundEffects.bass = mode.bass
+        soundEffects.outputRate = current.playbackSpeed * mode.rate
+        controller?.playbackParameters = androidx.media3.common.PlaybackParameters(
+            current.playbackSpeed * mode.rate,
+            mode.rate,
+        )
     }
 
     fun cycleRepeatMode() {

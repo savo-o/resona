@@ -690,6 +690,12 @@ fun CustomizationScreen(
                     checked = settings.artworkRingEnabled,
                     onCheckedChange = { viewModel.setArtworkRingEnabled(it) },
                 )
+                SwitchItem(
+                    title = stringResource(R.string.settings_beat_pulse),
+                    subtitle = stringResource(R.string.settings_beat_pulse_desc),
+                    checked = settings.beatPulseEnabled,
+                    onCheckedChange = { viewModel.setBeatPulseEnabled(it) },
+                )
             }
 
             if (settings.playerStyle == PlayerStyle.CLASSIC) {

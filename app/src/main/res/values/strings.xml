@@ -788,4 +788,18 @@
     <string name="about_telegram">Telegram</string>
     <string name="about_github_desc">Source code and releases</string>
     <string name="about_telegram_desc">News and community</string>
+    <string name="player_sound">Sound</string>
+    <string name="sound_hint">Tempo and pitch change together, like in slowed and sped up edits.</string>
+    <string name="sound_preset_off">Normal</string>
+    <string name="sound_preset_slowed_reverb">Slowed + reverb</string>
+    <string name="sound_preset_slowed">Slowed</string>
+    <string name="sound_preset_sped_up">Sped up</string>
+    <string name="sound_preset_nightcore">Nightcore</string>
+    <string name="sound_preset_custom">Custom</string>
+    <string name="sound_rate">Tempo and pitch</string>
+    <string name="sound_reverb">Reverb</string>
+    <string name="sound_bass">Bass</string>
+    <string name="sound_percent_format">%d%%</string>
+    <string name="settings_beat_pulse">Pulse to the beat</string>
+    <string name="settings_beat_pulse_desc">The glow behind the artwork reacts to the bass of the track</string>
 </resources>
