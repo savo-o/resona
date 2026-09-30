@@ -67,6 +67,7 @@ import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.components.AddToPlaylistSheet
 import com.savoo.scclient.ui.components.EmptyState
 import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
 import com.savoo.scclient.ui.components.FavoriteSource
@@ -236,7 +237,7 @@ class FavoritesViewModel @Inject constructor(
         ids.chunked(SQLITE_MAX_IDS_PER_QUERY).flatMap { favoritesDao.getTracksByIds(it) }
     }
 
-    private suspend fun loadSelectedInOrder(ids: Set<Long>): List<Track> {
+    suspend fun loadSelectedInOrder(ids: Set<Long>): List<Track> {
         val ordered = filteredTrackIds().filter { it in ids }
         val byId = loadRows(ordered).associateBy { it.trackId }
         return ordered.mapNotNull { byId[it]?.toTrack() }
@@ -335,6 +336,11 @@ fun FavoritesScreen(
     val haptic = rememberHapticTick()
     val scope = rememberCoroutineScope()
     val hasFavorites = (totalCount ?: 0) > 0
+    var playlistTargets by remember { mutableStateOf<List<Track>?>(null) }
+
+    playlistTargets?.let { targets ->
+        AddToPlaylistSheet(tracks = targets, onDismiss = { playlistTargets = null })
+    }
 
     LaunchedEffect(Unit) { viewModel.refreshOnline() }
 
@@ -380,6 +386,11 @@ fun FavoritesScreen(
                 onDownloadAll = {
                     viewModel.toggleDownloadForSelected(selection.selectedIds)
                     selection.clear()
+                },
+                onAddToPlaylist = {
+                    val ids = selection.selectedIds
+                    selection.clear()
+                    scope.launch { playlistTargets = viewModel.loadSelectedInOrder(ids) }
                 },
             )
         },

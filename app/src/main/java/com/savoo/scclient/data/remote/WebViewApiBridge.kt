@@ -1,5 +1,6 @@
 package com.savoo.scclient.data.remote
 
+import com.savoo.scclient.debug.DebugLog
 import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
@@ -37,6 +38,7 @@ class WebViewApiBridge @Inject constructor(
     private val callMutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var nextCallId = 0
+    private var staleSessionChecked = false
 
     @Volatile
     var lastResponseBody: String? = null
@@ -58,6 +60,16 @@ class WebViewApiBridge @Inject constructor(
         wv.settings.setSupportMultipleWindows(false)
         wv.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         webView = wv
+        if (!staleSessionChecked) {
+            staleSessionChecked = true
+            if (!tokenStore.isLoggedIn.value) {
+                runCatching {
+                    CookieManager.getInstance().removeAllCookies(null)
+                    android.webkit.WebStorage.getInstance().deleteAllData()
+                }
+                DebugLog.log(TAG, "signed out at start: cleared leftover web session")
+            }
+        }
         wv.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String?) {
                 Log.d(TAG, "page loaded: $url")
@@ -66,7 +78,8 @@ class WebViewApiBridge @Inject constructor(
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val host = request.url.host.orEmpty()
-                val allowed = host == "soundcloud.com" || host.endsWith(".soundcloud.com")
+                val allowed = host == "soundcloud.com" || host.endsWith(".soundcloud.com") ||
+                    host.endsWith(".captcha-delivery.com")
                 if (!allowed) Log.w(TAG, "blocked navigation to $host")
                 return !allowed
             }
@@ -94,7 +107,7 @@ class WebViewApiBridge @Inject constructor(
         val cookieManager = CookieManager.getInstance()
         cookies.split(";").forEach { pair ->
             val trimmed = pair.trim()
-            if (trimmed.isNotEmpty()) {
+            if (trimmed.isNotEmpty() && !trimmed.startsWith("datadome=")) {
                 cookieManager.setCookie("https://soundcloud.com", trimmed)
             }
         }
@@ -107,6 +120,16 @@ class WebViewApiBridge @Inject constructor(
     suspend fun likeTrack(userId: Long, trackId: Long): Int = executeFetch(
         method = "PUT",
         url = "https://api-v2.soundcloud.com/users/$userId/track_likes/$trackId"
+    )
+
+    suspend fun likeTrackResponse(userId: Long, trackId: Long): BridgeResponse = executeRequest(
+        method = "PUT",
+        url = "https://api-v2.soundcloud.com/users/$userId/track_likes/$trackId"
+    )
+
+    suspend fun ackSpamWarning(urn: String): BridgeResponse = executeRequest(
+        method = "POST",
+        url = "https://api-v2.soundcloud.com/me/spam_warnings/${android.net.Uri.encode(urn)}/ack",
     )
 
     suspend fun unlikeTrack(userId: Long, trackId: Long): Int = executeFetch(
@@ -146,6 +169,23 @@ class WebViewApiBridge @Inject constructor(
         url = "https://api-v2.soundcloud.com/me/profile/avatar",
     )
 
+    suspend fun createPlaylist(json: String): BridgeResponse = executeRequest(
+        method = "POST",
+        url = "https://api-v2.soundcloud.com/playlists",
+        jsonBody = json,
+    )
+
+    suspend fun updatePlaylist(playlistId: Long, json: String): BridgeResponse = executeRequest(
+        method = "PUT",
+        url = "https://api-v2.soundcloud.com/playlists/$playlistId",
+        jsonBody = json,
+    )
+
+    suspend fun deletePlaylist(playlistId: Long): BridgeResponse = executeRequest(
+        method = "DELETE",
+        url = "https://api-v2.soundcloud.com/playlists/$playlistId",
+    )
+
     private suspend fun executeFetch(
         method: String,
         url: String,
@@ -164,75 +204,86 @@ class WebViewApiBridge @Inject constructor(
         contentType: String = "application/json",
         extraQuery: String? = null,
         timeoutMs: Long = 10_000,
-    ): BridgeResponse = callMutex.withLock {
-        val wv = webView ?: return@withLock BridgeResponse(0, null)
-        if (withTimeoutOrNull(8000) { pageReady.await() } == null) {
-            Log.w(TAG, "$method $url: page never became ready")
-            return@withLock BridgeResponse(0, null)
-        }
+    ): BridgeResponse {
+        val queuedAt = android.os.SystemClock.elapsedRealtime()
+        return callMutex.withLock {
+            val lockedAt = android.os.SystemClock.elapsedRealtime()
+            val wv = webView ?: return@withLock BridgeResponse(0, null)
+            if (withTimeoutOrNull(8000) { pageReady.await() } == null) {
+                Log.w(TAG, "$method $url: page never became ready")
+                DebugLog.log(TAG, "$method $url: page never became ready")
+                return@withLock BridgeResponse(0, null)
+            }
+            val readyAt = android.os.SystemClock.elapsedRealtime()
 
-        val clientId = clientIdProvider.cachedOrFallback()
-        val token = tokenStore.accessToken.orEmpty()
-        val version = appVersion()
-        val fullUrl = buildString {
-            append(url)
-            append("?client_id=").append(clientId)
-            if (version != null) append("&app_version=").append(version)
-            append("&app_locale=en")
-            if (extraQuery != null) append("&").append(extraQuery)
-        }
-        val slot = "__bridgeCall${nextCallId++}"
+            val clientId = clientIdProvider.cachedOrFallback()
+            val token = tokenStore.accessToken.orEmpty()
+            val version = appVersion()
+            val fullUrl = buildString {
+                append(url)
+                append("?client_id=").append(clientId)
+                if (version != null) append("&app_version=").append(version)
+                append("&app_locale=en")
+                if (extraQuery != null) append("&").append(extraQuery)
+            }
+            val slot = "__bridgeCall${nextCallId++}"
 
-        val headersJs = if (jsonBody == null) {
-            "{ 'Authorization': ${org.json.JSONObject.quote("OAuth $token")} }"
-        } else {
-            "{ 'Authorization': ${org.json.JSONObject.quote("OAuth $token")}, 'Content-Type': ${org.json.JSONObject.quote(contentType)} }"
-        }
-        val bodyJs = if (jsonBody == null) "" else ", body: ${org.json.JSONObject.quote(jsonBody)}"
+            val headersJs = if (jsonBody == null) {
+                "{ 'Authorization': ${org.json.JSONObject.quote("OAuth $token")} }"
+            } else {
+                "{ 'Authorization': ${org.json.JSONObject.quote("OAuth $token")}, 'Content-Type': ${org.json.JSONObject.quote(contentType)} }"
+            }
+            val bodyJs = if (jsonBody == null) "" else ", body: ${org.json.JSONObject.quote(jsonBody)}"
 
-        val js = """
-            (function() {
-                window.$slot = { done: false, result: null };
-                fetch(${org.json.JSONObject.quote(fullUrl)}, {
-                    method: ${org.json.JSONObject.quote(method)},
-                    credentials: 'include',
-                    headers: $headersJs$bodyJs
-                }).then(function(resp) {
-                    return resp.text().then(function(body) {
-                        window.$slot.result = JSON.stringify({code: resp.status, ok: resp.ok, body: body});
+            val js = """
+                (function() {
+                    window.$slot = { done: false, result: null };
+                    fetch(${org.json.JSONObject.quote(fullUrl)}, {
+                        method: ${org.json.JSONObject.quote(method)},
+                        credentials: 'include',
+                        headers: $headersJs$bodyJs
+                    }).then(function(resp) {
+                        return resp.text().then(function(body) {
+                            window.$slot.result = JSON.stringify({code: resp.status, ok: resp.ok, body: body});
+                            window.$slot.done = true;
+                        });
+                    }).catch(function(e) {
+                        window.$slot.result = JSON.stringify({code: 0, ok: false, error: e.message});
                         window.$slot.done = true;
                     });
-                }).catch(function(e) {
-                    window.$slot.result = JSON.stringify({code: 0, ok: false, error: e.message});
-                    window.$slot.done = true;
-                });
-            })()
-        """.trimIndent()
+                })()
+            """.trimIndent()
 
-        withContext(Dispatchers.Main) { wv.evaluateJavascript(js, null) }
+            withContext(Dispatchers.Main) { wv.evaluateJavascript(js, null) }
 
-        val readJs = "(function() { var s = window.$slot; return (s && s.done) ? s.result : null; })()"
-        val raw = withTimeoutOrNull(timeoutMs) {
-            var result: String? = null
-            while (result == null) {
-                result = evalOnMain(wv, readJs)
-                if (result == null) delay(250)
+            val readJs = "(function() { var s = window.$slot; return (s && s.done) ? s.result : null; })()"
+            val raw = withTimeoutOrNull(timeoutMs) {
+                var result: String? = null
+                while (result == null) {
+                    result = evalOnMain(wv, readJs)
+                    if (result == null) delay(250)
+                }
+                result
             }
-            result
-        }
-        // Clean up the per-call slot so it doesn't accumulate on the page's window object.
-        withContext(Dispatchers.Main) { wv.evaluateJavascript("delete window.$slot;", null) }
+            // Clean up the per-call slot so it doesn't accumulate on the page's window object.
+            withContext(Dispatchers.Main) { wv.evaluateJavascript("delete window.$slot;", null) }
 
-        val decoded = runCatching { org.json.JSONTokener(raw.orEmpty()).nextValue() as? String }.getOrNull()
-            ?: raw?.removeSurrounding("\"")?.replace("\\\"", "\"")
-        lastResponseBody = decoded
-        lastResponsePayload = runCatching {
-            org.json.JSONObject(org.json.JSONObject(decoded.orEmpty()).getString("body"))
-        }.getOrNull()
-        Log.d(TAG, "$method $url -> ${decoded?.take(500)}")
-        val code = Regex("\"code\":(\\d+)").find(decoded.orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
-        val body = runCatching { org.json.JSONObject(decoded.orEmpty()).optString("body") }.getOrNull()
-        BridgeResponse(code, body)
+            val decoded = runCatching { org.json.JSONTokener(raw.orEmpty()).nextValue() as? String }.getOrNull()
+                ?: raw?.removeSurrounding("\"")?.replace("\\\"", "\"")
+            lastResponseBody = decoded
+            lastResponsePayload = runCatching {
+                org.json.JSONObject(org.json.JSONObject(decoded.orEmpty()).getString("body"))
+            }.getOrNull()
+            Log.d(TAG, "$method $url -> ${decoded?.take(500)}")
+            val code = Regex("\"code\":(\\d+)").find(decoded.orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val body = runCatching { org.json.JSONObject(decoded.orEmpty()).optString("body") }.getOrNull()
+            val finishedAt = android.os.SystemClock.elapsedRealtime()
+            DebugLog.log(
+                TAG,
+                "$method ${url.substringAfter("soundcloud.com")} -> $code, queue ${lockedAt - queuedAt} ms, page ${readyAt - lockedAt} ms, fetch ${finishedAt - readyAt} ms",
+            )
+            BridgeResponse(code, body)
+        }
     }
 
     private suspend fun appVersion(): String? {

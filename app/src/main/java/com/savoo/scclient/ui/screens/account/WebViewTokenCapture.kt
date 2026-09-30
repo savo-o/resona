@@ -14,6 +14,7 @@ private const val LOG_TAG = "ResonaLogin"
  * consent screens). Everything else stays blocked so this never turns into an open browser. */
 private val ALLOWED_AUTH_HOSTS = listOf(
     "soundcloud.com",
+    "captcha-delivery.com",
     "accounts.google.com",
     "appleid.apple.com",
     "www.facebook.com",
@@ -61,7 +62,7 @@ class WebViewTokenCapture(
             ) {
                 val t = auth.removePrefix("OAuth ")
                 if (t.length > 20) {
-                    DebugLog.log(LOG_TAG, "token captured from Authorization header on $url")
+                    DebugLog.log(LOG_TAG, "token captured from Authorization header on ${request.url.host}${request.url.path}")
                     currentToken = t
                     currentCookies = cookiesFromManager()
                     onTokenCaptured(t)
@@ -72,7 +73,7 @@ class WebViewTokenCapture(
         }
 
         override fun onPageFinished(view: WebView, url: String?) {
-            DebugLog.log(LOG_TAG, "page finished: $url")
+            DebugLog.log(LOG_TAG, "page finished: ${url?.substringBefore('?')?.substringBefore('#')}")
             onPageLoaded?.invoke()
             if (currentToken == null) {
                 extractHydrationToken(view) { t ->

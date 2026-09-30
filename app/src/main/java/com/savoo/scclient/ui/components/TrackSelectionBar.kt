@@ -11,6 +11,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,11 +24,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.ButtonGroup
 import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +68,8 @@ fun TrackSelectionBar(
     onFavoriteAll: (() -> Unit)? = null,
     onDownloadAll: (() -> Unit)? = null,
     onQueueAll: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
 
@@ -158,29 +166,76 @@ fun TrackSelectionBar(
                             )
                         )
                     }
+                    if (onAddToPlaylist != null) {
+                        add(
+                            SelectionActionSpec(
+                                icon = Icons.Filled.LibraryAdd,
+                                label = stringResource(R.string.selection_add_to_playlist),
+                                onClick = { haptics.click(); onAddToPlaylist() },
+                            )
+                        )
+                    }
+                    if (onRemoveFromPlaylist != null) {
+                        add(
+                            SelectionActionSpec(
+                                icon = Icons.Filled.PlaylistRemove,
+                                label = stringResource(R.string.selection_remove_from_playlist),
+                                onClick = { haptics.click(); onRemoveFromPlaylist() },
+                            )
+                        )
+                    }
                 }
+                val visibleActions = if (actions.size > MAX_VISIBLE_SELECTION_ACTIONS) actions.take(MAX_VISIBLE_SELECTION_ACTIONS - 1) else actions
+                val overflowActions = actions.drop(visibleActions.size)
+                var overflowOpen by remember { mutableStateOf(false) }
 
                 ButtonGroup(
                     horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
                 ) {
-                    actions.forEachIndexed { index, action ->
+                    val lastIndex = if (overflowActions.isEmpty()) visibleActions.lastIndex else visibleActions.size
+                    visibleActions.forEachIndexed { index, action ->
                         SelectionAction(
                             icon = action.icon,
                             label = action.label,
                             shapes = when {
-                                actions.size == 1 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
                                 index == 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                index == actions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                index == lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                             },
                             onClick = action.onClick,
                         )
+                    }
+                    if (overflowActions.isNotEmpty()) {
+                        Box {
+                            SelectionAction(
+                                icon = Icons.Filled.MoreVert,
+                                label = stringResource(R.string.selection_more),
+                                shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                                onClick = { haptics.click(); overflowOpen = true },
+                            )
+                            DropdownMenu(
+                                expanded = overflowOpen,
+                                onDismissRequest = { overflowOpen = false },
+                                shape = RoundedCornerShape(24.dp),
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ) {
+                                overflowActions.forEach { action ->
+                                    DropdownMenuItem(
+                                        text = { Text(action.label) },
+                                        leadingIcon = { Icon(action.icon, contentDescription = null) },
+                                        onClick = { overflowOpen = false; action.onClick() },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
 }
+
+private const val MAX_VISIBLE_SELECTION_ACTIONS = 4
 
 private data class SelectionActionSpec(
     val icon: ImageVector,

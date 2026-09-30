@@ -143,6 +143,27 @@ class AppDatabaseMigrationTest {
     }
 
     @Test
+    fun migrate16To17AddsLocalPlaylistsAndKeepsFavorites() {
+        helper.createDatabase(TEST_DB, 16).use { db ->
+            db.execSQL(
+                "INSERT INTO favorite_playlists (playlistId, title, artworkUrl, trackCount, username, permalinkUrl, addedAt) " +
+                    "VALUES (7, 'Saved', NULL, 3, 'Owner', NULL, 1000)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB, 17, true, *AppDatabase.ALL_MIGRATIONS).use { db ->
+            assertEquals(1, count(db, "favorite_playlists"))
+            assertEquals(0, count(db, "local_playlists"))
+            db.execSQL("INSERT INTO local_playlists (title, createdAt, updatedAt) VALUES ('Mine', 1, 1)")
+            db.execSQL(
+                "INSERT INTO local_playlist_tracks (playlistId, trackId, position, addedAt, title, username, artworkUrl, durationMs, permalinkUrl, userId, userAvatarUrl, genre) " +
+                    "VALUES (1, 5, 0, 1, 'Track', 'Artist', NULL, 1000, NULL, 9, NULL, NULL)"
+            )
+            assertEquals(1, count(db, "local_playlist_tracks"))
+        }
+    }
+
+    @Test
     fun migrate14To15RepairsIntermediateDevSchema() {
         helper.createDatabase(TEST_DB, 14).use { db ->
             db.execSQL("DROP TABLE lyrics_sync")
@@ -198,6 +219,6 @@ class AppDatabaseMigrationTest {
     private companion object {
         const val TEST_DB = "migration-test.db"
         const val FIRST_TESTED_VERSION = 11
-        const val LATEST_VERSION = 16
+        const val LATEST_VERSION = 17
     }
 }

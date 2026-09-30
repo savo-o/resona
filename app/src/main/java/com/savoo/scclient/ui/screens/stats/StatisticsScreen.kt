@@ -62,8 +62,18 @@ import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.local.ArtistListenStat
 import com.savoo.scclient.data.local.TrackListenStat
+import com.savoo.scclient.data.repository.RecapMath
+import com.savoo.scclient.data.repository.RecapRepository
+import com.savoo.scclient.data.repository.RecapStats
+import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.StatsPeriod
 import com.savoo.scclient.data.repository.StatsRepository
+import com.savoo.scclient.ui.screens.recap.RecapBanner
+import com.savoo.scclient.ui.screens.recap.RecapDebugState
+import com.savoo.scclient.ui.screens.recap.RecapStoriesDialog
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -78,7 +88,24 @@ import javax.inject.Inject
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class StatisticsViewModel @Inject constructor(
     statsRepository: StatsRepository,
+    recapRepository: RecapRepository,
+    settingsRepository: SettingsRepository,
 ) : ViewModel() {
+    val recap = combine(
+        settingsRepository.settings.map { it.recapEnabled },
+        RecapDebugState.forceBanner,
+    ) { enabled, forced -> enabled to forced }
+        .mapLatest { (enabled, forced) ->
+            val today = LocalDate.now()
+            val year = RecapMath.recapYearFor(today) ?: today.year.takeIf { forced }
+            if (year == null || !(enabled || forced)) {
+                null
+            } else {
+                runCatching { recapRepository.compute(year) }.getOrNull()?.takeIf { forced || it.eligible }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     private val _period = MutableStateFlow(StatsPeriod.ALL)
     val period = _period.asStateFlow()
 
@@ -135,6 +162,12 @@ fun StatisticsScreen(
     val period by viewModel.period.collectAsState()
     var showRankingInfo by remember { mutableStateOf(false) }
     var showWrapped by remember { mutableStateOf(false) }
+    val recap by viewModel.recap.collectAsState()
+    var recapOpen by remember { mutableStateOf(false) }
+    val openedRecap: RecapStats? = recap
+    if (recapOpen && openedRecap != null) {
+        RecapStoriesDialog(stats = openedRecap, onDismiss = { recapOpen = false })
+    }
 
     if (showWrapped) {
         WrappedSheet(
@@ -182,6 +215,16 @@ fun StatisticsScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                recap?.let { stats ->
+                    item(key = "recap") {
+                        RecapBanner(
+                            stats = stats,
+                            onOpen = { recapOpen = true },
+                            onDismiss = null,
+                            horizontalPadding = 0.dp,
+                        )
+                    }
+                }
                 item {
                     ButtonGroup(modifier = Modifier.fillMaxWidth()) {
                         StatsPeriod.entries.forEachIndexed { index, option ->

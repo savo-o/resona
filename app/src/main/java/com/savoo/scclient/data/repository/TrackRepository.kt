@@ -7,6 +7,7 @@ import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.SoundCloudApi
+import com.savoo.scclient.data.remote.BridgeResponse
 import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.debug.DebugLog
 import javax.inject.Inject
@@ -27,7 +28,11 @@ class TrackRepository @Inject constructor(
     private val TAG = "TrackRepository"
     private var cachedUserId: Long? = null
 
-    private suspend fun currentUserId(): Long? {
+    fun resetCurrentUser() {
+        cachedUserId = null
+    }
+
+    suspend fun currentUserId(): Long? {
         cachedUserId?.let { return it }
         val id = runCatching { api.getMe().id }.getOrNull()
         cachedUserId = id
@@ -77,6 +82,13 @@ class TrackRepository @Inject constructor(
         val userId = currentUserId() ?: error("Not logged in")
         val code = webBridge.likeTrack(userId, trackId)
         if (code !in 200..299) error("likeTrack failed via WebView: HTTP $code")
+    }
+
+    suspend fun ackSpamWarning(urn: String): BridgeResponse = webBridge.ackSpamWarning(urn)
+
+    suspend fun likeTrackResponse(trackId: Long): BridgeResponse {
+        val userId = currentUserId() ?: return BridgeResponse(0, null)
+        return webBridge.likeTrackResponse(userId, trackId)
     }
 
     suspend fun unlikeTrack(trackId: Long) {

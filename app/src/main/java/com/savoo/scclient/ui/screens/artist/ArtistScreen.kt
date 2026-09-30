@@ -75,6 +75,7 @@ import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.components.AddToPlaylistSheet
 import com.savoo.scclient.ui.components.CollapsingDetailTopBar
 import com.savoo.scclient.ui.components.DetailActionRow
 import com.savoo.scclient.ui.components.DetailCardCarousel
@@ -290,6 +291,11 @@ fun ArtistScreen(
     val listState = rememberLazyListState()
     val selection = rememberTrackSelection()
     val haptic = rememberHapticTick()
+    var playlistTargets by remember { mutableStateOf<List<Track>?>(null) }
+
+    playlistTargets?.let { targets ->
+        AddToPlaylistSheet(tracks = targets, onDismiss = { playlistTargets = null })
+    }
 
     LaunchedEffect(userId) { viewModel.loadArtist(userId) }
 
@@ -370,6 +376,10 @@ fun ArtistScreen(
                 },
                 onDownloadAll = {
                     viewModel.toggleDownloadForSelected(selection.selectedIds)
+                    selection.clear()
+                },
+                onAddToPlaylist = {
+                    playlistTargets = sortedTracks.filter { it.id in selection.selectedIds }
                     selection.clear()
                 },
             )

@@ -101,6 +101,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.graphics.shapes.Morph
@@ -423,7 +424,7 @@ internal fun LyricsView(
                 }
                 Text(
                     result.text,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, lineHeight = 27.sp),
                     color = onColor.copy(alpha = 0.88f),
                     textAlign = TextAlign.Center,
                     modifier = Modifier

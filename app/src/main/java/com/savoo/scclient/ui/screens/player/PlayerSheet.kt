@@ -74,6 +74,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
@@ -176,6 +177,11 @@ import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.haptics.rememberHapticTick
 import com.savoo.scclient.ui.haptics.rememberHaptics
 import com.savoo.scclient.ui.theme.buildPixelScheme
+import com.savoo.scclient.ui.components.AddToPlaylistSheet
+import com.savoo.scclient.ui.components.FavoritesSyncBanner
+import com.savoo.scclient.ui.components.PlaylistAddBanner
+import com.savoo.scclient.data.repository.FavoritesSyncState
+import com.savoo.scclient.data.repository.PlaylistAddProgress
 import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.components.artworkProgressRing
 import com.savoo.scclient.ui.components.rememberArtworkShape
@@ -232,6 +238,8 @@ fun PlayerSheet(
     val undoAction by viewModel.undoController.current.collectAsState()
     val bulkDownload by viewModel.bulkDownload.collectAsState()
     val favoritesImport by viewModel.favoritesImport.collectAsState()
+    val playlistAdd by viewModel.playlistAdd.collectAsState()
+    val favoritesPush by viewModel.favoritesPush.collectAsState()
 
     BackHandler(enabled = showFullPlayer) { showFullPlayer = false }
 
@@ -295,6 +303,32 @@ fun PlayerSheet(
                 FavoritesImportBanner(
                     state = importState,
                     onCancel = { haptics.click(); viewModel.cancelFavoritesImport() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+        var lastPlaylistAdd by remember { mutableStateOf<PlaylistAddProgress?>(null) }
+        playlistAdd?.let { lastPlaylistAdd = it }
+        AnimatedVisibility(visible = playlistAdd != null, enter = bannerEnter, exit = bannerExit) {
+            lastPlaylistAdd?.let { progress ->
+                PlaylistAddBanner(
+                    progress = progress,
+                    onCancel = { haptics.click(); viewModel.cancelPlaylistAdd() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+        }
+        var lastFavoritesPush by remember { mutableStateOf<FavoritesSyncState?>(null) }
+        favoritesPush?.let { lastFavoritesPush = it }
+        AnimatedVisibility(visible = favoritesPush != null, enter = bannerEnter, exit = bannerExit) {
+            lastFavoritesPush?.let { pushState ->
+                FavoritesSyncBanner(
+                    state = pushState,
+                    onCancel = { haptics.click(); viewModel.cancelFavoritesPush() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -928,6 +962,12 @@ private fun PixelPlayerContent(
     var lastPanel by remember { mutableStateOf(PixelPanel.QUEUE) }
     panel?.let { lastPanel = it }
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var showAddToPlaylist by remember { mutableStateOf(false) }
+    if (showAddToPlaylist) {
+        state.currentTrack?.let { track ->
+            AddToPlaylistSheet(tracks = listOf(track), onDismiss = { showAddToPlaylist = false })
+        }
+    }
     val sleepTimerRemainingMs by controller.sleepTimerRemainingMs.collectAsState()
     val sleepAfterCurrentTrack by controller.sleepAfterCurrentTrack.collectAsState()
     val sleepTimerActive = sleepTimerRemainingMs != null || sleepAfterCurrentTrack
@@ -1564,6 +1604,12 @@ private fun PixelPlayerContent(
                         },
                     )
                     PixelMenuItem(
+                        icon = Icons.Filled.LibraryAdd,
+                        label = stringResource(R.string.playlist_add_to),
+                        palette = palette,
+                        onClick = { haptic(); showOverflowMenu = false; showAddToPlaylist = true },
+                    )
+                    PixelMenuItem(
                         icon = Icons.Filled.Speed,
                         label = stringResource(R.string.player_speed),
                         palette = palette,
@@ -2187,6 +2233,12 @@ private fun ClassicPlayerContent(
     var showSpeed by remember { mutableStateOf(false) }
     var showSound by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
+    var showAddToPlaylist by remember { mutableStateOf(false) }
+    if (showAddToPlaylist) {
+        state.currentTrack?.let { track ->
+            AddToPlaylistSheet(tracks = listOf(track), onDismiss = { showAddToPlaylist = false })
+        }
+    }
     val sleepTimerRemainingMs by controller.sleepTimerRemainingMs.collectAsState()
     val sleepAfterCurrentTrack by controller.sleepAfterCurrentTrack.collectAsState()
     val sleepTimerActive = sleepTimerRemainingMs != null || sleepAfterCurrentTrack
@@ -2445,6 +2497,11 @@ private fun ClassicPlayerContent(
                                 moreLikeThis(scope, context, controller, track) { infoMessage = it }
                             }
                                 },
+                            )
+                            ExpressiveMenuItem(
+                                icon = Icons.Filled.LibraryAdd,
+                                label = stringResource(R.string.playlist_add_to),
+                                onClick = { haptic(); showOverflowMenu = false; showAddToPlaylist = true },
                             )
                             ExpressiveMenuItem(
                                 icon = Icons.Filled.Speed,

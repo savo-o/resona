@@ -295,6 +295,7 @@ class SettingsViewModel @Inject constructor(
     fun setBackgroundMode(mode: AppBackgroundMode) = viewModelScope.launch { repository.setBackgroundMode(mode) }
     fun setPixelGlowEnabled(value: Boolean) = viewModelScope.launch { repository.setPixelGlowEnabled(value) }
     fun setBeatPulseEnabled(value: Boolean) = viewModelScope.launch { repository.setBeatPulseEnabled(value) }
+    fun setRecapEnabled(value: Boolean) = viewModelScope.launch { repository.setRecapEnabled(value) }
     fun setCacheLimitMb(limitMb: Int) = viewModelScope.launch { repository.setCacheLimitMb(limitMb) }
     fun setCrossfadeSeconds(seconds: Int) = viewModelScope.launch { repository.setCrossfadeSeconds(seconds) }
     fun setBackgroundCustomColor(color: Color) = viewModelScope.launch { repository.setBackgroundCustomColor(color) }
@@ -906,6 +907,13 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.settings_lyrics_genius_fallback_desc),
                     checked = settings.geniusFallbackEnabled,
                     onCheckedChange = { viewModel.setGeniusFallbackEnabled(it) }
+                )
+                SettingsDivider()
+                SwitchItem(
+                    title = stringResource(R.string.settings_recap),
+                    subtitle = stringResource(R.string.settings_recap_desc),
+                    checked = settings.recapEnabled,
+                    onCheckedChange = { viewModel.setRecapEnabled(it) }
                 )
                 SettingsDivider()
                 SwitchItem(

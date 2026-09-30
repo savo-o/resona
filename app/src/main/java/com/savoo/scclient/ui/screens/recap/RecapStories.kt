@@ -397,6 +397,15 @@ private fun IntroSlide(stats: RecapStats) {
             delayMs = 900,
             textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(40.dp))
+        val noteReveal = rememberReveal(1300)
+        Text(
+            stringResource(R.string.recap_local_note),
+            color = Color.White.copy(alpha = 0.55f),
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.revealed(noteReveal, offset = 10.dp),
+        )
     }
 }
 

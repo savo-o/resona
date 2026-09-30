@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.ExcludedArtistDao
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.local.LocalPlaylistDao
 import com.savoo.scclient.data.local.LyricsCacheDao
 import com.savoo.scclient.data.local.LyricsSyncDao
 import com.savoo.scclient.data.local.OfflineDao
@@ -221,4 +222,7 @@ object NetworkModule {
 
     @Provides
     fun provideUnavailableTrackDao(db: AppDatabase): UnavailableTrackDao = db.unavailableTrackDao()
+
+    @Provides
+    fun provideLocalPlaylistDao(db: AppDatabase): LocalPlaylistDao = db.localPlaylistDao()
 }

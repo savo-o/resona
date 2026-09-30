@@ -4,6 +4,28 @@ import com.savoo.scclient.ui.components.badgeIcon
 import com.savoo.scclient.ui.components.badgeTint
 import com.savoo.scclient.ui.components.badgeTitle
 import com.savoo.scclient.ui.components.followersCountText
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.toShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.savoo.scclient.ui.haptics.rememberHapticTick
+import java.text.NumberFormat
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -78,6 +100,7 @@ import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.BadgeRepository
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.data.repository.FavoritesRepository
+import com.savoo.scclient.data.repository.FavoritesSyncManager
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
@@ -104,7 +127,30 @@ class AccountViewModel @Inject constructor(
     val clientIdProvider: ClientIdProvider,
     val badgeRepository: BadgeRepository,
     private val settingsRepository: SettingsRepository,
+    private val favoritesSyncManager: FavoritesSyncManager,
 ) : ViewModel() {
+
+    val localOnlyFavorites = favoritesSyncManager.localOnlyCount
+    val favoritesPush = favoritesSyncManager.state
+
+    fun pushLocalFavorites() {
+        favoritesSyncManager.start()
+    }
+
+    val spamWarning = favoritesSyncManager.spamWarning
+
+    private val _isAckingSpamWarning = MutableStateFlow(false)
+    val isAckingSpamWarning = _isAckingSpamWarning.asStateFlow()
+
+    fun acknowledgeSpamWarning(onFailed: () -> Unit) {
+        if (_isAckingSpamWarning.value) return
+        _isAckingSpamWarning.value = true
+        viewModelScope.launch {
+            val ok = favoritesSyncManager.acknowledgeSpamWarning()
+            _isAckingSpamWarning.value = false
+            if (!ok) onFailed()
+        }
+    }
 
     private val _uiState = MutableStateFlow(AccountUiState())
     val uiState = _uiState.asStateFlow()
@@ -193,12 +239,26 @@ fun AccountScreen(
                     val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
                     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState(initial = false)
                     val isSyncingFavorites by viewModel.isSyncingFavorites.collectAsState()
+                    val localOnlyFavorites by viewModel.localOnlyFavorites.collectAsState(initial = 0)
+                    val favoritesPush by viewModel.favoritesPush.collectAsState()
+                    val spamWarning by viewModel.spamWarning.collectAsState()
+                    val isAckingSpamWarning by viewModel.isAckingSpamWarning.collectAsState()
                     LoggedInContent(
                         user = state.user,
                         badges = userBadges,
                         showId = isDeveloper,
                         onlineFavoritesEnabled = onlineFavoritesEnabled,
                         onOnlineFavoritesChange = { viewModel.setOnlineFavoritesEnabled(it) },
+                        hasSpamWarning = spamWarning != null,
+                        isAckingSpamWarning = isAckingSpamWarning,
+                        onAckSpamWarning = {
+                            viewModel.acknowledgeSpamWarning {
+                                scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.spam_warning_ack_failed)) }
+                            }
+                        },
+                        localOnlyFavorites = localOnlyFavorites,
+                        isPushingFavorites = favoritesPush != null,
+                        onPushFavorites = { viewModel.pushLocalFavorites() },
                         isSyncingFavorites = isSyncingFavorites,
                         onSyncFavoritesNow = {
                             viewModel.syncOnlineFavoritesNow { result ->
@@ -247,12 +307,37 @@ private fun LoggedInContent(
     onOnlineFavoritesChange: (Boolean) -> Unit = {},
     isSyncingFavorites: Boolean = false,
     onSyncFavoritesNow: () -> Unit = {},
+    localOnlyFavorites: Int = 0,
+    isPushingFavorites: Boolean = false,
+    onPushFavorites: () -> Unit = {},
+    hasSpamWarning: Boolean = false,
+    isAckingSpamWarning: Boolean = false,
+    onAckSpamWarning: () -> Unit = {},
     onLogout: () -> Unit,
     onSettings: () -> Unit,
     onEditProfile: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val haptic = rememberHapticTick()
     var selectedBadge by remember { mutableStateOf<String?>(null) }
+    var confirmPush by remember { mutableStateOf(false) }
+
+    if (confirmPush) {
+        AlertDialog(
+            onDismissRequest = { confirmPush = false },
+            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text(stringResource(R.string.favorites_push_danger_title)) },
+            text = { Text(stringResource(R.string.favorites_push_danger_body, localOnlyFavorites)) },
+            confirmButton = {
+                TextButton(onClick = { haptic(); confirmPush = false; onPushFavorites() }) {
+                    Text(stringResource(R.string.favorites_push_danger_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmPush = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
     var logoutPressed by remember { mutableStateOf(false) }
     val logoutScale by animateFloatAsState(
         targetValue = if (logoutPressed) 0.95f else 1f,
@@ -261,22 +346,49 @@ private fun LoggedInContent(
         finishedListener = { logoutPressed = false }
     )
 
+    val displayName = user?.fullName?.ifBlank { null } ?: user?.username ?: "..."
+    val share: (() -> Unit)? = user?.permalinkUrl?.let { url ->
+        {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, url)
+            }
+            context.startActivity(Intent.createChooser(intent, null))
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(top = 8.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.height(16.dp))
-
-        AsyncImage(
-            model = user?.avatarUrl?.replace("-large", "-t500x500"),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+        Box(
             modifier = Modifier
-                .size(100.dp)
-                .clip(CircleShape)
-        )
+                .size(136.dp)
+                .clip(MaterialShapes.Cookie12Sided.toShape())
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            val avatar = user?.avatarUrl?.replace("-large", "-t500x500")
+            if (avatar != null) {
+                AsyncImage(
+                    model = avatar,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.2f; scaleY = 1.2f },
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(56.dp),
+                )
+            }
+        }
 
         Spacer(Modifier.height(16.dp))
 
@@ -285,18 +397,23 @@ private fun LoggedInContent(
             horizontalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = user?.fullName?.ifBlank { null } ?: user?.username ?: "...",
+                text = displayName,
                 style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
             badges.forEach { badge ->
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(6.dp))
                 Icon(
                     imageVector = badgeIcon(badge),
                     contentDescription = badgeTitle(badge),
                     tint = badgeTint(badge),
                     modifier = Modifier
-                        .size(20.dp)
+                        .size(22.dp)
+                        .clip(CircleShape)
                         .clickable { selectedBadge = badge },
                 )
             }
@@ -321,63 +438,108 @@ private fun LoggedInContent(
             }
         }
 
-        user?.followersCount?.let {
+        user?.description?.trim()?.takeIf { it.isNotBlank() }?.let { bio ->
             Text(
-                text = followersCountText(it),
+                text = bio,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp)
+                textAlign = TextAlign.Center,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 10.dp, start = 12.dp, end = 12.dp),
             )
         }
 
-        user?.permalinkUrl?.let { url ->
-            Spacer(Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, url)
-                        }
-                        context.startActivity(Intent.createChooser(intent, null))
-                    }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            ) {
-                Icon(
-                    Icons.Filled.Share,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    stringResource(R.string.account_share_link),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
         if (user != null) {
+            Spacer(Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                AccountStatTile(
+                    value = user.followersCount ?: 0L,
+                    label = stringResource(R.string.account_stat_followers),
+                    shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 10.dp, bottomEnd = 10.dp),
+                    modifier = Modifier.weight(1f),
+                )
+                AccountStatTile(
+                    value = (user.trackCount ?: 0).toLong(),
+                    label = stringResource(R.string.account_stat_tracks),
+                    shape = RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp, topEnd = 28.dp, bottomEnd = 28.dp),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
             Spacer(Modifier.height(12.dp))
-            FilledTonalButton(onClick = onEditProfile, shapes = ButtonDefaults.shapes()) {
-                Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.account_edit_profile))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { haptic(); onEditProfile() },
+                    shapes = ButtonDefaults.shapes(),
+                    modifier = Modifier.weight(1f).height(52.dp),
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.account_edit_profile), style = MaterialTheme.typography.titleSmall)
+                }
+                if (share != null) {
+                    Spacer(Modifier.width(10.dp))
+                    FilledTonalIconButton(
+                        onClick = { haptic(); share() },
+                        shapes = IconButtonDefaults.shapes(),
+                        modifier = Modifier.size(52.dp),
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.account_share_link))
+                    }
+                }
             }
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(24.dp))
+
+        AnimatedVisibility(
+            visible = hasSpamWarning,
+            enter = fadeIn() + expandVertically(spring(dampingRatio = Spring.DampingRatioMediumBouncy)),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        stringResource(R.string.spam_warning_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(stringResource(R.string.spam_warning_body), style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(14.dp))
+                    Button(
+                        onClick = { haptic(); onAckSpamWarning() },
+                        enabled = !isAckingSpamWarning,
+                        shapes = ButtonDefaults.shapes(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                    ) {
+                        if (isAckingSpamWarning) {
+                            LoadingIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onError)
+                        } else {
+                            Text(stringResource(R.string.spam_warning_ack), style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
+                }
+            }
+        }
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            Column {
+            Column(modifier = Modifier.animateContentSize(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))) {
                 com.savoo.scclient.ui.components.SwitchItem(
                     title = stringResource(R.string.favorites_online_toggle_title),
                     subtitle = stringResource(R.string.favorites_online_toggle_desc),
@@ -386,26 +548,24 @@ private fun LoggedInContent(
                 )
                 if (onlineFavoritesEnabled) {
                     AppDivider()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            stringResource(R.string.favorites_online_sync_now_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                        if (isSyncingFavorites) {
-                            LoadingIndicator(modifier = Modifier.size(20.dp))
-                        } else {
-                            TextButton(onClick = onSyncFavoritesNow) {
-                                Text(stringResource(R.string.favorites_online_sync_now))
-                            }
-                        }
-                    }
+                    AccountActionRow(
+                        icon = Icons.Filled.Sync,
+                        title = stringResource(R.string.favorites_online_sync_now),
+                        description = stringResource(R.string.favorites_online_sync_now_desc),
+                        loading = isSyncingFavorites,
+                        onClick = { haptic(); onSyncFavoritesNow() },
+                    )
+                }
+                if ((onlineFavoritesEnabled && localOnlyFavorites > 0) || isPushingFavorites) {
+                    AppDivider()
+                    AccountActionRow(
+                        icon = Icons.Filled.Warning,
+                        title = stringResource(R.string.favorites_push_title),
+                        description = stringResource(R.string.favorites_push_desc, localOnlyFavorites),
+                        loading = isPushingFavorites,
+                        danger = true,
+                        onClick = { haptic(); confirmPush = true },
+                    )
                 }
             }
         }
@@ -413,7 +573,24 @@ private fun LoggedInContent(
         Spacer(Modifier.height(12.dp))
 
         Surface(
-            onClick = { logoutPressed = true; onLogout() },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ) {
+            AccountActionRow(
+                icon = Icons.Filled.Settings,
+                title = stringResource(R.string.account_settings),
+                description = null,
+                loading = false,
+                onClick = { haptic(); onSettings() },
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Surface(
+            onClick = { haptic(); logoutPressed = true; onLogout() },
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer { scaleX = logoutScale; scaleY = logoutScale },
@@ -422,33 +599,13 @@ private fun LoggedInContent(
             contentColor = MaterialTheme.colorScheme.onErrorContainer,
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.account_sign_out), style = MaterialTheme.typography.labelLarge)
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Surface(
-            onClick = onSettings,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.account_settings), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.account_sign_out), style = MaterialTheme.typography.titleSmall)
             }
         }
     }
@@ -459,6 +616,100 @@ private fun LoggedInContent(
             profileName = user?.fullName?.ifBlank { null } ?: user?.username ?: "",
             onDismiss = { selectedBadge = null },
             onOpenUrl = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+        )
+    }
+}
+
+@Composable
+private fun AccountStatTile(value: Long, label: String, shape: Shape, modifier: Modifier = Modifier) {
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = modifier,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+        ) {
+            Text(
+                NumberFormat.getIntegerInstance().format(value),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+            )
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AccountActionRow(
+    icon: ImageVector,
+    title: String,
+    description: String?,
+    loading: Boolean,
+    danger: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !loading, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = if (danger) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = if (danger) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.size(40.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                if (loading) {
+                    LoadingIndicator(modifier = Modifier.size(24.dp))
+                } else {
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            if (danger) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.favorites_push_danger_badge),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+            }
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            )
+            if (description != null) {
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

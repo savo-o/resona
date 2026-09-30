@@ -26,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,7 +64,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.savoo.scclient.BuildConfig
 import com.savoo.scclient.R
-import com.savoo.scclient.data.local.AppDatabase
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.LyricsSyncDao
 import com.savoo.scclient.data.remote.ClientIdProvider
@@ -76,6 +74,7 @@ import com.savoo.scclient.debug.ScreenshotModeState
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.ui.screens.home.GreetingDebugState
+import com.savoo.scclient.ui.screens.recap.RecapDebugState
 import com.savoo.scclient.ui.screens.recap.RecapDemo
 import com.savoo.scclient.ui.screens.recap.RecapStoriesDialog
 import com.savoo.scclient.ui.screens.home.GreetingPeriod
@@ -103,7 +102,6 @@ class DebugMenuViewModel @Inject constructor(
     private val clientIdProvider: ClientIdProvider,
     private val favoritesDao: FavoritesDao,
     private val offlineTrackManager: OfflineTrackManager,
-    private val database: AppDatabase,
     private val playerController: PlayerController,
     private val lyricsSyncDao: LyricsSyncDao,
     private val recapRepository: RecapRepository,
@@ -208,6 +206,10 @@ class DebugMenuViewModel @Inject constructor(
         _recapStories.value = null
     }
 
+    val forceRecapBanner = RecapDebugState.forceBanner
+
+    fun setForceRecapBanner(value: Boolean) = RecapDebugState.setForceBanner(value)
+
     fun copyRecapToClipboard() {
         val report = _recapReport.value ?: return
         val clipboard = context.getSystemService(ClipboardManager::class.java)
@@ -273,14 +275,6 @@ class DebugMenuViewModel @Inject constructor(
     fun setClientIdOverride(value: String) {
         clientIdProvider.setManualOverride(value)
         _clientId.value = value
-    }
-
-    fun resetDatabase(onDone: () -> Unit) {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { database.clearAllTables() }
-            refreshCounts()
-            onDone()
-        }
     }
 
     fun buildDebugReport(): String = buildString {
@@ -353,6 +347,7 @@ fun DebugMenuScreen(
     val greetingOverrideIndex by viewModel.greetingOverrideIndex.collectAsState()
     val recapReport by viewModel.recapReport.collectAsState()
     val recapStories by viewModel.recapStories.collectAsState()
+    val forceRecapBanner by viewModel.forceRecapBanner.collectAsState()
     var clientIdOverride by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -425,39 +420,6 @@ fun DebugMenuScreen(
                 Text(stringResource(R.string.debug_menu_favorite_artists, favoriteArtists), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.debug_menu_favorite_playlists, favoritePlaylists), style = MaterialTheme.typography.bodyMedium)
                 Text(stringResource(R.string.debug_menu_offline_tracks, offlineTracks), style = MaterialTheme.typography.bodyMedium)
-                AppDivider(modifier = Modifier.padding(vertical = 14.dp))
-                Text(stringResource(R.string.debug_menu_reset_database), style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    stringResource(R.string.debug_menu_reset_database_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .clickable {
-                            viewModel.resetDatabase {
-                                scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.debug_menu_reset_database_done)) }
-                            }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Filled.DeleteForever,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        stringResource(R.string.debug_menu_reset_database),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
             }
 
             DebugSectionCard(title = stringResource(R.string.debug_menu_actions)) {
@@ -580,6 +542,21 @@ fun DebugMenuScreen(
                     TextButton(onClick = { viewModel.openRecap(currentYear, demo = true) }) {
                         Text(stringResource(R.string.debug_menu_recap_demo))
                     }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.debug_menu_recap_force_banner), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(R.string.debug_menu_recap_force_banner_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = forceRecapBanner, onCheckedChange = { viewModel.setForceRecapBanner(it) })
                 }
                 recapReport?.let { report ->
                     Spacer(Modifier.height(6.dp))

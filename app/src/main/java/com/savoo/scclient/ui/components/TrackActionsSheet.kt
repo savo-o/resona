@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +26,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import android.content.Intent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +58,12 @@ fun TrackActionsSheet(
     val haptic = rememberHapticTick()
     val context = LocalContext.current
     val shareUrl = track.permalinkUrl
+    var showAddToPlaylist by remember { mutableStateOf(false) }
+
+    if (showAddToPlaylist) {
+        AddToPlaylistSheet(tracks = listOf(track), onDismiss = onDismiss)
+        return
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
@@ -112,6 +123,11 @@ fun TrackActionsSheet(
                 icon = Icons.AutoMirrored.Filled.PlaylistAdd,
                 label = stringResource(R.string.track_add_to_queue),
                 onClick = { haptic(); onAddToQueue(); onDismiss() },
+            )
+            TrackActionItem(
+                icon = Icons.Filled.LibraryAdd,
+                label = stringResource(R.string.playlist_add_to),
+                onClick = { haptic(); showAddToPlaylist = true },
             )
             if (!shareUrl.isNullOrBlank()) {
                 TrackActionItem(

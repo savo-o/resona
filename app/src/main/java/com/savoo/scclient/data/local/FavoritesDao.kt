@@ -18,6 +18,11 @@ data class FavoriteTrackArtist(
     val userAvatarUrl: String?,
 )
 
+data class FavoriteTrackTitle(
+    val trackId: Long,
+    val title: String,
+)
+
 data class FavoriteTrackSource(
     val trackId: Long,
     val source: String,
@@ -78,6 +83,18 @@ interface FavoritesDao {
         ORDER BY MAX(addedAt) DESC
     """)
     fun observeTrackArtists(): Flow<List<FavoriteTrackArtist>>
+
+    @Query(
+        "SELECT trackId, title FROM favorites WHERE source = 'LOCAL' " +
+            "AND trackId NOT IN (SELECT trackId FROM unavailable_tracks WHERE reason = 'DELETED') ORDER BY addedAt, trackId"
+    )
+    suspend fun getLocalOnlyTracks(): List<FavoriteTrackTitle>
+
+    @Query(
+        "SELECT COUNT(*) FROM favorites WHERE source = 'LOCAL' " +
+            "AND trackId NOT IN (SELECT trackId FROM unavailable_tracks WHERE reason = 'DELETED')"
+    )
+    fun observeLocalOnlyCount(): Flow<Int>
 
     @Query("SELECT trackId, source FROM favorites WHERE source != 'LOCAL'")
     suspend fun getNonLocalTrackSources(): List<FavoriteTrackSource>
@@ -150,6 +167,12 @@ interface FavoritesDao {
 
     @Query("DELETE FROM favorite_playlists WHERE playlistId = :playlistId")
     suspend fun removePlaylist(playlistId: Long)
+
+    @Query("UPDATE favorite_playlists SET title = :title WHERE playlistId = :playlistId")
+    suspend fun renamePlaylist(playlistId: Long, title: String)
+
+    @Query("UPDATE favorite_playlists SET trackCount = :trackCount WHERE playlistId = :playlistId")
+    suspend fun updatePlaylistTrackCount(playlistId: Long, trackCount: Int)
 
     @Query("SELECT EXISTS(SELECT 1 FROM favorite_playlists WHERE playlistId = :playlistId)")
     suspend fun isPlaylistFavoriteSync(playlistId: Long): Boolean

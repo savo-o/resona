@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,6 +85,8 @@ private fun CollectionTile(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
     horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+    removeLabel: String = stringResource(R.string.favorite_remove_action),
+    removeIcon: ImageVector = Icons.Filled.HeartBroken,
     content: @Composable () -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -113,8 +116,8 @@ private fun CollectionTile(
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.favorite_remove_action)) },
-                leadingIcon = { Icon(Icons.Filled.HeartBroken, contentDescription = null) },
+                text = { Text(removeLabel) },
+                leadingIcon = { Icon(removeIcon, contentDescription = null) },
                 onClick = {
                     menuOpen = false
                     haptics.click()
@@ -171,8 +174,16 @@ internal fun FavoritePlaylistTile(
     onClick: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    removeLabel: String = stringResource(R.string.favorite_remove_action),
+    removeIcon: ImageVector = Icons.Filled.HeartBroken,
 ) {
-    CollectionTile(onClick = onClick, onRemove = onRemove, modifier = modifier) {
+    CollectionTile(
+        onClick = onClick,
+        onRemove = onRemove,
+        modifier = modifier,
+        removeLabel = removeLabel,
+        removeIcon = removeIcon,
+    ) {
         TrackArtwork(
             artworkUrl = playlist.artworkUrl,
             contentDescription = playlist.title,

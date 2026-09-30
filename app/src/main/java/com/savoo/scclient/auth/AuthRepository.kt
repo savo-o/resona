@@ -1,5 +1,7 @@
 package com.savoo.scclient.auth
 
+import android.webkit.CookieManager
+import android.webkit.WebStorage
 import com.savoo.scclient.data.model.TokenResponse
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.debug.DebugLog
@@ -50,6 +52,13 @@ class AuthRepository @Inject constructor(
     fun logout() {
         DebugLog.log(TAG, "logout")
         tokenStore.clear()
+        runCatching {
+            CookieManager.getInstance().apply {
+                removeAllCookies(null)
+                flush()
+            }
+            WebStorage.getInstance().deleteAllData()
+        }.onFailure { DebugLog.log(TAG, "clearing web session failed: ${it.message}") }
     }
 
     companion object {

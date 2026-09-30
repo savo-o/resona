@@ -35,20 +35,32 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.savoo.scclient.R
 import com.savoo.scclient.data.repository.RecapStats
-import com.savoo.scclient.ui.components.rememberArtworkColor
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+object RecapDebugState {
+    private val _forceBanner = MutableStateFlow(false)
+    val forceBanner = _forceBanner.asStateFlow()
+
+    fun setForceBanner(value: Boolean) {
+        _forceBanner.value = value
+    }
+}
 
 @Composable
 fun RecapBanner(
     stats: RecapStats,
     onOpen: () -> Unit,
-    onDismiss: () -> Unit,
+    onDismiss: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 20.dp,
 ) {
-    val accent = rememberArtworkColor(stats.topArtists.firstOrNull()?.artworkUrl) ?: MaterialTheme.colorScheme.primary
+    val accent = MaterialTheme.colorScheme.primary
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
@@ -60,7 +72,7 @@ fun RecapBanner(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(horizontal = horizontalPadding, vertical = 8.dp)
             .scale(pressScale)
             .clip(RoundedCornerShape(32.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onOpen),
@@ -74,15 +86,17 @@ fun RecapBanner(
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp,
                     letterSpacing = 2.sp,
-                    modifier = Modifier.weight(1f).padding(top = 14.dp),
+                    modifier = Modifier.weight(1f).padding(top = 14.dp, bottom = if (onDismiss == null) 14.dp else 0.dp),
                 )
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.home_recap_dismiss),
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(20.dp),
-                    )
+                if (onDismiss != null) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.home_recap_dismiss),
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
             Text(
@@ -98,6 +112,13 @@ fun RecapBanner(
                 color = Color.White.copy(alpha = 0.85f),
                 fontWeight = FontWeight.Medium,
                 fontSize = 15.sp,
+                modifier = Modifier.padding(end = 14.dp),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.recap_local_note),
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp,
                 modifier = Modifier.padding(end = 14.dp),
             )
             Spacer(Modifier.height(14.dp))

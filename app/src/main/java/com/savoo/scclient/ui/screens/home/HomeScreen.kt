@@ -53,6 +53,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Headphones
@@ -91,6 +92,7 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.Track
+import com.savoo.scclient.ui.components.CreatePlaylistSheet
 import com.savoo.scclient.ui.components.ExpressivePullToRefreshBox
 import com.savoo.scclient.ui.components.TrackArtwork
 import com.savoo.scclient.ui.haptics.rememberHapticTick
@@ -133,6 +135,14 @@ fun HomeScreen(
     val linkHintDismissed by viewModel.linkHintDismissed.collectAsState()
     val recapBanner by viewModel.recapBanner.collectAsState()
     var recapOpen by rememberSaveable { mutableStateOf(false) }
+    var showCreatePlaylist by remember { mutableStateOf(false) }
+    if (showCreatePlaylist) {
+        CreatePlaylistSheet(
+            tracks = emptyList(),
+            onDismiss = { showCreatePlaylist = false },
+            onCreated = { routeId -> onPlaylistClick(routeId) },
+        )
+    }
     val context = LocalContext.current
     var linksEnabled by remember { mutableStateOf(SoundCloudLinks.isHandlingEnabled(context)) }
     LifecycleResumeEffect(Unit) {
@@ -308,14 +318,13 @@ fun HomeScreen(
                                 )
                             }
 
-                            com.savoo.scclient.data.repository.HomeSection.PLAYLISTS -> if (favoritePlaylists.isNotEmpty()) {
-                                PlaylistSection(
-                                    title = stringResource(R.string.home_section_playlists),
-                                    playlists = favoritePlaylists.take(10),
-                                    onPlaylistClick = onPlaylistClick,
-                                    onSeeAll = onFavoritePlaylists,
-                                )
-                            }
+                            com.savoo.scclient.data.repository.HomeSection.PLAYLISTS -> PlaylistSection(
+                                title = stringResource(R.string.home_section_playlists),
+                                playlists = favoritePlaylists.take(10),
+                                onPlaylistClick = onPlaylistClick,
+                                onSeeAll = onFavoritePlaylists,
+                                onCreate = { showCreatePlaylist = true },
+                            )
                         }
                     }
                 }
@@ -856,6 +865,7 @@ private fun PlaylistSection(
     playlists: List<FavoritePlaylist>,
     onPlaylistClick: (Long) -> Unit,
     onSeeAll: (() -> Unit)? = null,
+    onCreate: () -> Unit = {},
 ) {
     Column {
         SectionHeader(title = title, onSeeAll = onSeeAll)
@@ -864,6 +874,9 @@ private fun PlaylistSection(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item(key = "create") {
+                HomeCreatePlaylistCard(onClick = onCreate, modifier = Modifier.animateItem())
+            }
             items(playlists, key = { it.playlistId }) { playlist ->
                 HomePlaylistCard(
                     playlist = playlist,
@@ -872,6 +885,43 @@ private fun PlaylistSection(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun HomeCreatePlaylistCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val haptic = rememberHapticTick()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
+        label = "homeCreatePlaylistScale",
+    )
+    Column(
+        modifier = modifier
+            .width(120.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interactionSource = interactionSource, indication = null) { haptic(); onClick() },
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(120.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(40.dp))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.playlist_new),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 
@@ -907,7 +957,7 @@ private fun HomePlaylistCard(playlist: FavoritePlaylist, onClick: () -> Unit, mo
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = playlist.username,
+            text = playlist.username.ifBlank { stringResource(R.string.playlist_local_label) },
             style = MaterialTheme.typography.bodySmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

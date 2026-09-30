@@ -111,6 +111,7 @@ data class Playlist(
     @Json(name = "created_at") val createdAt: String? = null,
     @Json(name = "duration") val durationMs: Long? = null,
     @Json(name = "likes_count") val likesCount: Long? = null,
+    @Json(name = "sharing") val sharing: String? = null,
 )
 
 val Playlist.displayArtworkUrl: String?

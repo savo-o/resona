@@ -3,9 +3,12 @@ package com.savoo.scclient.data.repository
 import android.content.Context
 import android.net.Uri
 import com.savoo.scclient.data.local.FavoritesDao
+import com.savoo.scclient.data.local.LocalPlaylistDao
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.data.model.LocalPlaylist
+import com.savoo.scclient.data.model.LocalPlaylistTrack
 import android.provider.OpenableColumns
 import android.util.JsonReader
 import android.util.JsonWriter
@@ -38,6 +41,7 @@ class EmptyFavoritesBackupException : IllegalStateException("Favorites are empty
 @Singleton
 class FavoritesExporter @Inject constructor(
     private val favoritesDao: FavoritesDao,
+    private val localPlaylistDao: LocalPlaylistDao,
     @ApplicationContext private val context: Context,
 ) {
     suspend fun exportToFile(uri: Uri, protectExistingBackup: Boolean = false): Result<Unit> = withContext(Dispatchers.IO) {
@@ -119,12 +123,43 @@ class FavoritesExporter @Inject constructor(
             }
             writer.endArray()
 
+            writer.name("localPlaylists").beginArray()
+            localPlaylistDao.getAllSync().forEach { p ->
+                writer.beginObject()
+                writer.name("id").value(p.id)
+                writer.name("title").value(p.title)
+                writer.name("createdAt").value(p.createdAt)
+                writer.name("updatedAt").value(p.updatedAt)
+                writer.endObject()
+            }
+            writer.endArray()
+
+            writer.name("localPlaylistTracks").beginArray()
+            localPlaylistDao.getAllTracksSync().forEach { t ->
+                writer.beginObject()
+                writer.name("playlistId").value(t.playlistId)
+                writer.name("trackId").value(t.trackId)
+                writer.name("position").value(t.position.toLong())
+                writer.name("addedAt").value(t.addedAt)
+                writer.name("title").value(t.title)
+                writer.name("username").value(t.username)
+                writer.name("artworkUrl").value(t.artworkUrl)
+                writer.name("durationMs").value(t.durationMs)
+                writer.name("permalinkUrl").value(t.permalinkUrl)
+                writer.name("userId").value(t.userId)
+                writer.name("userAvatarUrl").value(t.userAvatarUrl)
+                writer.name("genre").value(t.genre)
+                writer.endObject()
+            }
+            writer.endArray()
+
             writer.endObject()
         }
     }
 
     private suspend fun isFavoritesEmpty(): Boolean =
-        favoritesDao.trackCount() == 0 && favoritesDao.artistCount() == 0 && favoritesDao.playlistCount() == 0
+        favoritesDao.trackCount() == 0 && favoritesDao.artistCount() == 0 && favoritesDao.playlistCount() == 0 &&
+            localPlaylistDao.playlistCount() == 0
 
     private suspend fun destinationHasFavorites(uri: Uri): Boolean = withContext(Dispatchers.IO) {
         runCatching {
@@ -151,6 +186,7 @@ class FavoritesExporter @Inject constructor(
         onProgress: (ImportProgress) -> Unit = {},
     ): Result<ImportResult> = withContext(Dispatchers.IO) {
         val counter = ImportCounter()
+        val localPlaylistIds = HashMap<Long, Long>()
         try {
             val totalBytes = fileSize(uri)
             val input = context.contentResolver.openInputStream(uri)
@@ -181,6 +217,18 @@ class FavoritesExporter @Inject constructor(
                         "playlists" -> readEntries(reader, counter, report, ::toPlaylist, favoritesDao::addPlaylists, favoritesDao::addPlaylist) {
                             counter.playlists += it
                         }
+                        "localPlaylists" -> readEntries(
+                            reader, counter, report, ::toLocalPlaylist,
+                            { batch -> batch.forEach { importLocalPlaylist(it, localPlaylistIds) } },
+                            { importLocalPlaylist(it, localPlaylistIds) },
+                        ) {
+                            counter.playlists += it
+                        }
+                        "localPlaylistTracks" -> readEntries(
+                            reader, counter, report, ::toLocalPlaylistTrack,
+                            { batch -> importLocalPlaylistTracks(batch, localPlaylistIds) },
+                            { importLocalPlaylistTracks(listOf(it), localPlaylistIds) },
+                        ) {}
                         else -> reader.skipValue()
                     }
                 }
@@ -291,6 +339,41 @@ class FavoritesExporter @Inject constructor(
         addedAt = a.optionalLong("addedAt") ?: System.currentTimeMillis(),
     )
 
+    private suspend fun importLocalPlaylist(playlist: LocalPlaylist, ids: MutableMap<Long, Long>) {
+        ids[playlist.id] = localPlaylistDao.findId(playlist.title, playlist.createdAt)
+            ?: localPlaylistDao.insert(playlist.copy(id = 0))
+    }
+
+    private suspend fun importLocalPlaylistTracks(tracks: List<LocalPlaylistTrack>, ids: Map<Long, Long>) {
+        val mapped = tracks.mapNotNull { track -> ids[track.playlistId]?.let { track.copy(playlistId = it) } }
+        if (mapped.isNotEmpty()) localPlaylistDao.insertTracks(mapped)
+    }
+
+    private fun toLocalPlaylist(p: Map<String, String?>): LocalPlaylist {
+        val createdAt = p.optionalLong("createdAt") ?: System.currentTimeMillis()
+        return LocalPlaylist(
+            id = p.requireLong("id"),
+            title = p.requireText("title"),
+            createdAt = createdAt,
+            updatedAt = p.optionalLong("updatedAt") ?: createdAt,
+        )
+    }
+
+    private fun toLocalPlaylistTrack(t: Map<String, String?>) = LocalPlaylistTrack(
+        playlistId = t.requireLong("playlistId"),
+        trackId = t.requireLong("trackId"),
+        position = t.requireLong("position").toInt(),
+        addedAt = t.optionalLong("addedAt") ?: System.currentTimeMillis(),
+        title = t.requireText("title"),
+        username = t.requireText("username"),
+        artworkUrl = t.optionalUrl("artworkUrl"),
+        durationMs = t.requireLong("durationMs"),
+        permalinkUrl = t.optionalUrl("permalinkUrl"),
+        userId = t.requireLong("userId"),
+        userAvatarUrl = t.optionalUrl("userAvatarUrl"),
+        genre = t.optionalString("genre")?.take(MAX_IMPORT_TEXT_CHARS),
+    )
+
     private fun toPlaylist(p: Map<String, String?>) = FavoritePlaylist(
         playlistId = p.requireLong("playlistId"),
         title = p.requireText("title"),
@@ -316,7 +399,7 @@ class FavoritesExporter @Inject constructor(
     }
 }
 
-private val FAVORITE_ARRAYS = setOf("tracks", "artists", "playlists")
+private val FAVORITE_ARRAYS = setOf("tracks", "artists", "playlists", "localPlaylists")
 private const val EXPORT_PAGE_SIZE = 500
 private const val IMPORT_BATCH_SIZE = 500
 private const val MAX_IMPORT_TEXT_CHARS = 300

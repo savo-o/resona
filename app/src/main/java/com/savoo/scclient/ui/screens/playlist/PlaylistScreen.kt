@@ -1,6 +1,31 @@
 package com.savoo.scclient.ui.screens.playlist
 
 import android.content.Intent
+import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
+import com.savoo.scclient.data.model.User
+import com.savoo.scclient.data.model.isLocalPlaylistRouteId
+import com.savoo.scclient.data.model.localPlaylistRouteId
+import com.savoo.scclient.data.model.toTrack
+import com.savoo.scclient.data.repository.PlaylistsRepository
+import com.savoo.scclient.ui.components.AddToPlaylistSheet
+import com.savoo.scclient.ui.components.RenamePlaylistSheet
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.combine
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
@@ -109,6 +134,8 @@ data class PlaylistUiState(
     val isResolvingTracks: Boolean = false,
     val moreByOwner: List<Playlist> = emptyList(),
     val error: String? = null,
+    val isLocal: Boolean = false,
+    val isOwn: Boolean = false,
 )
 
 @UnstableApi
@@ -118,8 +145,118 @@ class PlaylistViewModel @Inject constructor(
     private val favoritesDao: FavoritesDao,
     private val favoritesRepository: com.savoo.scclient.data.repository.FavoritesRepository,
     private val offlineTrackManager: OfflineTrackManager,
+    private val playlistsRepository: PlaylistsRepository,
     val playerController: PlayerController,
 ) : ViewModel() {
+
+    private val _actionError = MutableStateFlow<String?>(null)
+    val actionError = _actionError.asStateFlow()
+
+    private val _actionBusy = MutableStateFlow(false)
+    val actionBusy = _actionBusy.asStateFlow()
+
+    private var localJob: Job? = null
+
+    fun refreshTracks() {
+        val id = loadedPlaylistId ?: return
+        if (isLocalPlaylistRouteId(id)) return
+        viewModelScope.launch {
+            val playlist = runCatching { repository.getPlaylist(id) }.getOrNull() ?: return@launch
+            val rawTracks = playlist.tracks.orEmpty()
+            val needsResolve = rawTracks.any { it.title.isBlank() }
+            _uiState.update { it.copy(playlist = playlist, tracks = rawTracks, isResolvingTracks = needsResolve) }
+            if (needsResolve) resolveTracks(rawTracks)
+        }
+    }
+
+    fun clearActionError() {
+        _actionError.value = null
+    }
+
+    private fun observeLocal(localId: Long) {
+        localJob?.cancel()
+        _uiState.value = PlaylistUiState(isLoading = true)
+        localJob = viewModelScope.launch {
+            combine(
+                playlistsRepository.observeLocalPlaylist(localId),
+                playlistsRepository.observeLocalTracks(localId),
+            ) { local, rows -> local to rows }.collect { (local, rows) ->
+                if (local == null) {
+                    _uiState.update { it.copy(isLoading = false) }
+                    return@collect
+                }
+                val tracks = rows.map { it.toTrack() }
+                _uiState.value = PlaylistUiState(
+                    playlist = Playlist(
+                        id = localPlaylistRouteId(local.id),
+                        title = local.title,
+                        trackCount = tracks.size,
+                        user = User(),
+                    ),
+                    tracks = tracks,
+                    isLocal = true,
+                    isOwn = true,
+                )
+            }
+        }
+    }
+
+    private fun runAction(onDone: () -> Unit = {}, block: suspend () -> Unit) {
+        if (_actionBusy.value) return
+        _actionBusy.value = true
+        _actionError.value = null
+        viewModelScope.launch {
+            try {
+                block()
+                onDone()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _actionError.value = e.message ?: e.javaClass.simpleName
+            } finally {
+                _actionBusy.value = false
+            }
+        }
+    }
+
+    fun renamePlaylist(title: String, onDone: () -> Unit) {
+        val state = _uiState.value
+        val playlist = state.playlist ?: return
+        runAction(onDone) {
+            if (state.isLocal) {
+                playlistsRepository.renameLocal(-playlist.id, title)
+            } else {
+                playlistsRepository.renameOnline(playlist.id, title)
+                _uiState.update { it.copy(playlist = it.playlist?.copy(title = title.trim())) }
+            }
+        }
+    }
+
+    fun deletePlaylist(onDone: () -> Unit) {
+        val state = _uiState.value
+        val playlist = state.playlist ?: return
+        runAction(onDone) {
+            if (state.isLocal) {
+                localJob?.cancel()
+                playlistsRepository.deleteLocal(-playlist.id)
+            } else {
+                playlistsRepository.deleteOnline(playlist.id)
+            }
+        }
+    }
+
+    fun removeFromPlaylist(ids: Set<Long>) {
+        val state = _uiState.value
+        val playlist = state.playlist ?: return
+        runAction {
+            if (state.isLocal) {
+                playlistsRepository.removeFromLocal(-playlist.id, ids)
+            } else {
+                playlistsRepository.removeFromOnline(playlist.id, ids)
+                _uiState.update { it.copy(tracks = it.tracks.filter { track -> track.id !in ids }) }
+            }
+        }
+    }
 
     private val _uiState = MutableStateFlow(PlaylistUiState())
     val uiState = _uiState.asStateFlow()
@@ -128,9 +265,25 @@ class PlaylistViewModel @Inject constructor(
 
     private var loadedPlaylistId: Long? = null
 
+    init {
+        viewModelScope.launch {
+            playlistsRepository.addProgress.collect { progress ->
+                if (progress != null && progress.finished && !progress.failed && !progress.isLocal &&
+                    progress.routeId == loadedPlaylistId
+                ) {
+                    refreshTracks()
+                }
+            }
+        }
+    }
+
     fun loadPlaylist(playlistId: Long) {
         if (loadedPlaylistId == playlistId && _uiState.value.playlist != null) return
         loadedPlaylistId = playlistId
+        if (isLocalPlaylistRouteId(playlistId)) {
+            observeLocal(-playlistId)
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             runCatching {
@@ -144,6 +297,10 @@ class PlaylistViewModel @Inject constructor(
                     isLoading = false,
                     isResolvingTracks = rawTracks.any { it.title.isBlank() },
                 )
+                launch {
+                    val me = playlistsRepository.currentUserId()
+                    if (me != null && me == playlist.user.id) _uiState.update { it.copy(isOwn = true) }
+                }
                 launch {
                     val ownerId = playlist.user.id
                     val more = runCatching {
@@ -292,8 +449,20 @@ fun PlaylistScreen(
     var sort by remember { mutableStateOf(TrackSort()) }
     val listState = rememberLazyListState()
     val selection = rememberTrackSelection()
+    val haptic = rememberHapticTick()
+    val actionError by viewModel.actionError.collectAsState()
+    val actionBusy by viewModel.actionBusy.collectAsState()
+    var playlistTargets by remember { mutableStateOf<List<Track>?>(null) }
+    var showOwnerMenu by remember { mutableStateOf(false) }
+    var showRename by remember { mutableStateOf(false) }
+    var showDelete by remember { mutableStateOf(false) }
+    var showAddTracks by remember { mutableStateOf(false) }
 
     LaunchedEffect(playlistId) { viewModel.loadPlaylist(playlistId) }
+
+    playlistTargets?.let { targets ->
+        AddToPlaylistSheet(tracks = targets, onDismiss = { playlistTargets = null })
+    }
 
     val context = LocalContext.current
     val sortedTracks = remember(state.tracks, sort) { state.tracks.applySortOption(sort) }
@@ -310,6 +479,70 @@ fun PlaylistScreen(
         label = "playlistTint",
     )
     val isPlayingThis = playerState.isPlaying && viewModel.isPlayingFromPlaylist(playerState.queueTag)
+
+    LaunchedEffect(actionError) {
+        val message = actionError ?: return@LaunchedEffect
+        if (!showRename && !showDelete) {
+            Toast.makeText(context, context.getString(R.string.playlist_error_generic, message), Toast.LENGTH_LONG).show()
+            viewModel.clearActionError()
+        }
+    }
+
+    if (showRename && playlist != null) {
+        RenamePlaylistSheet(
+            currentTitle = playlist.title,
+            busy = actionBusy,
+            error = actionError,
+            onSave = { title -> viewModel.renamePlaylist(title) { showRename = false } },
+            onDismiss = { showRename = false; viewModel.clearActionError() },
+        )
+    }
+
+    if (showAddTracks && playlist != null) {
+        AddTracksSheet(
+            playlistRouteId = playlist.id,
+            playlistTitle = playlist.title,
+            existingIds = remember(state.tracks) { state.tracks.mapTo(HashSet()) { it.id } },
+            onDismiss = { showAddTracks = false },
+            onAdded = { viewModel.refreshTracks() },
+        )
+    }
+
+    if (showDelete && playlist != null) {
+        AlertDialog(
+            onDismissRequest = { if (!actionBusy) { showDelete = false; viewModel.clearActionError() } },
+            title = { Text(stringResource(R.string.playlist_delete_confirm_title)) },
+            text = {
+                Column {
+                    Text(
+                        stringResource(
+                            if (state.isLocal) R.string.playlist_delete_confirm_local else R.string.playlist_delete_confirm_online,
+                            playlist.title,
+                        )
+                    )
+                    actionError?.let {
+                        Text(
+                            stringResource(R.string.playlist_error_generic, it),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !actionBusy,
+                    onClick = { viewModel.deletePlaylist { showDelete = false; onBack() } },
+                ) { Text(stringResource(R.string.playlist_delete_action), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !actionBusy, onClick = { showDelete = false; viewModel.clearActionError() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
     val share: (() -> Unit)? = playlist?.permalinkUrl?.let { url ->
         {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -338,6 +571,18 @@ fun PlaylistScreen(
                 onDownloadAll = {
                     viewModel.toggleDownloadForSelected(selection.selectedIds)
                     selection.clear()
+                },
+                onAddToPlaylist = {
+                    playlistTargets = sortedTracks.filter { it.id in selection.selectedIds }
+                    selection.clear()
+                },
+                onRemoveFromPlaylist = if (state.isOwn) {
+                    {
+                        viewModel.removeFromPlaylist(selection.selectedIds)
+                        selection.clear()
+                    }
+                } else {
+                    null
                 },
             )
         },
@@ -368,12 +613,14 @@ fun PlaylistScreen(
                             totalDurationMs = playlist.durationMs?.takeIf { it > 0 } ?: state.tracks.sumOf { it.durationMs },
                             scrollOffsetPx = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset else 0,
                             glowEnabled = glowSource != ArtworkGlowSource.OFF,
+                            localLabel = if (state.isLocal) stringResource(R.string.playlist_local_label) else null,
                             onOwnerClick = { onArtistClick(playlist.user.id) },
                         )
                     }
                     item(key = "actions") {
                         val isPlaylistFav by viewModel.isPlaylistFavoriteFlow(playlistId).collectAsState(initial = false)
                         DetailActionRow(
+                            showFavorite = !state.isLocal,
                             isFavorite = isPlaylistFav,
                             onToggleFavorite = { viewModel.togglePlaylistFavorite(playlist) },
                             isPlayingThis = isPlayingThis,
@@ -391,6 +638,51 @@ fun PlaylistScreen(
                             },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
+                    }
+                    if (state.isOwn) {
+                        item(key = "owner") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp),
+                            ) {
+                                FilledTonalButton(
+                                    onClick = { haptic(); showAddTracks = true },
+                                    shapes = ButtonDefaults.shapes(),
+                                    modifier = Modifier.weight(1f).height(52.dp),
+                                ) {
+                                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.playlist_add_tracks), style = MaterialTheme.typography.titleSmall)
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Box {
+                                    FilledTonalIconButton(
+                                        onClick = { haptic(); showOwnerMenu = true },
+                                        shapes = IconButtonDefaults.shapes(),
+                                        modifier = Modifier.size(52.dp),
+                                    ) {
+                                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.playlist_more_actions))
+                                    }
+                                    DropdownMenu(
+                                        expanded = showOwnerMenu,
+                                        onDismissRequest = { showOwnerMenu = false },
+                                        shape = RoundedCornerShape(24.dp),
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.playlist_rename)) },
+                                            leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                                            onClick = { showOwnerMenu = false; showRename = true },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.playlist_delete)) },
+                                            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                            onClick = { showOwnerMenu = false; showDelete = true },
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                     items(sortedTracks, key = { it.id }) { track ->
                         val isFav by viewModel.isFavoriteFlow(track.id).collectAsState(initial = false)
@@ -492,6 +784,7 @@ private fun PlaylistHeader(
     totalDurationMs: Long,
     scrollOffsetPx: Int,
     glowEnabled: Boolean,
+    localLabel: String?,
     onOwnerClick: () -> Unit,
 ) {
     val haptic = rememberHapticTick()
@@ -508,6 +801,7 @@ private fun PlaylistHeader(
     )
     val meta = listOfNotNull(
         kind,
+        localLabel,
         playlist.releaseYear,
         pluralStringResource(R.plurals.detail_tracks_count, trackCount, trackCount),
         totalDurationMs.takeIf { it > 0 }?.let { formatTotalDuration(it) },
@@ -574,7 +868,7 @@ private fun PlaylistHeader(
             )
         }
         Spacer(Modifier.height(12.dp))
-        Row(
+        if (localLabel == null) Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .clip(RoundedCornerShape(50))

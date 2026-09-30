@@ -174,6 +174,7 @@ fun DetailActionRow(
     modifier: Modifier = Modifier,
     playEnabled: Boolean = true,
     onShare: (() -> Unit)? = null,
+    showFavorite: Boolean = true,
     extraActions: @Composable RowScope.() -> Unit = {},
 ) {
     val haptic = rememberHapticTick()
@@ -188,7 +189,7 @@ fun DetailActionRow(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ToggleButton(
+        if (showFavorite) ToggleButton(
             checked = isFavorite,
             onCheckedChange = { haptic(); likeBounce = true; onToggleFavorite() },
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),

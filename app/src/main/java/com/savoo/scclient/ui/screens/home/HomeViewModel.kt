@@ -12,6 +12,8 @@ import com.savoo.scclient.data.model.ExcludedMixArtist
 import com.savoo.scclient.data.model.FavoriteArtist
 import com.savoo.scclient.data.model.FavoritePlaylist
 import com.savoo.scclient.data.model.FavoriteTrack
+import com.savoo.scclient.data.model.toFavoritePlaylist
+import com.savoo.scclient.data.repository.PlaylistsRepository
 import com.savoo.scclient.data.model.OfflineTrack
 import com.savoo.scclient.data.model.PlayEvent
 import com.savoo.scclient.data.model.Track
@@ -21,6 +23,7 @@ import com.savoo.scclient.data.repository.FavoritesRepository
 import com.savoo.scclient.data.repository.RecapMath
 import com.savoo.scclient.data.repository.RecapRepository
 import com.savoo.scclient.data.repository.RecapStats
+import com.savoo.scclient.ui.screens.recap.RecapDebugState
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
@@ -73,6 +76,7 @@ class HomeViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val settingsRepository: SettingsRepository,
     private val recapRepository: RecapRepository,
+    private val playlistsRepository: PlaylistsRepository,
 ) : ViewModel() {
 
     private val _user = MutableStateFlow<User?>(null)
@@ -104,6 +108,13 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoritePlaylists: kotlinx.coroutines.flow.StateFlow<List<FavoritePlaylist>> = favoritesDao.getAllPlaylists()
+        .combine(playlistsRepository.observeLocalPlaylists()) { favorites, local ->
+            local.map { it.toFavoritePlaylist("") } to favorites
+        }
+        .combine(playlistsRepository.ownOnlinePlaylists) { (local, favorites), own ->
+            val ownIds = own.mapTo(HashSet()) { it.id }
+            local + own.map { it.toFavoritePlaylist(it.user.username) } + favorites.filter { it.playlistId !in ownIds }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val offlineTracks = offlineTrackManager.getAllOfflineTracks()
@@ -143,18 +154,24 @@ class HomeViewModel @Inject constructor(
 
     private val _recap = MutableStateFlow<RecapStats?>(null)
 
-    val recapBanner = combine(_recap, settingsRepository.settings.map { it.recapDismissedYear }) { stats, dismissedYear ->
-        stats?.takeIf { it.year != dismissedYear }
+    val recapBanner = combine(
+        _recap,
+        settingsRepository.settings.map { it.recapDismissedYear to it.recapEnabled },
+        RecapDebugState.forceBanner,
+    ) { stats, (dismissedYear, enabled), forced ->
+        stats?.takeIf { (enabled || forced) && it.year != dismissedYear }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     fun loadRecap() {
-        val year = RecapMath.recapYearFor(LocalDate.now())
+        val forced = RecapDebugState.forceBanner.value
+        val today = LocalDate.now()
+        val year = RecapMath.recapYearFor(today) ?: today.year.takeIf { forced }
         if (year == null) {
             _recap.value = null
             return
         }
         viewModelScope.launch {
-            _recap.value = runCatching { recapRepository.compute(year) }.getOrNull()?.takeIf { it.eligible }
+            _recap.value = runCatching { recapRepository.compute(year) }.getOrNull()?.takeIf { forced || it.eligible }
         }
     }
 
@@ -184,6 +201,12 @@ class HomeViewModel @Inject constructor(
     val isRefreshing = _isRefreshing.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            RecapDebugState.forceBanner.collect { forced ->
+                if (forced) settingsRepository.setRecapDismissedYear(0)
+                loadRecap()
+            }
+        }
         viewModelScope.launch { favoritesRepository.fillMissingPlaylistArtwork() }
         viewModelScope.launch {
             tokenStore.isLoggedIn.collect { loggedIn ->

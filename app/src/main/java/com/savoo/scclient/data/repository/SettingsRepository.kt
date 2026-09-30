@@ -132,6 +132,7 @@ data class AppSettings(
     val playerHintShown: Boolean = false,
     val linkHintDismissed: Boolean = false,
     val recapDismissedYear: Int = 0,
+    val recapEnabled: Boolean = true,
     val pixelGlowEnabled: Boolean = true,
     val beatPulseEnabled: Boolean = false,
     val cacheLimitMb: Int = DefaultCacheLimitMb,
@@ -188,6 +189,7 @@ class SettingsRepository @Inject constructor(
         val PLAYER_HINT_SHOWN = booleanPreferencesKey("player_hint_shown")
         val LINK_HINT_DISMISSED = booleanPreferencesKey("link_hint_dismissed")
         val RECAP_DISMISSED_YEAR = intPreferencesKey("recap_dismissed_year")
+        val RECAP_ENABLED = booleanPreferencesKey("recap_enabled")
         val PIXEL_GLOW_ENABLED = booleanPreferencesKey("pixel_glow_enabled")
         val BEAT_PULSE_ENABLED = booleanPreferencesKey("beat_pulse_enabled")
         val CACHE_LIMIT_MB = intPreferencesKey("cache_limit_mb")
@@ -267,6 +269,7 @@ class SettingsRepository @Inject constructor(
             playerHintShown = prefs[Keys.PLAYER_HINT_SHOWN] ?: false,
             linkHintDismissed = prefs[Keys.LINK_HINT_DISMISSED] ?: false,
             recapDismissedYear = prefs[Keys.RECAP_DISMISSED_YEAR] ?: 0,
+            recapEnabled = prefs[Keys.RECAP_ENABLED] ?: true,
             pixelGlowEnabled = prefs[Keys.PIXEL_GLOW_ENABLED] ?: true,
             beatPulseEnabled = prefs[Keys.BEAT_PULSE_ENABLED] ?: false,
             cacheLimitMb = prefs[Keys.CACHE_LIMIT_MB] ?: DefaultCacheLimitMb,
@@ -441,6 +444,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setRecapDismissedYear(year: Int) {
         context.dataStore.edit { it[Keys.RECAP_DISMISSED_YEAR] = year }
+    }
+
+    suspend fun setRecapEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.RECAP_ENABLED] = value }
     }
 
     suspend fun setPixelGlowEnabled(value: Boolean) {

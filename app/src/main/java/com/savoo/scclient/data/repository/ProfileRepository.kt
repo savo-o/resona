@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.os.SystemClock
 import android.util.Base64
 import android.media.ExifInterface
 import com.savoo.scclient.data.model.User
@@ -60,9 +61,15 @@ class ProfileRepository @Inject constructor(
     }
 
     suspend fun uploadAvatar(uri: Uri) {
+        val encodeStart = SystemClock.elapsedRealtime()
         val base64 = withContext(Dispatchers.Default) { encodeAvatar(uri) }
+        val requestStart = SystemClock.elapsedRealtime()
         val response = webBridge.uploadAvatar(base64)
-        DebugLog.log(TAG, "uploadAvatar(${base64.length} chars) -> ${response.code}")
+        val done = SystemClock.elapsedRealtime()
+        DebugLog.log(
+            TAG,
+            "uploadAvatar(${base64.length / 1024} KB base64) -> ${response.code}, encode ${requestStart - encodeStart} ms, request ${done - requestStart} ms",
+        )
         response.throwIfFailed()
     }
 
@@ -72,7 +79,10 @@ class ProfileRepository @Inject constructor(
         if (response.code != 404) response.throwIfFailed()
     }
 
-    suspend fun reloadMe(): User = api.getMe()
+    suspend fun reloadMe(): User {
+        val start = SystemClock.elapsedRealtime()
+        return api.getMe().also { DebugLog.log(TAG, "reloadMe ${SystemClock.elapsedRealtime() - start} ms") }
+    }
 
     private fun BridgeResponse.throwIfFailed() {
         if (!isSuccess) throw ProfileUpdateException(code, serverMessage(body))
@@ -129,7 +139,7 @@ class ProfileRepository @Inject constructor(
             true,
         )
         val bytes = ByteArrayOutputStream().use { out ->
-            square.compress(Bitmap.CompressFormat.JPEG, 92, out)
+            square.compress(Bitmap.CompressFormat.JPEG, 85, out)
             out.toByteArray()
         }
         if (square !== decoded) square.recycle()
