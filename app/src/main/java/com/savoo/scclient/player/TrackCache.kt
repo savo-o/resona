@@ -218,9 +218,10 @@ class TrackCache @Inject constructor(
         return str.split(",").mapNotNull { it.trim().toLongOrNull() }
     }
 
+    @Synchronized
     private fun evictOld() {
         val order = getTrackOrder().toMutableList()
-        var totalBytes = currentSizeBytes()
+        var totalBytes = context.cacheDir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
         while (order.size > MAX_CACHED || (totalBytes > maxBytes && order.size > 1)) {
             val oldestId = order.removeAt(order.size - 1)
             val file = File(audioDir, "$oldestId.mp3")

@@ -532,6 +532,7 @@ private fun SearchEmptyState(modifier: Modifier = Modifier) {
 private fun SearchEmptyHint(icon: ImageVector, text: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -545,7 +546,7 @@ private fun SearchEmptyHint(icon: ImageVector, text: String) {
             text,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f, fill = false),
         )
     }
 }

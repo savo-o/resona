@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import coil.disk.DiskCache
 import com.savoo.scclient.data.remote.ClientIdProvider
 import com.savoo.scclient.debug.CrashReporter
 import com.savoo.scclient.debug.ScreenshotModeInterceptor
@@ -54,5 +55,11 @@ class SCApplication : Application(), ImageLoaderFactory, Configuration.Provider 
 
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
         .components { add(ScreenshotModeInterceptor()) }
+        .diskCache {
+            DiskCache.Builder()
+                .directory(cacheDir.resolve("image_cache"))
+                .maxSizeBytes(64L * 1024 * 1024)
+                .build()
+        }
         .build()
 }

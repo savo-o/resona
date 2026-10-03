@@ -48,7 +48,7 @@ const val DefaultArtworkScalePercent = 100
 
 const val MinFontRoundness = 0
 const val MaxFontRoundness = 100
-const val DefaultFontRoundness = 50
+const val DefaultFontRoundness = 100
 
 enum class ArtworkShape { BLOB, CIRCLE, SQUARE, COOKIE_9, COOKIE_12, CLOVER_4, CLOVER_8, SUNNY, SOFT_BURST, FLOWER, PUFFY_DIAMOND, HEART }
 
@@ -124,7 +124,7 @@ data class AppSettings(
     val artworkShape: ArtworkShape = ArtworkShape.BLOB,
     val artworkRingEnabled: Boolean = true,
     val artworkScalePercent: Int = DefaultArtworkScalePercent,
-    val fontRoundnessEnabled: Boolean = false,
+    val fontRoundnessEnabled: Boolean = true,
     val fontRoundness: Int = DefaultFontRoundness,
     val playerStyle: PlayerStyle = PlayerStyle.PIXEL,
     val backgroundMode: AppBackgroundMode = AppBackgroundMode.DYNAMIC,
@@ -251,7 +251,7 @@ class SettingsRepository @Inject constructor(
             // choice) - coerce anyone still holding it from before back to the default.
             artworkRingEnabled = prefs[Keys.ARTWORK_RING_ENABLED] ?: true,
             artworkScalePercent = (prefs[Keys.ARTWORK_SCALE_PERCENT] ?: DefaultArtworkScalePercent).coerceIn(MinArtworkScalePercent, MaxArtworkScalePercent),
-            fontRoundnessEnabled = prefs[Keys.FONT_ROUNDNESS_ENABLED] ?: false,
+            fontRoundnessEnabled = prefs[Keys.FONT_ROUNDNESS_ENABLED] ?: true,
             fontRoundness = (prefs[Keys.FONT_ROUNDNESS] ?: DefaultFontRoundness).coerceIn(MinFontRoundness, MaxFontRoundness),
             artworkShape = prefs[Keys.ARTWORK_SHAPE]?.let { runCatching { ArtworkShape.valueOf(it) }.getOrNull() } ?: ArtworkShape.BLOB,
             playerBackgroundStyle = (prefs[Keys.PLAYER_BACKGROUND_STYLE]?.let {

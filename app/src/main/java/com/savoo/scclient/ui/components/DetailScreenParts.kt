@@ -3,6 +3,7 @@ package com.savoo.scclient.ui.components
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -221,11 +222,16 @@ fun DetailActionRow(
             Icon(Icons.Filled.Shuffle, contentDescription = stringResource(R.string.player_shuffle))
         }
         Spacer(Modifier.width(10.dp))
+        val playCorner by animateDpAsState(
+            targetValue = if (isPlayingThis) 20.dp else 32.dp,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
+            label = "detailPlayCorner",
+        )
         FilledIconButton(
             onClick = { haptic(); onPlay() },
             enabled = playEnabled,
             shapes = IconButtonDefaults.shapes(
-                shape = if (isPlayingThis) RoundedCornerShape(20.dp) else CircleShape,
+                shape = RoundedCornerShape(playCorner),
                 pressedShape = RoundedCornerShape(14.dp),
             ),
             modifier = Modifier.size(64.dp),
