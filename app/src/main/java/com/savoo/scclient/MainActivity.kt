@@ -53,6 +53,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var playerController: PlayerController
     @Inject lateinit var webBridge: WebViewApiBridge
     @Inject lateinit var appLockStore: AppLockStore
+    @Inject lateinit var dataDomeChallenge: com.savoo.scclient.data.remote.DataDomeChallenge
 
     private var deepLinkTarget by mutableStateOf<DeepLinkTarget>(DeepLinkTarget.None)
     private var deepLinkKey by mutableIntStateOf(0)
@@ -243,6 +244,18 @@ class MainActivity : FragmentActivity() {
                             )
                         }
                         else -> RootScreen(initialDeepLink = deepLinkTarget, deepLinkKey = deepLinkKey)
+                    }
+                    val challenge by dataDomeChallenge.pending.collectAsState()
+                    if (!locked) {
+                        challenge?.let { pending ->
+                            androidx.compose.runtime.key(pending.url) {
+                                com.savoo.scclient.ui.components.DataDomeChallengeSheet(
+                                    challenge = pending,
+                                    onPassed = { dataDomeChallenge.onPassed(it) },
+                                    onDismiss = { dataDomeChallenge.onDismissed() },
+                                )
+                            }
+                        }
                     }
                 }
             }

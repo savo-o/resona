@@ -8,16 +8,18 @@ import okhttp3.Response
 import java.util.UUID
 import javax.inject.Inject
 
-private const val BROWSER_USER_AGENT =
+internal const val BROWSER_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 class AuthInterceptor @Inject constructor(
     private val clientIdProvider: ClientIdProvider,
     private val tokenStore: TokenStore,
+    private val challenge: DataDomeChallenge,
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
+        if (!CustomServer.isSoundCloudHost(original.url.host)) return chain.proceed(original)
 
         val clientId = clientIdProvider.cachedOrFallback()
 
@@ -39,6 +41,24 @@ class AuthInterceptor @Inject constructor(
         }
 
         var response = chain.proceed(requestBuilder.build())
+
+        val challengeUrl = DataDomeChallenge.challengeUrl(
+            response.code,
+            runCatching { response.peekBody(64 * 1024).string() }.getOrNull(),
+        )
+        if (challengeUrl != null) {
+            if (!runBlocking { challenge.solve(challengeUrl) }) return response
+            response.close()
+            val retried = original.newBuilder()
+                .url(urlWithClientId)
+                .apply {
+                    applyCommonHeaders(this, clientId)
+                    tokenStore.accessToken?.let { addHeader("Authorization", "OAuth $it") }
+                    tokenStore.webCookies?.let { addHeader("Cookie", it) }
+                }
+                .build()
+            return chain.proceed(retried)
+        }
 
         if (response.code == 401 || response.code == 403) {
             val freshClientId = runBlocking { clientIdProvider.refresh() }

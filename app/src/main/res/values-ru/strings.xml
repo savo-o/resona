@@ -982,4 +982,16 @@
     <string name="favorites_push_danger_title">Вы уверены?</string>
     <string name="favorites_push_danger_body">Приложение поставит лайки подряд (треков: %1$d). SoundCloud считает это спамом: сначала он показывает предупреждение и приостанавливает лайки, а при повторах блокирует их в вашем аккаунте. Отправка остановится при первом предупреждении, но риск остаётся. Продолжайте, только если вы с этим согласны</string>
     <string name="favorites_push_danger_confirm">Всё равно отправить (опасно!)</string>
+    <string name="datadome_title">Проверка SoundCloud</string>
+    <string name="datadome_subtitle">SoundCloud хочет убедиться, что вы не робот. После проверки действие повторится автоматически.</string>
+    <string name="datadome_blocked_title">Доступ ограничен</string>
+    <string name="datadome_blocked_subtitle">SoundCloud временно заблокировал эту сеть. Переключитесь на другую сеть или сервер VPN, затем выйдите из аккаунта и войдите снова.</string>
+    <string name="datadome_close">Закрыть</string>
+    <string name="debug_menu_custom_server">Свой сервер</string>
+    <string name="debug_menu_custom_server_current">Включён: %s</string>
+    <string name="debug_menu_custom_server_off">Выключен, используется SoundCloud</string>
+    <string name="debug_menu_custom_server_desc">Запросы к api-v2.soundcloud.com пойдут на этот сервер. Токен SoundCloud ему не передаётся. После смены адреса перезапустите приложение.</string>
+    <string name="debug_menu_custom_server_hint">Адрес сервера</string>
+    <string name="debug_menu_custom_server_invalid">Неверный адрес</string>
+    <string name="debug_menu_custom_server_reset">Вернуть SoundCloud</string>
 </resources>

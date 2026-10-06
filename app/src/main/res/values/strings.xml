@@ -956,4 +956,16 @@
     <string name="favorites_push_danger_title">Dangerous action</string>
     <string name="favorites_push_danger_body">The app will like %1$d tracks in a row. SoundCloud treats this as spam: first it shows a warning and pauses likes, and if it happens again it blocks likes on your account. Sending stops at the first warning, but the risk remains. Continue only if you accept it</string>
     <string name="favorites_push_danger_confirm">Send anyway</string>
+    <string name="datadome_title">SoundCloud check</string>
+    <string name="datadome_subtitle">SoundCloud wants to make sure you are not a robot. After the check the action will be retried automatically.</string>
+    <string name="datadome_blocked_title">Access restricted</string>
+    <string name="datadome_blocked_subtitle">SoundCloud has temporarily blocked this network. Switch to another network or VPN server, then sign out and sign in again.</string>
+    <string name="datadome_close">Close</string>
+    <string name="debug_menu_custom_server">Custom server</string>
+    <string name="debug_menu_custom_server_current">Active: %s</string>
+    <string name="debug_menu_custom_server_off">Off, using SoundCloud</string>
+    <string name="debug_menu_custom_server_desc">Requests to api-v2.soundcloud.com go to this server instead. Your SoundCloud token is not sent to it. Restart the app after changing it.</string>
+    <string name="debug_menu_custom_server_hint">Server address</string>
+    <string name="debug_menu_custom_server_invalid">Invalid address</string>
+    <string name="debug_menu_custom_server_reset">Back to SoundCloud</string>
 </resources>

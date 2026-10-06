@@ -67,6 +67,8 @@ import com.savoo.scclient.R
 import com.savoo.scclient.data.local.FavoritesDao
 import com.savoo.scclient.data.local.LyricsSyncDao
 import com.savoo.scclient.data.remote.ClientIdProvider
+import com.savoo.scclient.data.remote.CustomServer
+import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.data.repository.RecapRepository
 import com.savoo.scclient.data.repository.RecapStats
 import com.savoo.scclient.debug.DebugLog
@@ -105,8 +107,23 @@ class DebugMenuViewModel @Inject constructor(
     private val playerController: PlayerController,
     private val lyricsSyncDao: LyricsSyncDao,
     private val recapRepository: RecapRepository,
+    private val customServer: CustomServer,
+    private val trackRepository: TrackRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    val customServerUrl = customServer.url
+
+    fun setCustomServer(value: String): Boolean {
+        if (!customServer.set(value)) return false
+        trackRepository.resetCurrentUser()
+        return true
+    }
+
+    fun clearCustomServer() {
+        customServer.clear()
+        trackRepository.resetCurrentUser()
+    }
 
     val traceEntries = DebugLog.entries
     val verboseNetworkLogging = DebugLog.verboseNetworkLogging
@@ -349,6 +366,9 @@ fun DebugMenuScreen(
     val recapStories by viewModel.recapStories.collectAsState()
     val forceRecapBanner by viewModel.forceRecapBanner.collectAsState()
     var clientIdOverride by remember { mutableStateOf("") }
+    val customServerUrl by viewModel.customServerUrl.collectAsState()
+    var customServerInput by remember { mutableStateOf("") }
+    var customServerError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -411,6 +431,58 @@ fun DebugMenuScreen(
                         enabled = clientIdOverride.isNotBlank(),
                     ) {
                         Text(stringResource(R.string.debug_menu_client_id_save))
+                    }
+                }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_menu_custom_server)) {
+                Text(
+                    customServerUrl?.let { stringResource(R.string.debug_menu_custom_server_current, it.toString()) }
+                        ?: stringResource(R.string.debug_menu_custom_server_off),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.debug_menu_custom_server_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = customServerInput,
+                        onValueChange = {
+                            customServerInput = it
+                            customServerError = false
+                        },
+                        label = { Text(stringResource(R.string.debug_menu_custom_server_hint)) },
+                        placeholder = { Text("http://192.168.1.10:8080") },
+                        isError = customServerError,
+                        supportingText = if (customServerError) {
+                            { Text(stringResource(R.string.debug_menu_custom_server_invalid)) }
+                        } else {
+                            null
+                        },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Button(
+                        onClick = {
+                            if (viewModel.setCustomServer(customServerInput)) {
+                                customServerInput = ""
+                            } else {
+                                customServerError = true
+                            }
+                        },
+                        enabled = customServerInput.isNotBlank(),
+                    ) {
+                        Text(stringResource(R.string.debug_menu_client_id_save))
+                    }
+                }
+                if (customServerUrl != null) {
+                    TextButton(onClick = { viewModel.clearCustomServer() }) {
+                        Text(stringResource(R.string.debug_menu_custom_server_reset))
                     }
                 }
             }
