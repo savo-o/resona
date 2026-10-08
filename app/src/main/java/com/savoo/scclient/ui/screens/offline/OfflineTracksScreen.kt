@@ -218,6 +218,7 @@ fun OfflineTracksScreen(
         viewModel.consumeImportResult()
     }
 
+    val sortedTracks = tracks.applySortOption(sort)
     val filteredTracks = (if (searchQuery.isBlank()) tracks
         else tracks.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
@@ -312,12 +313,12 @@ fun OfflineTracksScreen(
                         val isCurrentTrack = playerState.currentTrack?.id == track.id
                         TrackRow(
                             track = track,
-                            onClick = { viewModel.playTrack(track, filteredTracks) },
+                            onClick = { viewModel.playTrack(track, sortedTracks) },
                             isLoading = playerState.loadingTrackId == track.id,
                             isPlaying = playerState.isPlaying && isCurrentTrack,
                             onTogglePlayPause = {
                                 if (isCurrentTrack) viewModel.playerController.togglePlayPause()
-                                else viewModel.playTrack(track, filteredTracks)
+                                else viewModel.playTrack(track, sortedTracks)
                             },
                             isFavorite = track.id in favoriteTrackIds,
                             onToggleFavorite = { viewModel.toggleFavorite(track) },

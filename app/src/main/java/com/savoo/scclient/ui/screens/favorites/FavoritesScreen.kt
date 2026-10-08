@@ -214,7 +214,18 @@ class FavoritesViewModel @Inject constructor(
     }
 
     fun playTrack(track: Track, index: Int) {
-        playerController.playFavorites(filter.value, index, track)
+        val current = filter.value
+        if (current.search.isBlank()) {
+            playerController.playFavorites(current, index, track)
+            return
+        }
+        val full = current.copy(search = "")
+        viewModelScope.launch {
+            val fullIndex = withContext(Dispatchers.IO) {
+                favoritesDao.queryTrackIds(FavoriteTrackQueries.ids(full)).indexOf(track.id)
+            }
+            playerController.playFavorites(full, fullIndex.coerceAtLeast(0), track)
+        }
     }
 
     suspend fun filteredTrackIds(): List<Long> = withContext(Dispatchers.IO) {
