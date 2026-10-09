@@ -1,5 +1,6 @@
 package com.savoo.scclient.ui.screens.account
 
+import com.savoo.scclient.ui.components.CopyableId
 import com.savoo.scclient.ui.components.badgeIcon
 import com.savoo.scclient.ui.components.badgeTint
 import com.savoo.scclient.ui.components.badgeTitle
@@ -154,7 +155,6 @@ class AccountViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AccountUiState())
     val uiState = _uiState.asStateFlow()
-    val developerMode = settingsRepository.settings.map { it.developerMode }
     val onlineFavoritesEnabled = settingsRepository.settings.map { it.onlineFavoritesEnabled }
 
     private val _isSyncingFavorites = MutableStateFlow(false)
@@ -236,7 +236,6 @@ fun AccountScreen(
                 state.isLoggedIn -> {
                     val userBadges by state.user?.id?.let { viewModel.badgeRepository.getBadges(it) }
                         ?.collectAsState() ?: remember { mutableStateOf(emptyList<String>()) }
-                    val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
                     val onlineFavoritesEnabled by viewModel.onlineFavoritesEnabled.collectAsState(initial = false)
                     val isSyncingFavorites by viewModel.isSyncingFavorites.collectAsState()
                     val localOnlyFavorites by viewModel.localOnlyFavorites.collectAsState(initial = 0)
@@ -246,7 +245,6 @@ fun AccountScreen(
                     LoggedInContent(
                         user = state.user,
                         badges = userBadges,
-                        showId = isDeveloper,
                         onlineFavoritesEnabled = onlineFavoritesEnabled,
                         onOnlineFavoritesChange = { viewModel.setOnlineFavoritesEnabled(it) },
                         hasSpamWarning = spamWarning != null,
@@ -302,7 +300,6 @@ fun AccountScreen(
 private fun LoggedInContent(
     user: User?,
     badges: List<String> = emptyList(),
-    showId: Boolean = false,
     onlineFavoritesEnabled: Boolean = false,
     onOnlineFavoritesChange: (Boolean) -> Unit = {},
     isSyncingFavorites: Boolean = false,
@@ -427,15 +424,13 @@ private fun LoggedInContent(
             )
         }
 
-        if (showId) {
-            user?.id?.let {
-                Text(
-                    text = "ID: $it",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
+        user?.id?.let {
+            CopyableId(
+                id = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 2.dp),
+            )
         }
 
         user?.description?.trim()?.takeIf { it.isNotBlank() }?.let { bio ->

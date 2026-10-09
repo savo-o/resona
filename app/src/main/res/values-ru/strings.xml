@@ -274,6 +274,7 @@
     <string name="artist_tracks_count">%d треков</string>
     <string name="artist_at_username">@%s</string>
     <string name="artist_id">ID: %d</string>
+    <string name="id_copied">ID скопирован</string>
     <string name="artist_error">Ошибка: %s</string>
     <string name="playlist_by">%s</string>
     <string name="detail_popular">Популярное</string>
@@ -422,7 +423,7 @@
     <string name="settings_haptics_intensity_medium">Средняя</string>
     <string name="settings_haptics_intensity_high">Сильная</string>
     <string name="settings_developer_mode">Режим разработчика</string>
-    <string name="settings_developer_mode_desc">Показывать ID пользователей в профилях</string>
+    <string name="settings_developer_mode_desc">Показывать меню отладки</string>
     <string name="settings_language">Язык</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_ru">Русский</string>

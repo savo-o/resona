@@ -268,6 +268,7 @@
     <string name="artist_tracks_count">%d tracks</string>
     <string name="artist_at_username">@%s</string>
     <string name="artist_id">ID: %d</string>
+    <string name="id_copied">ID copied</string>
     <string name="artist_error">Error: %s</string>
     <string name="playlist_by">%s</string>
     <string name="detail_popular">Popular</string>
@@ -414,7 +415,7 @@
     <string name="settings_haptics_intensity_medium">Medium</string>
     <string name="settings_haptics_intensity_high">High</string>
     <string name="settings_developer_mode">Developer Mode</string>
-    <string name="settings_developer_mode_desc">Show user IDs in profiles</string>
+    <string name="settings_developer_mode_desc">Show the debug menu</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_en">English</string>
     <string name="settings_language_ru">Русский</string>

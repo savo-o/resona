@@ -75,6 +75,7 @@ import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.player.OfflineTrackManager
 import com.savoo.scclient.player.PlayerController
+import com.savoo.scclient.ui.components.CopyableId
 import com.savoo.scclient.ui.components.AddToPlaylistSheet
 import com.savoo.scclient.ui.components.CollapsingDetailTopBar
 import com.savoo.scclient.ui.components.DetailActionRow
@@ -143,7 +144,6 @@ class ArtistViewModel @Inject constructor(
     val downloadingTrackIds = offlineTrackManager.downloadingTrackIds
 
     fun getBadges(userId: Long): StateFlow<List<String>> = badgeRepository.getBadges(userId)
-    val developerMode = settingsRepository.settings.map { it.developerMode }
     val drmTrackHiding = settingsRepository.settings.map { it.drmTrackHiding }
 
     private var loadedUserId: Long? = null
@@ -406,11 +406,9 @@ fun ArtistScreen(
                     ) {
                         item(key = "hero") {
                             val artistBadges by viewModel.getBadges(userId).collectAsState()
-                            val isDeveloper by viewModel.developerMode.collectAsState(initial = false)
                             ArtistHero(
                                 user = user,
                                 badges = artistBadges,
-                                showId = isDeveloper,
                                 scrollOffsetPx = if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset else 0,
                                 onBadgeClick = { selectedBadge = it },
                             )
@@ -579,7 +577,6 @@ private fun Playlist.toCardItem(subtitle: String) = DetailCardItem(
 private fun ArtistHero(
     user: User,
     badges: List<String>,
-    showId: Boolean,
     scrollOffsetPx: Int,
     onBadgeClick: (String) -> Unit,
 ) {
@@ -660,13 +657,11 @@ private fun ArtistHero(
                     )
                 }
             }
-            if (showId) {
-                Text(
-                    text = stringResource(R.string.artist_id, user.id),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            CopyableId(
+                id = user.id,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
