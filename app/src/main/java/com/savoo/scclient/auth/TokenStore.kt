@@ -54,9 +54,6 @@ class TokenStore @Inject constructor(
 
     fun saveCookies(cookies: String) {
         webCookies = cookies
-        if (accessToken == null && cookies.isNotEmpty()) {
-            _isLoggedIn.value = true
-        }
     }
 
     fun replaceCookie(pair: String) {

@@ -316,6 +316,7 @@
     <string name="login_continue_google">Продолжить через Google</string>
     <string name="login_continue_facebook">Продолжить через Facebook</string>
     <string name="login_trouble_use_browser">Не получается войти? Войти через браузер</string>
+    <string name="login_browser_not_signed_in">Вход ещё не выполнен. Завершите вход на странице и нажмите «Готово».</string>
     <string name="favorites_online_toggle_title">Онлайн избранное</string>
     <string name="favorites_online_toggle_desc">Синхронизация лайков с вашим аккаунтом SoundCloud</string>
     <string name="favorites_badge_local">Локальное избранное</string>

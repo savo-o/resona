@@ -12,18 +12,23 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.savoo.scclient.R
+import kotlinx.coroutines.launch
 
 private const val OAUTH_USER_AGENT =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -38,6 +43,9 @@ fun OAuthWebViewScreen(
 ) {
     val capture = remember { WebViewTokenCapture() }
     var popupWebView by remember { mutableStateOf<WebView?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(
@@ -106,15 +114,14 @@ fun OAuthWebViewScreen(
 
         ExtendedFloatingActionButton(
             onClick = {
-                val captured = capture.currentToken
-                if (captured != null) {
-                    onTokenReceived(captured)
-                    capture.currentCookies?.let(onCookiesReceived)
+                val cookies = capture.currentCookies ?: capture.cookiesFromManager()
+                val token = capture.currentToken ?: oauthTokenFromCookies(cookies)
+                if (token != null) {
+                    onTokenReceived(token)
+                    cookies?.takeIf { it.isNotEmpty() }?.let(onCookiesReceived)
                 } else {
-                    val cookies = capture.cookiesFromManager().orEmpty()
-                    if (cookies.isNotEmpty()) {
-                        onCookiesReceived(cookies)
-                    }
+                    val message = context.getString(R.string.login_browser_not_signed_in)
+                    scope.launch { snackbarHostState.showSnackbar(message) }
                 }
             },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
@@ -122,5 +129,17 @@ fun OAuthWebViewScreen(
             Icon(Icons.Filled.Check, contentDescription = null)
             Text(stringResource(R.string.done), modifier = Modifier.padding(start = 8.dp))
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
+        )
     }
 }
+
+private fun oauthTokenFromCookies(cookies: String?): String? =
+    cookies?.split(";")
+        ?.map { it.trim() }
+        ?.firstOrNull { it.startsWith("oauth_token=") }
+        ?.substringAfter("=")
+        ?.takeIf { it.length > 20 }

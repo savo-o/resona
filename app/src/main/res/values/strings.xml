@@ -308,6 +308,7 @@
     <string name="login_continue_google">Continue with Google</string>
     <string name="login_continue_facebook">Continue with Facebook</string>
     <string name="login_trouble_use_browser">Having trouble? Sign in via browser</string>
+    <string name="login_browser_not_signed_in">You are not signed in yet. Finish signing in on the page, then tap Done.</string>
     <string name="favorites_online_toggle_title">Online favorites</string>
     <string name="favorites_online_toggle_desc">Sync likes with your real SoundCloud account</string>
     <string name="favorites_badge_local">Local favorite</string>
