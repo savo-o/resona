@@ -141,9 +141,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -202,6 +206,12 @@ import kotlin.math.roundToInt
 import kotlin.math.cos
 import kotlin.math.roundToLong
 import kotlin.math.sin
+import kotlin.math.pow
+import kotlin.math.abs
+import kotlin.math.exp
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableIntStateOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @UnstableApi
@@ -424,6 +434,7 @@ fun PlayerSheet(
             ),
             glowColor = glowColor,
             seekBarStyle = viewModel.seekBarStyle.collectAsState().value,
+            waveform = viewModel.waveform.collectAsState().value,
             playerStyle = viewModel.playerStyle.collectAsState().value,
             backgroundMode = viewModel.backgroundMode.collectAsState().value,
             showCustomizeHint = !viewModel.playerHintShown.collectAsState().value,
@@ -477,6 +488,7 @@ private fun FullPlayerSheet(
     pulse: () -> Float,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
+    waveform: FloatArray?,
     playerStyle: PlayerStyle,
     backgroundMode: AppBackgroundMode,
     backgroundStyle: PlayerBackgroundStyle,
@@ -540,6 +552,7 @@ private fun FullPlayerSheet(
                 pulse = pulse,
                 glowColor = glowColor,
                 seekBarStyle = seekBarStyle,
+                waveform = waveform,
                 backgroundStyle = backgroundStyle,
                 artworkShape = artworkShape,
                 artworkRingEnabled = artworkRingEnabled,
@@ -584,6 +597,7 @@ private fun FullPlayerSheet(
             pulse = pulse,
             palette = pixelPalette,
             seekBarStyle = seekBarStyle,
+            waveform = waveform,
             glowColor = glowColor,
             showGlow = pixelGlowEnabled,
             artworkShape = artworkShape,
@@ -916,6 +930,7 @@ private fun PixelPlayerContent(
     pulse: () -> Float,
     palette: PixelPalette,
     seekBarStyle: SeekBarStyle,
+    waveform: FloatArray?,
     glowColor: Color?,
     showGlow: Boolean,
     artworkShape: ArtworkShape,
@@ -1364,7 +1379,27 @@ private fun PixelPlayerContent(
                 duration = formatTime(state.durationMs),
                 color = palette.onBackgroundMuted,
             ) {
-            if (seekBarStyle == SeekBarStyle.WAVY) {
+            if (seekBarStyle == SeekBarStyle.WAVEFORM) {
+                WaveformSeekSlider(
+                    value = seekValue,
+                    onValueChange = onSeekValueChange,
+                    onValueChangeFinished = onSeekValueChangeFinished,
+                    valueRange = seekValueRange,
+                    samples = waveform,
+                    activeColor = accent,
+                    inactiveColor = palette.onBackgroundMuted.copy(alpha = 0.25f),
+                    isDragging = isDragging,
+                    modifier = Modifier.timedCommentMarkers(
+                        comments = timedComments,
+                        durationMs = state.durationMs,
+                        activeId = activeComment?.id,
+                        color = markerColor,
+                        activeColor = accent,
+                        trackInset = 2.dp,
+                        lift = 24.dp,
+                    ),
+                )
+            } else if (seekBarStyle == SeekBarStyle.WAVY) {
                 Slider(
                     value = seekValue,
                     onValueChange = onSeekValueChange,
@@ -1820,6 +1855,164 @@ private fun WavySeekTrack(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WaveformSeekSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    samples: FloatArray?,
+    activeColor: Color,
+    inactiveColor: Color,
+    isDragging: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
+        valueRange = valueRange,
+        modifier = modifier,
+        track = { sliderState ->
+            WaveformSeekTrack(
+                sliderState = sliderState,
+                samples = samples,
+                activeColor = activeColor,
+                inactiveColor = inactiveColor,
+                isDragging = isDragging,
+            )
+        },
+        thumb = {
+            val thumbWidth by animateFloatAsState(
+                targetValue = if (isDragging) 6f else 4f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                label = "waveformSeekThumbWidth",
+            )
+            Box(modifier = Modifier.size(width = 6.dp, height = 44.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .size(width = thumbWidth.dp, height = 44.dp)
+                        .background(activeColor, RoundedCornerShape(50)),
+                )
+            }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WaveformSeekTrack(
+    sliderState: SliderState,
+    samples: FloatArray?,
+    activeColor: Color,
+    inactiveColor: Color,
+    isDragging: Boolean,
+) {
+    val fraction = ((sliderState.value - sliderState.valueRange.start) /
+        (sliderState.valueRange.endInclusive - sliderState.valueRange.start).coerceAtLeast(0.0001f))
+        .coerceIn(0f, 1f)
+
+    val boost by animateFloatAsState(
+        targetValue = if (isDragging) 1.12f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "waveformSeekBoost",
+    )
+    val density = LocalDensity.current
+    var widthPx by remember { mutableIntStateOf(0) }
+    val barWidthPx = with(density) { 3.dp.toPx() }
+    val gapPx = with(density) { 2.dp.toPx() }
+    val barCount = ((widthPx + gapPx) / (barWidthPx + gapPx)).toInt().coerceAtLeast(1)
+    val targets = remember(samples, barCount) { waveformLevels(samples, barCount) }
+    val displayed = remember(barCount) { FloatArray(barCount) }
+    val sweep = remember { floatArrayOf(0f) }
+    var frame by remember { mutableLongStateOf(0L) }
+    val hasData = samples != null
+
+    LaunchedEffect(targets, hasData) {
+        if (!hasData) sweep[0] = 0f
+        var last = 0L
+        while (true) {
+            val now = withFrameNanos { it }
+            val dt = if (last == 0L) 0.016f else ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
+            last = now
+            if (hasData) sweep[0] = (sweep[0] + dt / WAVEFORM_SWEEP_SECONDS).coerceAtMost(1f)
+            val k = 1f - exp(-dt * WAVEFORM_EASE_RATE)
+            var moving = hasData && sweep[0] < 1f
+            for (i in displayed.indices) {
+                val target = if ((i + 0.5f) / barCount <= sweep[0]) targets[i] else 0f
+                val delta = target - displayed[i]
+                if (abs(delta) > 0.002f) {
+                    displayed[i] += delta * k
+                    moving = true
+                } else {
+                    displayed[i] = target
+                }
+            }
+            frame = now
+            if (!moving) break
+        }
+    }
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .onSizeChanged { widthPx = it.width },
+    ) {
+        frame
+        val minHeight = barWidthPx
+        val count = displayed.size
+        val step = (size.width - barWidthPx) / (count - 1).coerceAtLeast(1)
+        val midY = size.height / 2f
+        val corner = CornerRadius(barWidthPx / 2f, barWidthPx / 2f)
+        fun drawBars(color: Color) {
+            for (index in 0 until count) {
+                val h = (minHeight + (size.height - minHeight) * displayed[index] * boost).coerceIn(minHeight, size.height)
+                drawRoundRect(
+                    color = color,
+                    topLeft = Offset(index * step, midY - h / 2f),
+                    size = Size(barWidthPx, h),
+                    cornerRadius = corner,
+                )
+            }
+        }
+        val activeWidth = size.width * fraction
+        clipRect(left = activeWidth) { drawBars(inactiveColor) }
+        clipRect(right = activeWidth) { drawBars(activeColor) }
+    }
+}
+
+private const val WAVEFORM_SWEEP_SECONDS = 0.6f
+private const val WAVEFORM_EASE_RATE = 10f
+
+private fun waveformLevels(samples: FloatArray?, barCount: Int): FloatArray {
+    if (samples == null || samples.isEmpty()) return FloatArray(barCount)
+    val averages = FloatArray(barCount) { index ->
+        val from = index * samples.size / barCount
+        val to = ((index + 1) * samples.size / barCount).coerceIn(from + 1, samples.size)
+        var sum = 0f
+        var known = 0
+        for (i in from until to) {
+            val v = samples[i]
+            if (!v.isNaN()) {
+                sum += v
+                known++
+            }
+        }
+        if (known == 0) Float.NaN else sum / known
+    }
+    val sorted = averages.filter { !it.isNaN() }.sorted()
+    if (sorted.isEmpty()) return FloatArray(barCount)
+    val low = sorted[(sorted.size * 0.05f).toInt().coerceIn(0, sorted.lastIndex)]
+    val high = sorted.last()
+    val range = (high - low).coerceAtLeast(0.0001f)
+    return FloatArray(barCount) { index ->
+        val value = averages[index]
+        if (value.isNaN()) 0f else 0.08f + 0.92f * ((value - low) / range).coerceIn(0f, 1f).pow(1.6f)
+    }
+}
+
 @Composable
 private fun ExpressiveMenuItem(
     icon: ImageVector,
@@ -2189,6 +2382,7 @@ private fun ClassicPlayerContent(
     pulse: () -> Float,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
+    waveform: FloatArray?,
     backgroundStyle: PlayerBackgroundStyle,
     artworkShape: ArtworkShape,
     artworkRingEnabled: Boolean,
@@ -2699,7 +2893,27 @@ private fun ClassicPlayerContent(
                 duration = formatTime(state.durationMs),
                 color = palette.onMuted,
             ) {
-            if (seekBarStyle == SeekBarStyle.WAVY) {
+            if (seekBarStyle == SeekBarStyle.WAVEFORM) {
+                WaveformSeekSlider(
+                    value = seekValue,
+                    onValueChange = onSeekValueChange,
+                    onValueChangeFinished = onSeekValueChangeFinished,
+                    valueRange = seekValueRange,
+                    samples = waveform,
+                    activeColor = accent,
+                    inactiveColor = palette.onMuted.copy(alpha = 0.25f),
+                    isDragging = isDragging,
+                    modifier = Modifier.timedCommentMarkers(
+                        comments = timedComments,
+                        durationMs = state.durationMs,
+                        activeId = activeComment?.id,
+                        color = markerColor,
+                        activeColor = accent,
+                        trackInset = 2.dp,
+                        lift = 24.dp,
+                    ),
+                )
+            } else if (seekBarStyle == SeekBarStyle.WAVY) {
                 Slider(
                     value = seekValue,
                     onValueChange = onSeekValueChange,

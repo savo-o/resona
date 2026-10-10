@@ -136,6 +136,7 @@ fun Modifier.timedCommentMarkers(
     color: Color,
     activeColor: Color,
     trackInset: Dp,
+    lift: Dp = 9.dp,
 ): Modifier = composed {
     if (comments.isEmpty() || durationMs <= 0L) return@composed this
     val markers = remember(comments, durationMs) {
@@ -147,7 +148,7 @@ fun Modifier.timedCommentMarkers(
     val density = LocalDensity.current
     val insetPx = with(density) { trackInset.toPx() }
     val radiusPx = with(density) { 2.dp.toPx() }
-    val liftPx = with(density) { 9.dp.toPx() }
+    val liftPx = with(density) { lift.toPx() }
     drawWithContent {
         drawContent()
         val usable = (size.width - insetPx * 2).coerceAtLeast(1f)

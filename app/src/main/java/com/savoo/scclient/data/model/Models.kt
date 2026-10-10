@@ -16,6 +16,7 @@ data class Track(
     @Json(name = "media") val media: Media? = null,
     @Json(name = "permalink_url") val permalinkUrl: String? = null,
     @Json(name = "policy") val policy: String? = null,
+    @Json(name = "waveform_url") val waveformUrl: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

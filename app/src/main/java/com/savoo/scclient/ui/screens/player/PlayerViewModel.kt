@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -61,6 +62,7 @@ class PlayerViewModel @Inject constructor(
     private val favoritesImportManager: FavoritesImportManager,
     private val playlistsRepository: PlaylistsRepository,
     private val favoritesSyncManager: FavoritesSyncManager,
+    private val waveformRepository: com.savoo.scclient.data.repository.WaveformRepository,
 ) : ViewModel() {
 
     val isFavorite = controller.state.map { it.currentTrack?.id ?: 0L }
@@ -216,6 +218,19 @@ class PlayerViewModel @Inject constructor(
 
     val seekBarStyle = settingsRepository.settings.map { it.seekBarStyle }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SeekBarStyle.CLASSIC)
+
+    val waveform = combine(
+        controller.state.map { it.currentTrack }.distinctUntilChanged { a, b -> a?.id == b?.id },
+        seekBarStyle,
+    ) { track, style -> track.takeIf { style == SeekBarStyle.WAVEFORM } }
+        .distinctUntilChanged { a, b -> a?.id == b?.id }
+        .flatMapLatest { track ->
+            flow<FloatArray?> {
+                emit(null)
+                if (track != null) emitAll(waveformRepository.waveform(track))
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val backgroundMode = settingsRepository.settings.map { it.backgroundMode }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), com.savoo.scclient.data.repository.AppBackgroundMode.DYNAMIC)

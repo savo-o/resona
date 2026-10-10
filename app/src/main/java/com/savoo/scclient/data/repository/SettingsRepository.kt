@@ -38,7 +38,7 @@ fun systemDefaultLanguage(context: Context): LanguageOption =
 
 enum class HapticsIntensity { LOW, MEDIUM, HIGH }
 
-enum class SeekBarStyle { CLASSIC, WAVY }
+enum class SeekBarStyle { CLASSIC, WAVY, WAVEFORM }
 
 enum class PlayerBackgroundStyle { ORB, BLURRED_ARTWORK, MINIMAL }
 

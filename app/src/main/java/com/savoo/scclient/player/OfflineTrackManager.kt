@@ -67,6 +67,7 @@ class OfflineTrackManager @Inject constructor(
     private val offlineDao: OfflineDao,
     private val trackRepository: TrackRepository,
     @PlainHttpClient private val httpClient: OkHttpClient,
+    private val waveformRepository: com.savoo.scclient.data.repository.WaveformRepository,
 ) {
     private val offlineDir: File by lazy {
         File(context.filesDir, "offline").apply { mkdirs() }
@@ -335,6 +336,7 @@ class OfflineTrackManager @Inject constructor(
                 )
             )
             DebugLog.log("OfflineTrack", "Saved ${track.title} (${audioFile.length()} bytes)")
+            repairScope.launch { runCatching { waveformRepository.getWaveform(track) } }
             Result.success(Unit)
         } catch (e: Exception) {
             DebugLog.log("OfflineTrack", "Failed to save: ${e.message}")
@@ -356,6 +358,7 @@ class OfflineTrackManager @Inject constructor(
                 if (audioFile.exists()) audioFile.delete()
                 val artworkFile = File(offlineDir, "${trackId}.jpg")
                 if (artworkFile.exists()) artworkFile.delete()
+                File(offlineDir, "$trackId.wave").delete()
                 offlineDao.removeTrack(trackId)
                 DebugLog.log("OfflineTrack", "Removed offline track: ${track.title}")
             }
@@ -373,6 +376,7 @@ class OfflineTrackManager @Inject constructor(
                 if (audioFile.exists()) audioFile.delete()
                 val artworkFile = File(offlineDir, "${track.trackId}.jpg")
                 if (artworkFile.exists()) artworkFile.delete()
+                File(offlineDir, "${track.trackId}.wave").delete()
             }
             offlineDao.clearAll()
             DebugLog.log("OfflineTrack", "Cleared all offline tracks")

@@ -414,6 +414,7 @@
     <string name="settings_seek_bar_style">Стиль полосы перемотки</string>
     <string name="settings_seek_bar_style_classic">Обычный</string>
     <string name="settings_seek_bar_style_wavy">Волнистый</string>
+    <string name="settings_seek_bar_style_waveform">Волна трека</string>
     <string name="settings_lyrics_genius_fallback">Несинхронизированный текст с Genius</string>
     <string name="settings_lyrics_genius_fallback_desc">Если синхронизированный текст не найден, искать обычный текст через неофициальный поиск Genius вместо пустого экрана</string>
     <string name="settings_haptics">Тактильный отклик</string>
@@ -598,6 +599,10 @@
     <string name="debug_menu_lyrics_sync">Синхронизация текста</string>
     <string name="debug_menu_lyrics_sync_count">Треков с коррекцией: %d</string>
     <string name="debug_menu_lyrics_sync_desc">Копирует сдвиг, растяжение и длительности LRCLIB по всем исправленным трекам в CSV</string>
+    <string name="debug_menu_waveforms">Волны треков</string>
+    <string name="debug_menu_waveforms_count">Сохранено волн: %d</string>
+    <string name="debug_menu_waveforms_clear">Очистить</string>
+    <string name="debug_menu_waveforms_cleared">Удалено волн: %d</string>
     <string name="debug_menu_test_crash">Тестовый краш</string>
     <string name="debug_menu_test_crash_desc">Принудительно роняет приложение для проверки обработки крашей</string>
     <string name="debug_menu_diagnostics">Диагностика</string>

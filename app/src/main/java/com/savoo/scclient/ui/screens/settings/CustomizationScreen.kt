@@ -730,7 +730,7 @@ fun CustomizationScreen(
             SettingsSectionCard(title = stringResource(R.string.settings_seek_bar_style)) {
                 run {
                     val styles = SeekBarStyle.entries
-                    val styleLabelResIds = listOf(R.string.settings_seek_bar_style_classic, R.string.settings_seek_bar_style_wavy)
+                    val styleLabelResIds = listOf(R.string.settings_seek_bar_style_classic, R.string.settings_seek_bar_style_wavy, R.string.settings_seek_bar_style_waveform)
                     ButtonGroup(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         styles.forEachIndexed { index, style ->
                             val shapes = when (index) {

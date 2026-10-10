@@ -406,6 +406,7 @@
     <string name="settings_seek_bar_style">Seek bar style</string>
     <string name="settings_seek_bar_style_classic">Classic</string>
     <string name="settings_seek_bar_style_wavy">Wavy</string>
+    <string name="settings_seek_bar_style_waveform">Waveform</string>
     <string name="settings_lyrics_genius_fallback">Unsynced lyrics from Genius</string>
     <string name="settings_lyrics_genius_fallback_desc">When no synced lyrics are found, look up plain lyrics from Genius\'s unofficial search instead of showing nothing</string>
     <string name="settings_haptics">Haptic Feedback</string>
@@ -574,6 +575,10 @@
     <string name="debug_menu_lyrics_sync">Lyrics sync</string>
     <string name="debug_menu_lyrics_sync_count">Tracks with a correction: %d</string>
     <string name="debug_menu_lyrics_sync_desc">Copies offset, stretch and LRCLIB durations for every corrected track as CSV</string>
+    <string name="debug_menu_waveforms">Waveforms</string>
+    <string name="debug_menu_waveforms_count">Saved waveforms: %d</string>
+    <string name="debug_menu_waveforms_clear">Clear</string>
+    <string name="debug_menu_waveforms_cleared">Waveforms removed: %d</string>
     <string name="debug_menu_test_crash">Trigger Test Crash</string>
     <string name="debug_menu_test_crash_desc">Force-crashes the app to test crash handling</string>
     <string name="debug_menu_diagnostics">Diagnostics</string>

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.savoo.scclient.ui.components.AppDivider
@@ -44,6 +45,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -109,8 +112,24 @@ class DebugMenuViewModel @Inject constructor(
     private val recapRepository: RecapRepository,
     private val customServer: CustomServer,
     private val trackRepository: TrackRepository,
+    private val waveformRepository: com.savoo.scclient.data.repository.WaveformRepository,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
+
+    private val _waveformCacheCount = MutableStateFlow(0)
+    val waveformCacheCount = _waveformCacheCount.asStateFlow()
+
+    fun refreshWaveformCacheCount() {
+        viewModelScope.launch(Dispatchers.IO) { _waveformCacheCount.value = waveformRepository.cachedCount() }
+    }
+
+    fun clearWaveformCache(onDone: (Int) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val removed = waveformRepository.clearCache()
+            _waveformCacheCount.value = 0
+            withContext(Dispatchers.Main) { onDone(removed) }
+        }
+    }
 
     val customServerUrl = customServer.url
 
@@ -576,6 +595,38 @@ fun DebugMenuScreen(
                         enabled = lyricsSyncCount > 0,
                     ) {
                         Text(stringResource(R.string.debug_menu_copy))
+                    }
+                }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_menu_waveforms)) {
+                val waveformCacheCount by viewModel.waveformCacheCount.collectAsState()
+                LaunchedEffect(Unit) { viewModel.refreshWaveformCacheCount() }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Waves,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        stringResource(R.string.debug_menu_waveforms_count, waveformCacheCount),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = {
+                            viewModel.clearWaveformCache { removed ->
+                                scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.debug_menu_waveforms_cleared, removed)) }
+                            }
+                        },
+                        enabled = waveformCacheCount > 0,
+                    ) {
+                        Text(stringResource(R.string.debug_menu_waveforms_clear))
                     }
                 }
             }
