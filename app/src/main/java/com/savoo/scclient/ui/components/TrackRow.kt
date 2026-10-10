@@ -79,6 +79,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.Track
 import com.savoo.scclient.data.model.UnavailableReason
@@ -96,23 +97,27 @@ fun TrackArtwork(
     shape: Shape = RoundedCornerShape(14.dp),
     contentScale: ContentScale = ContentScale.Crop,
 ) {
+    var loaded by remember(artworkUrl) { mutableStateOf(false) }
     Box(
         modifier = modifier
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            .then(if (loaded) Modifier else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest)),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            Icons.Filled.MusicNote,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxSize(0.4f),
-        )
+        if (!loaded) {
+            Icon(
+                Icons.Filled.MusicNote,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxSize(0.4f),
+            )
+        }
         if (artworkUrl != null) {
             AsyncImage(
                 model = artworkUrl.replace("-large", "-t500x500"),
                 contentDescription = contentDescription,
                 contentScale = contentScale,
+                onState = { loaded = it is AsyncImagePainter.State.Success },
                 modifier = Modifier.fillMaxSize(),
             )
         }

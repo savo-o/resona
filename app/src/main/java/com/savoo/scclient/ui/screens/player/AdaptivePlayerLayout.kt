@@ -1,6 +1,8 @@
 package com.savoo.scclient.ui.screens.player
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +22,8 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -78,8 +82,26 @@ internal fun AdaptivePlayerLayout(
                     }
                 } else {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
-                        Crossfade(targetState = showLyrics, label = "playerMiddle") { lyricsMode ->
-                            if (lyricsMode) lyricsInline() else middle(compact, landscape)
+                        val transition = updateTransition(showLyrics, label = "playerMiddle")
+                        val lyricsAlpha = transition.animateFloat(
+                            transitionSpec = { tween() },
+                            label = "playerMiddleAlpha",
+                        ) { if (it) 1f else 0f }
+                        if (!transition.currentState || !transition.targetState) {
+                            Box(
+                                Modifier.fillMaxSize().graphicsLayer {
+                                    alpha = 1f - lyricsAlpha.value
+                                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                                },
+                            ) { middle(compact, landscape) }
+                        }
+                        if (transition.currentState || transition.targetState) {
+                            Box(
+                                Modifier.fillMaxSize().graphicsLayer {
+                                    alpha = lyricsAlpha.value
+                                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                                },
+                            ) { lyricsInline() }
                         }
                     }
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {

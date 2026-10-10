@@ -43,6 +43,10 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.savoo.scclient.data.model.GeniusAnnotation
+import com.savoo.scclient.data.model.LyricsAnnotationMatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @UnstableApi
@@ -112,6 +116,37 @@ class PlayerViewModel @Inject constructor(
     val lyrics = combine(currentTrackId, loadedLyrics, forcedLyrics) { trackId, loaded, forced ->
         forced?.takeIf { it.first == trackId }?.second ?: loaded
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    private val annotationsRequestedFor = MutableStateFlow<Long?>(null)
+
+    fun requestLyricsAnnotations() {
+        annotationsRequestedFor.value = controller.state.value.currentTrack?.id
+    }
+
+    val lyricsAnnotations = combine(
+        currentTrackId,
+        lyrics,
+        annotationsRequestedFor,
+        settingsRepository.settings.map { it.geniusAnnotationsEnabled }.distinctUntilChanged(),
+    ) { trackId, result, requested, enabled ->
+        val lines = when (result) {
+            is LyricsResult.Synced -> result.lines.map { it.text }
+            is LyricsResult.Plain -> result.text.lines()
+            else -> null
+        }
+        lines?.takeIf { enabled && trackId != null && trackId == requested }
+    }
+        .distinctUntilChanged()
+        .flatMapLatest { lines ->
+            flow {
+                emit(emptyMap())
+                val track = controller.state.value.currentTrack
+                if (lines == null || track == null) return@flow
+                val annotations = lyricsRepository.getAnnotations(track)
+                emit(withContext(Dispatchers.Default) { LyricsAnnotationMatcher.match(lines, annotations) })
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap<Int, List<GeniusAnnotation>>())
 
     private val lyricsTrackDurationMs = controller.state
         .map { state -> state.currentTrack?.durationMs?.takeIf { it > 0L } ?: state.durationMs.takeIf { it > 0L } }

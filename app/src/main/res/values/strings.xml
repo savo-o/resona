@@ -409,6 +409,14 @@
     <string name="settings_seek_bar_style_waveform">Waveform</string>
     <string name="settings_lyrics_genius_fallback">Unsynced lyrics from Genius</string>
     <string name="settings_lyrics_genius_fallback_desc">When no synced lyrics are found, look up plain lyrics from Genius\'s unofficial search instead of showing nothing</string>
+    <string name="settings_lyrics_genius_annotations">Genius annotations</string>
+    <string name="settings_lyrics_genius_annotations_desc">Lines explained on Genius are marked in the lyrics. Tap the mark to read the annotation</string>
+    <string name="lyrics_annotation_title">Genius annotation</string>
+    <string name="lyrics_annotation_unreviewed">Not reviewed yet</string>
+    <string name="lyrics_annotation_verified">From the artist</string>
+    <string name="lyrics_annotation_votes">%d votes</string>
+    <string name="lyrics_annotation_open">Open on Genius</string>
+    <string name="lyrics_annotation_mark">Annotation</string>
     <string name="settings_haptics">Haptic Feedback</string>
     <string name="settings_haptics_desc">Vibrate on taps and interactions</string>
     <string name="settings_haptics_intensity">Vibration Intensity</string>

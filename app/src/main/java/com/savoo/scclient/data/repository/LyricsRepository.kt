@@ -2,6 +2,7 @@ package com.savoo.scclient.data.repository
 
 import com.savoo.scclient.data.local.LyricsCacheDao
 import com.savoo.scclient.data.local.LyricsSyncDao
+import com.savoo.scclient.data.model.GeniusAnnotation
 import com.savoo.scclient.data.model.LyricsCacheEntity
 import com.savoo.scclient.data.model.LyricsLine
 import com.savoo.scclient.data.model.LyricsResult
@@ -37,6 +38,9 @@ class LyricsRepository @Inject constructor(
     private val settingsRepository: SettingsRepository,
 ) {
     private val cache = mutableMapOf<Long, LyricsResult>()
+    private val annotationCache = object : LinkedHashMap<Long, List<GeniusAnnotation>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, List<GeniusAnnotation>>?) = size > ANNOTATION_CACHE_SIZE
+    }
     private val lrcTagRegex = Regex("""\[(\d{2}):(\d{2})(?:[.:](\d{1,3}))?]""")
     private val maxDurationDriftSec = 3.0
     private val titleOnlyDurationDriftSec = 2.0
@@ -242,7 +246,10 @@ class LyricsRepository @Inject constructor(
         outcome.getOrNull()
     }
 
-    private fun findGeniusSongUrl(searchJson: String, artistName: String, title: String): String? {
+    private fun findGeniusSongUrl(searchJson: String, artistName: String, title: String): String? =
+        findGeniusSong(searchJson, artistName, title)?.optString("url")?.takeIf { it.isNotBlank() }
+
+    private fun findGeniusSong(searchJson: String, artistName: String, title: String): JSONObject? {
         val sections = JSONObject(searchJson).getJSONObject("response").getJSONArray("sections")
         for (i in 0 until sections.length()) {
             val hits = sections.getJSONObject(i).optJSONArray("hits") ?: continue
@@ -254,11 +261,56 @@ class LyricsRepository @Inject constructor(
                 if (hitArtist.isNotBlank() && !looselyMatches(hitArtist, artistName)) continue
                 val hitTitle = result.optString("title")
                 if (!looselyMatches(hitTitle, title)) continue
-                val url = result.optString("url")
-                if (url.isNotBlank()) return url
+                if (result.optString("url").isNotBlank()) return result
             }
         }
         return null
+    }
+
+    suspend fun getAnnotations(track: Track): List<GeniusAnnotation> {
+        synchronized(annotationCache) { annotationCache[track.id] }?.let { return it }
+        val outcome = withContext(Dispatchers.IO) {
+            runCatching {
+                val info = analyzeTitle(track)
+                for (artist in info.artistCandidates) {
+                    val searchBody = geniusApi.search("$artist ${info.cleanTitle}").use { it.string() }
+                    val songId = findGeniusSong(searchBody, artist, info.cleanTitle)?.optLong("id")?.takeIf { it > 0L } ?: continue
+                    return@runCatching fetchReferents(songId)
+                }
+                emptyList()
+            }
+        }
+        outcome.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        val annotations = outcome.getOrNull() ?: return emptyList()
+        synchronized(annotationCache) { annotationCache[track.id] = annotations }
+        return annotations
+    }
+
+    private suspend fun fetchReferents(songId: Long): List<GeniusAnnotation> {
+        val all = mutableListOf<GeniusAnnotation>()
+        for (page in 1..MAX_REFERENT_PAGES) {
+            val body = geniusApi.referents(songId, page).use { it.string() }
+            val referents = JSONObject(body).optJSONObject("response")?.optJSONArray("referents") ?: break
+            for (i in 0 until referents.length()) {
+                val referent = referents.getJSONObject(i)
+                if (referent.optBoolean("is_description")) continue
+                val annotation = referent.optJSONArray("annotations")?.optJSONObject(0) ?: continue
+                val text = annotation.optJSONObject("body")?.optString("plain")?.trim().orEmpty()
+                val fragment = referent.optString("fragment").trim()
+                if (text.isEmpty() || fragment.isEmpty()) continue
+                all += GeniusAnnotation(
+                    id = referent.optLong("id"),
+                    fragment = fragment,
+                    body = text,
+                    votes = annotation.optInt("votes_total"),
+                    verified = annotation.optBoolean("verified"),
+                    reviewed = referent.optString("classification") != "unreviewed",
+                    url = referent.optString("url").takeIf { it.startsWith("https://") },
+                )
+            }
+            if (referents.length() < REFERENTS_PER_PAGE) break
+        }
+        return all
     }
 
     private fun looselyMatches(a: String, b: String): Boolean {
@@ -380,5 +432,8 @@ class LyricsRepository @Inject constructor(
 
     private companion object {
         const val PROVIDER = "LRCLIB"
+        const val MAX_REFERENT_PAGES = 4
+        const val REFERENTS_PER_PAGE = 50
+        const val ANNOTATION_CACHE_SIZE = 40
     }
 }

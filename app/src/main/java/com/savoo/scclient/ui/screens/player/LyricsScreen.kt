@@ -1,5 +1,20 @@
 package com.savoo.scclient.ui.screens.player
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.IntOffset
+import com.savoo.scclient.data.model.GeniusAnnotation
+import kotlin.math.roundToInt
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -139,6 +154,8 @@ internal fun PlayerLyricsScreen(
     onTogglePlay: () -> Unit,
     onNext: () -> Unit,
     onPrev: () -> Unit,
+    annotations: Map<Int, List<GeniusAnnotation>> = emptyMap(),
+    onRequestAnnotations: () -> Unit = {},
 ) {
     Dialog(
         onDismissRequest = onClose,
@@ -161,6 +178,8 @@ internal fun PlayerLyricsScreen(
                     positionMs = positionMs,
                     isPlaying = isPlaying,
                     large = true,
+                    annotations = annotations,
+                    onRequestAnnotations = onRequestAnnotations,
                     modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(sheetDragGuard),
                 )
                 LyricsTransport(
@@ -379,8 +398,19 @@ internal fun LyricsView(
     positionMs: Long = 0L,
     isPlaying: Boolean = false,
     large: Boolean = false,
+    annotations: Map<Int, List<GeniusAnnotation>> = emptyMap(),
+    onRequestAnnotations: () -> Unit = {},
 ) {
     var shareFrom by remember { mutableStateOf<Int?>(null) }
+    var openAnnotation by remember { mutableStateOf<List<GeniusAnnotation>?>(null) }
+    LaunchedEffect(result, track?.id) {
+        if (result is LyricsResult.Synced || result is LyricsResult.Plain) onRequestAnnotations()
+    }
+    openAnnotation?.let { list ->
+        LyricsAnnotationSheet(annotations = list, accent = accent, onDismiss = { openAnnotation = null })
+    }
+    val annotationHaptic = rememberHapticTick()
+    val showAnnotation: (List<GeniusAnnotation>) -> Unit = { list -> annotationHaptic(); openAnnotation = list }
     val cardLines = remember(result) {
         when (result) {
             is LyricsResult.Synced -> result.lines.map { it.text }
@@ -422,8 +452,33 @@ internal fun LyricsView(
                         modifier = Modifier.padding(top = offsetControlTopPadding).align(Alignment.CenterHorizontally),
                     )
                 }
+                val linkStyle = TextLinkStyles(
+                    style = SpanStyle(
+                        background = accent.copy(alpha = 0.22f),
+                        textDecoration = TextDecoration.Underline,
+                    ),
+                )
+                val plainText = remember(result.text, annotations, linkStyle) {
+                    buildAnnotatedString {
+                        result.text.lines().forEachIndexed { index, line ->
+                            if (index > 0) append("\n")
+                            val list = annotations[index]
+                            if (list != null && line.isNotBlank()) {
+                                withLink(
+                                    LinkAnnotation.Clickable(
+                                        tag = "annotation$index",
+                                        styles = linkStyle,
+                                        linkInteractionListener = { showAnnotation(list) },
+                                    ),
+                                ) { append(line) }
+                            } else {
+                                append(line)
+                            }
+                        }
+                    }
+                }
                 Text(
-                    result.text,
+                    plainText,
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, lineHeight = 27.sp),
                     color = onColor.copy(alpha = 0.88f),
                     textAlign = TextAlign.Center,
@@ -454,6 +509,9 @@ internal fun LyricsView(
                 offsetControlTopPadding = offsetControlTopPadding,
                 canShare = canShare,
                 openShare = openShare,
+                annotations = annotations,
+                onAnnotationClick = showAnnotation,
+                frozen = openAnnotation != null,
             )
         }
     }
@@ -477,6 +535,9 @@ private fun SyncedLyrics(
     offsetControlTopPadding: Dp,
     canShare: Boolean,
     openShare: (Int) -> Unit,
+    annotations: Map<Int, List<GeniusAnnotation>>,
+    onAnnotationClick: (List<GeniusAnnotation>) -> Unit,
+    frozen: Boolean,
 ) {
     val rows = remember(lines) { buildRows(lines) }
     val clock = rememberLyricsClock(positionMs, isPlaying, sync)
@@ -540,16 +601,16 @@ private fun SyncedLyrics(
                 }
             }
 
-            LaunchedEffect(userBrowsing, listState.isScrollInProgress) {
-                if (!userBrowsing || listState.isScrollInProgress) return@LaunchedEffect
+            LaunchedEffect(userBrowsing, listState.isScrollInProgress, frozen) {
+                if (frozen || !userBrowsing || listState.isScrollInProgress) return@LaunchedEffect
                 kotlinx.coroutines.delay(3_500)
                 userBrowsing = false
                 focusOn(activeRow.coerceAtLeast(0), animate = true)
             }
 
-            LaunchedEffect(activeRow, lines, viewportPx) {
+            LaunchedEffect(activeRow, lines, viewportPx, frozen) {
                 if (rows.isEmpty()) return@LaunchedEffect
-                if (userBrowsing && initialized) return@LaunchedEffect
+                if ((userBrowsing || frozen) && initialized) return@LaunchedEffect
                 focusOn(activeRow.coerceAtLeast(0), animate = initialized)
                 initialized = true
             }
@@ -576,6 +637,11 @@ private fun SyncedLyrics(
                                 onSeek(row.startMs)
                             },
                             onLongClick = { openShare(row.lineIndex) },
+                            annotations = annotations[row.lineIndex],
+                            onAnnotationClick = { list ->
+                                userBrowsing = true
+                                onAnnotationClick(list)
+                            },
                         )
                         is LyricsRow.Interlude -> InterludeDots(
                             row = row,
@@ -642,6 +708,8 @@ private fun LyricLine(
     mutedColor: Color,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    annotations: List<GeniusAnnotation>? = null,
+    onAnnotationClick: (List<GeniusAnnotation>) -> Unit = {},
 ) {
     val haptic = rememberHapticTick()
     val scale by animateFloatAsState(
@@ -692,7 +760,29 @@ private fun LyricLine(
             row.text,
             style = textStyle,
             color = baseColor,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (annotations != null) {
+                        Modifier.drawBehind {
+                            val textLayout = layout ?: return@drawBehind
+                            val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))
+                            for (line in 0 until textLayout.lineCount) {
+                                val y = textLayout.getLineBottom(line) - 2.dp.toPx()
+                                drawLine(
+                                    color = onColor.copy(alpha = 0.35f),
+                                    start = Offset(textLayout.getLineLeft(line), y),
+                                    end = Offset(textLayout.getLineRight(line), y),
+                                    strokeWidth = 2.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    pathEffect = dash,
+                                )
+                            }
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
             onTextLayout = { layout = it },
         )
         if (highlight > 0f) {
@@ -742,6 +832,37 @@ private fun LyricLine(
                         }
                     },
             )
+        }
+        val textLayout = layout
+        if (annotations != null && textLayout != null && textLayout.lineCount > 0) {
+            val last = textLayout.lineCount - 1
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (textLayout.getLineRight(last) + 4.dp.toPx()).roundToInt(),
+                            ((textLayout.getLineTop(last) + textLayout.getLineBottom(last)) / 2f - 16.dp.toPx()).roundToInt(),
+                        )
+                    }
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable { onAnnotationClick(annotations) },
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(onColor.copy(alpha = 0.16f), CircleShape),
+                ) {
+                    Icon(
+                        Icons.Filled.Lightbulb,
+                        contentDescription = stringResource(R.string.lyrics_annotation_mark),
+                        tint = onColor.copy(alpha = 0.85f),
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
         }
     }
 }

@@ -106,6 +106,7 @@ data class AppSettings(
     // Manual correction applied on top of the synced lyrics timestamps from the (community-sourced) lyrics
     // provider - positive shifts lines later, negative earlier. Some tracks' data is simply off by a fixed amount.
     val geniusFallbackEnabled: Boolean = true,
+    val geniusAnnotationsEnabled: Boolean = true,
     val onlineFavoritesEnabled: Boolean = false,
     val updateChannel: UpdateChannel = UpdateChannel.RELEASE,
     val autoCheckUpdates: Boolean = true,
@@ -163,6 +164,7 @@ class SettingsRepository @Inject constructor(
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val LANGUAGE = stringPreferencesKey("language")
         val GENIUS_FALLBACK_ENABLED = booleanPreferencesKey("genius_fallback_enabled")
+        val GENIUS_ANNOTATIONS_ENABLED = booleanPreferencesKey("genius_annotations_enabled")
         val ONLINE_FAVORITES_ENABLED = booleanPreferencesKey("online_favorites_enabled")
         val UPDATE_CHANNEL = stringPreferencesKey("update_channel")
         val AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
@@ -225,6 +227,7 @@ class SettingsRepository @Inject constructor(
                 runCatching { LanguageOption.valueOf(it) }.getOrNull()
             } ?: systemDefaultLanguage(context),
             geniusFallbackEnabled = prefs[Keys.GENIUS_FALLBACK_ENABLED] ?: true,
+            geniusAnnotationsEnabled = prefs[Keys.GENIUS_ANNOTATIONS_ENABLED] ?: true,
             onlineFavoritesEnabled = prefs[Keys.ONLINE_FAVORITES_ENABLED] ?: false,
             updateChannel = prefs[Keys.UPDATE_CHANNEL]?.let {
                 runCatching { UpdateChannel.valueOf(it) }.getOrNull()
@@ -340,6 +343,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setGeniusFallbackEnabled(value: Boolean) {
         context.dataStore.edit { it[Keys.GENIUS_FALLBACK_ENABLED] = value }
+    }
+
+    suspend fun setGeniusAnnotationsEnabled(value: Boolean) {
+        context.dataStore.edit { it[Keys.GENIUS_ANNOTATIONS_ENABLED] = value }
     }
 
     suspend fun setOnlineFavoritesEnabled(value: Boolean) {

@@ -11,4 +11,12 @@ interface GeniusApi {
 
     @GET
     suspend fun fetchPage(@Url url: String): ResponseBody
+
+    @GET("api/referents")
+    suspend fun referents(
+        @Query("song_id") songId: Long,
+        @Query("page") page: Int,
+        @Query("per_page") perPage: Int = 50,
+        @Query("text_format") textFormat: String = "plain",
+    ): ResponseBody
 }

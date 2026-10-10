@@ -417,6 +417,14 @@
     <string name="settings_seek_bar_style_waveform">Волна трека</string>
     <string name="settings_lyrics_genius_fallback">Несинхронизированный текст с Genius</string>
     <string name="settings_lyrics_genius_fallback_desc">Если синхронизированный текст не найден, искать обычный текст через неофициальный поиск Genius вместо пустого экрана</string>
+    <string name="settings_lyrics_genius_annotations">Аннотации Genius</string>
+    <string name="settings_lyrics_genius_annotations_desc">Строки, которые объяснены на Genius, отмечаются в тексте. Нажмите на отметку, чтобы прочитать аннотацию</string>
+    <string name="lyrics_annotation_title">Аннотация Genius</string>
+    <string name="lyrics_annotation_unreviewed">Ещё не проверена</string>
+    <string name="lyrics_annotation_verified">От исполнителя</string>
+    <string name="lyrics_annotation_votes">Голосов: %d</string>
+    <string name="lyrics_annotation_open">Открыть на Genius</string>
+    <string name="lyrics_annotation_mark">Аннотация</string>
     <string name="settings_haptics">Тактильный отклик</string>
     <string name="settings_haptics_desc">Вибрация при нажатиях и действиях</string>
     <string name="settings_haptics_intensity">Сила вибрации</string>
