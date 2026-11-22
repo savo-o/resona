@@ -37,6 +37,8 @@ class TdLibTelegramClient @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _authState = MutableStateFlow<TelegramAuthState>(TelegramAuthState.LoggedOut)
     override val authState: StateFlow<TelegramAuthState> = _authState
+    private val _awaitingConnection = MutableStateFlow(false)
+    override val awaitingConnection: StateFlow<Boolean> = _awaitingConnection
     override val isAvailable = true
 
     // Every UpdateXxx TDLib pushes asynchronously (not tied to a specific request/response) is
@@ -144,6 +146,13 @@ class TdLibTelegramClient @Inject constructor(
             if (sentMessages.size > 128) sentMessages.clear()
             sentMessages[obj.oldMessageId] = obj.message
         }
+        if (obj is TdApi.UpdateConnectionState) {
+            _awaitingConnection.value = obj.state is TdApi.ConnectionStateWaitingForNetwork ||
+                obj.state is TdApi.ConnectionStateConnecting || obj.state is TdApi.ConnectionStateConnectingToProxy
+            if (qrRequested || authState.value is TelegramAuthState.WaitQrConfirmation) {
+                com.savoo.scclient.debug.DebugLog.log("TelegramAuth", "QR connection: ${obj.state.javaClass.simpleName}")
+            }
+        }
         if (obj is TdApi.UpdateAuthorizationState) handleAuthState(obj.authorizationState)
         if (obj is TdApi.UpdateChatFolders) {
             _chatFolders.value = obj.chatFolders.map { TelegramChatFolder(it.id, it.name.text.text) }
@@ -152,6 +161,9 @@ class TdLibTelegramClient @Inject constructor(
     }
 
     private fun handleAuthState(state: TdApi.AuthorizationState) {
+        if (state !is TdApi.AuthorizationStateWaitOtherDeviceConfirmation || authState.value !is TelegramAuthState.WaitQrConfirmation) {
+            com.savoo.scclient.debug.DebugLog.log("TelegramAuth", "Authorization state: ${state.javaClass.simpleName}")
+        }
         when (state) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> scope.launch {
                 val params = TdApi.SetTdlibParameters().apply {
@@ -183,16 +195,24 @@ class TdLibTelegramClient @Inject constructor(
                     return
                 }
                 val info = state.codeInfo
+                val delivery = info.type?.javaClass?.simpleName
+                val next = info.nextType?.javaClass?.simpleName
+                com.savoo.scclient.debug.DebugLog.log("TelegramAuth", "Phone code: delivery=$delivery, next=$next, timeout=${info.timeout}s")
                 _authState.value = TelegramAuthState.WaitCode(
                     info.phoneNumber ?: lastPhoneNumber,
-                    info.type?.let { it::class.simpleName },
-                    info.nextType?.let { it::class.simpleName },
+                    delivery,
+                    next,
                     android.os.SystemClock.elapsedRealtime() + info.timeout.coerceAtLeast(0) * 1000L,
                 )
             }
+            is TdApi.AuthorizationStateWaitEmailAddress -> _authState.value =
+                if (changingPhoneNumber) TelegramAuthState.WaitPhoneNumber else TelegramAuthState.WaitEmailAddress
+            is TdApi.AuthorizationStateWaitEmailCode -> _authState.value =
+                if (changingPhoneNumber) TelegramAuthState.WaitPhoneNumber
+                else TelegramAuthState.WaitEmailCode(state.codeInfo.emailAddressPattern.orEmpty())
             is TdApi.AuthorizationStateWaitPassword -> _authState.value =
                 if (changingPhoneNumber) TelegramAuthState.WaitPhoneNumber
-                else TelegramAuthState.WaitPassword(state.passwordHint.takeIf { it.isNotBlank() })
+                else TelegramAuthState.WaitPassword(state.passwordHint?.takeIf { it.isNotBlank() })
             is TdApi.AuthorizationStateReady -> {
                 qrRequested = false
                 _authState.value = TelegramAuthState.Ready
@@ -200,6 +220,7 @@ class TdLibTelegramClient @Inject constructor(
             is TdApi.AuthorizationStateLoggingOut, is TdApi.AuthorizationStateClosing -> _authState.value = TelegramAuthState.Connecting
             is TdApi.AuthorizationStateClosed -> {
                 qrRequested = false
+                changingPhoneNumber = false
                 activeClient = null
                 _authState.value = TelegramAuthState.LoggedOut
             }
@@ -229,9 +250,12 @@ class TdLibTelegramClient @Inject constructor(
     }
 
     override suspend fun resendCode() {
-        val state = authState.value as? TelegramAuthState.WaitCode ?: error("Not waiting for a code")
-        check(state.nextCodeHint != null && android.os.SystemClock.elapsedRealtime() >= state.resendAtElapsedMs) {
-            "Telegram has not enabled resending yet"
+        when (val state = authState.value) {
+            is TelegramAuthState.WaitCode -> check(
+                state.nextCodeHint != null && android.os.SystemClock.elapsedRealtime() >= state.resendAtElapsedMs,
+            ) { "Telegram has not enabled resending yet" }
+            is TelegramAuthState.WaitEmailCode -> Unit
+            else -> error("Not waiting for a code")
         }
         send(TdApi.ResendAuthenticationCode(TdApi.ResendCodeReasonUserRequest()))
     }
@@ -239,7 +263,7 @@ class TdLibTelegramClient @Inject constructor(
     override suspend fun cancelSignIn() {
         check(authState.value !is TelegramAuthState.Ready) { "Already signed in" }
         if (qrRequested || authState.value is TelegramAuthState.WaitQrConfirmation) {
-            send(TdApi.Close())
+            send(TdApi.LogOut())
             return
         }
         changingPhoneNumber = true
@@ -247,8 +271,16 @@ class TdLibTelegramClient @Inject constructor(
         _authState.value = TelegramAuthState.WaitPhoneNumber
     }
 
+    override suspend fun sendEmailAddress(address: String) {
+        send(TdApi.SetAuthenticationEmailAddress(address))
+    }
+
     override suspend fun sendCode(code: String) {
-        send(TdApi.CheckAuthenticationCode(code))
+        if (authState.value is TelegramAuthState.WaitEmailCode) {
+            send(TdApi.CheckAuthenticationEmailCode(TdApi.EmailAddressAuthenticationCode(code)))
+        } else {
+            send(TdApi.CheckAuthenticationCode(code))
+        }
     }
 
     override suspend fun sendPassword(password: String) {

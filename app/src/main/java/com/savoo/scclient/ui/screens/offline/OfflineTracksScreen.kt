@@ -93,6 +93,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import androidx.compose.ui.text.style.TextOverflow
 
+data class OfflineExportProgress(
+    val done: Int,
+    val total: Int,
+    val trackTitle: String?,
+    val fileFraction: Float = 0f,
+) {
+    val fraction: Float get() = (done + fileFraction) / total
+}
+
 @UnstableApi
 @HiltViewModel
 class OfflineTracksViewModel @Inject constructor(
@@ -118,21 +127,30 @@ class OfflineTracksViewModel @Inject constructor(
 
     val favoriteTrackIds = favoritesDao.observeTrackIds().map { it.toSet() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
-    private val _exportProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    private val _exportProgress = MutableStateFlow<OfflineExportProgress?>(null)
     val exportProgress = _exportProgress.asStateFlow()
     private val _exportResult = MutableStateFlow<Pair<Int, Int>?>(null)
     val exportResult = _exportResult.asStateFlow()
 
+    private var exportJob: kotlinx.coroutines.Job? = null
+
+    fun cancelExport() { exportJob?.cancel() }
+
     fun exportTracks(ids: List<Long>, destination: Uri) {
-        if (_exportProgress.value != null) return
-        viewModelScope.launch {
+        if (ids.isEmpty() || _exportProgress.value != null) return
+        val titles = tracks.value.associate { it.id to it.title }
+        _exportProgress.value = OfflineExportProgress(0, ids.size, titles[ids.first()])
+        exportJob = viewModelScope.launch {
             var saved = 0
             var failed = 0
             try {
                 ids.forEachIndexed { index, id ->
-                    _exportProgress.value = index to ids.size
+                    val progress = OfflineExportProgress(index, ids.size, titles[id])
+                    _exportProgress.value = progress
                     try {
-                        audioExporter.export(id, destination)
+                        audioExporter.export(id, destination) { fraction ->
+                            _exportProgress.value = progress.copy(fileFraction = fraction)
+                        }
                         saved++
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
@@ -317,10 +335,8 @@ fun OfflineTracksScreen(
                     }
                 },
                 actions = {
-                    if (exportProgress != null) {
-                        LoadingIndicator(modifier = Modifier.size(24.dp))
-                    } else if (tracks.isNotEmpty()) {
-                        IconButton(onClick = {
+                    if (tracks.isNotEmpty()) {
+                        IconButton(enabled = exportProgress == null, onClick = {
                             selectedExportIds = selection.selectedIds.toLongArray()
                             showExportSheet = true
                         }) {
@@ -367,10 +383,18 @@ fun OfflineTracksScreen(
         snackbarHost = { SnackbarHost(snackbarHostState, Modifier.aboveDock()) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            exportProgress?.let { (done, total) ->
-                Text(stringResource(R.string.offline_audio_export_progress, done + 1, total),
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.primary)
+            exportProgress?.let { progress ->
+                com.savoo.scclient.ui.components.TaskProgressBanner(
+                    icon = Icons.Filled.SaveAlt,
+                    title = stringResource(R.string.offline_audio_export_progress, progress.done + 1, progress.total),
+                    subtitle = progress.trackTitle,
+                    fraction = progress.fraction,
+                    finished = false,
+                    failed = false,
+                    onCancel = viewModel::cancelExport,
+                    cancelDescription = stringResource(R.string.cancel),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
             }
             if (tracks.isNotEmpty()) {
                 SearchBarDefaults.InputField(

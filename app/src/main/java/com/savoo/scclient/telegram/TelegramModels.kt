@@ -13,6 +13,8 @@ sealed class TelegramAuthState {
         val nextCodeHint: String? = null,
         val resendAtElapsedMs: Long = 0L,
     ) : TelegramAuthState()
+    data object WaitEmailAddress : TelegramAuthState()
+    data class WaitEmailCode(val addressPattern: String) : TelegramAuthState()
     data class WaitPassword(val passwordHint: String?) : TelegramAuthState()
     data object Ready : TelegramAuthState()
     data class Error(val message: String) : TelegramAuthState()

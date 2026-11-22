@@ -112,6 +112,7 @@ import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -148,6 +149,7 @@ class ImportExportViewModel @Inject constructor(
 
     val telegramAvailable = telegramClient.isAvailable
     val telegramAuthState = telegramClient.authState
+    val telegramAwaitingConnection = telegramClient.awaitingConnection
     val telegramChatFolders = telegramClient.chatFolders
     private val _telegramUiState = MutableStateFlow<TelegramImportUiState>(TelegramImportUiState.SignedOut)
     val telegramUiState = _telegramUiState.asStateFlow()
@@ -195,10 +197,30 @@ class ImportExportViewModel @Inject constructor(
     }
 
     fun telegramStart() = telegramAuthAction { telegramClient.start() }
+    fun telegramUsePhone() = telegramAuthAction {
+        when (val state = startTelegramAndAwaitAuthState()) {
+            is TelegramAuthState.WaitQrConfirmation -> {
+                telegramClient.cancelSignIn()
+                telegramAuthState.first { it is TelegramAuthState.LoggedOut }
+                val next = startTelegramAndAwaitAuthState()
+                if (next is TelegramAuthState.Error) error(next.message)
+            }
+            is TelegramAuthState.Error -> error(state.message)
+            else -> Unit
+        }
+    }
     fun telegramSendPhone(phoneNumber: String) = telegramAuthAction { telegramClient.sendPhoneNumber(phoneNumber.trim()) }
+    fun telegramSendEmail(address: String) = telegramAuthAction { telegramClient.sendEmailAddress(address.trim()) }
     fun telegramSendCode(code: String) = telegramAuthAction { telegramClient.sendCode(code.trim()) }
     fun telegramSendPassword(password: String) = telegramAuthAction { telegramClient.sendPassword(password) }
-    fun telegramRequestQr() = telegramAuthAction { telegramClient.requestQrSignIn() }
+    fun telegramRequestQr() = telegramAuthAction {
+        when (val state = startTelegramAndAwaitAuthState()) {
+            TelegramAuthState.WaitPhoneNumber, is TelegramAuthState.WaitCode,
+            TelegramAuthState.WaitEmailAddress, is TelegramAuthState.WaitEmailCode -> telegramClient.requestQrSignIn()
+            is TelegramAuthState.Error -> error(state.message)
+            else -> Unit
+        }
+    }
     fun telegramResendCode() = telegramAuthAction { telegramClient.resendCode() }
 
     fun telegramCancelSignIn() {
@@ -260,16 +282,34 @@ class ImportExportViewModel @Inject constructor(
 
     fun dismissTelegramBackups() { _telegramBackups.value = null }
 
+    private suspend fun startTelegramAndAwaitAuthState(): TelegramAuthState {
+        check(telegramAvailable) { context.getString(R.string.import_tg_unavailable) }
+        telegramClient.start()
+        return kotlinx.coroutines.withTimeoutOrNull(15_000) {
+            telegramAuthState.first { it != TelegramAuthState.LoggedOut && it != TelegramAuthState.Connecting }
+        } ?: error(context.getString(R.string.telegram_auth_timeout))
+    }
+
+    private suspend fun requireTelegramBackupSession() {
+        when (val state = startTelegramAndAwaitAuthState()) {
+            TelegramAuthState.Ready -> Unit
+            is TelegramAuthState.Error -> error(state.message)
+            else -> error(context.getString(R.string.telegram_backup_sign_in))
+        }
+    }
+
     fun exportFavoritesToTelegram() {
         if (_telegramBackupBusy.value) return
         _telegramBackupBusy.value = true
         viewModelScope.launch {
             var file: File? = null
             try {
-                check(telegramClient.authState.value is TelegramAuthState.Ready) { context.getString(R.string.telegram_backup_sign_in) }
+                requireTelegramBackupSession()
                 file = exporter.createBackupFile()
                 telegramClient.sendFavoritesBackup(file)
                 _message.value = context.getString(R.string.msg_export_success)
+            } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+                _message.value = context.getString(R.string.telegram_auth_timeout)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -286,7 +326,12 @@ class ImportExportViewModel @Inject constructor(
         _telegramBackupBusy.value = true
         viewModelScope.launch {
             try {
-                _telegramBackups.value = telegramClient.listFavoritesBackups()
+                requireTelegramBackupSession()
+                _telegramBackups.value = kotlinx.coroutines.withTimeoutOrNull(30_000) {
+                    telegramClient.listFavoritesBackups()
+                } ?: error(context.getString(R.string.telegram_auth_timeout))
+            } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+                _message.value = context.getString(R.string.telegram_auth_timeout)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -305,6 +350,8 @@ class ImportExportViewModel @Inject constructor(
             try {
                 val file = telegramClient.downloadFavoritesBackup(backup.fileId)
                 importFromFile(Uri.fromFile(file))
+            } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+                _message.value = context.getString(R.string.telegram_auth_timeout)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -714,6 +761,7 @@ fun ImportExportScreen(
             ImportExportSectionCard {
                 TelegramImportSection(
                     available = viewModel.telegramAvailable,
+                    awaitingConnection = viewModel.telegramAwaitingConnection.collectAsState().value,
                     qrEnabled = viewModel.telegramQrExperiment.enabled.collectAsState().value,
                     onRequestQr = viewModel::telegramRequestQr,
                     authBusy = viewModel.telegramAuthBusy.collectAsState().value,
@@ -724,7 +772,9 @@ fun ImportExportScreen(
                     uiState = viewModel.telegramUiState.collectAsState().value,
                     folders = viewModel.telegramChatFolders.collectAsState().value,
                     onStart = { viewModel.telegramStart() },
+                    onUsePhone = viewModel::telegramUsePhone,
                     onSendPhone = { viewModel.telegramSendPhone(it) },
+                    onSendEmail = viewModel::telegramSendEmail,
                     onSendCode = { viewModel.telegramSendCode(it) },
                     onSendPassword = { viewModel.telegramSendPassword(it) },
                     onLoadChats = { viewModel.telegramLoadChats() },
@@ -1020,6 +1070,7 @@ private fun SoundCloudImportSection(
 @Composable
 private fun TelegramImportSection(
     available: Boolean,
+    awaitingConnection: Boolean,
     qrEnabled: Boolean,
     onRequestQr: () -> Unit,
     authBusy: Boolean,
@@ -1030,7 +1081,9 @@ private fun TelegramImportSection(
     uiState: TelegramImportUiState,
     folders: List<TelegramChatFolder>,
     onStart: () -> Unit,
+    onUsePhone: () -> Unit,
     onSendPhone: (String) -> Unit,
+    onSendEmail: (String) -> Unit,
     onSendCode: (String) -> Unit,
     onSendPassword: (String) -> Unit,
     onLoadChats: () -> Unit,
@@ -1122,13 +1175,20 @@ private fun TelegramImportSection(
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(8.dp))
         }
-        if (qrEnabled && (authState is TelegramAuthState.WaitPhoneNumber || authState is TelegramAuthState.WaitCode)) {
+        if (qrEnabled && (authState is TelegramAuthState.LoggedOut ||
+                authState is TelegramAuthState.WaitPhoneNumber || authState is TelegramAuthState.WaitCode ||
+                authState is TelegramAuthState.WaitEmailAddress || authState is TelegramAuthState.WaitEmailCode)
+        ) {
             FilledTonalButton(
                 onClick = onRequestQr,
                 enabled = !authBusy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(stringResource(R.string.telegram_qr_sign_in))
+                if (authBusy && authState is TelegramAuthState.LoggedOut) {
+                    LoadingIndicator(modifier = Modifier.size(20.dp))
+                } else {
+                    Text(stringResource(R.string.telegram_qr_sign_in))
+                }
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -1138,14 +1198,23 @@ private fun TelegramImportSection(
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            is TelegramAuthState.LoggedOut -> Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.import_tg_start))
+            is TelegramAuthState.LoggedOut -> Button(onClick = onUsePhone, enabled = !authBusy, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.telegram_auth_use_phone))
             }
 
             is TelegramAuthState.Connecting -> LoadingRow(stringResource(R.string.import_tg_connecting))
 
             is TelegramAuthState.WaitQrConfirmation -> {
-                if (qrEnabled) TelegramQrCode(authState.link)
+                TextButton(onClick = onUsePhone, enabled = !authBusy, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.telegram_auth_use_phone))
+                }
+                if (qrEnabled) {
+                    TelegramQrCode(authState.link)
+                    LoadingRow(stringResource(
+                        if (awaitingConnection) R.string.telegram_qr_waiting_network
+                        else R.string.telegram_qr_waiting_confirmation,
+                    ))
+                }
                 TextButton(onClick = onCancelSignIn, enabled = !authBusy, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(android.R.string.cancel))
                 }
@@ -1222,11 +1291,47 @@ private fun TelegramImportSection(
                 }
             }
 
+            TelegramAuthState.WaitEmailAddress, is TelegramAuthState.WaitEmailCode -> {
+                val emailCode = authState as? TelegramAuthState.WaitEmailCode
+                var input by remember(authState) { mutableStateOf("") }
+                Text(
+                    if (emailCode == null) stringResource(R.string.telegram_auth_email_required)
+                    else stringResource(R.string.telegram_auth_email_sent, emailCode.addressPattern),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = { Text(stringResource(if (emailCode == null) R.string.login_email_label else R.string.import_tg_code_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = { if (emailCode == null) onSendEmail(input) else onSendCode(input) },
+                    enabled = input.isNotBlank() && !authBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(if (emailCode == null) R.string.telegram_auth_send_email else R.string.import_tg_send_code))
+                }
+                if (emailCode != null) {
+                    TextButton(onClick = onResendCode, enabled = !authBusy, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.telegram_auth_resend))
+                    }
+                }
+                TextButton(onClick = onCancelSignIn, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.telegram_auth_cancel))
+                }
+            }
+
             is TelegramAuthState.WaitPassword -> {
                 var password by remember { mutableStateOf("") }
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     placeholder = { Text(authState.passwordHint ?: stringResource(R.string.import_tg_password_hint)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -1486,7 +1591,7 @@ private fun TelegramFavoritesBackupActions(viewModel: ImportExportViewModel) {
             Icons.Filled.FileUpload,
             R.string.telegram_backup_export,
             if (ready) R.string.telegram_backup_export_desc else R.string.telegram_backup_sign_in,
-            enabled = ready && !busy,
+            enabled = !busy,
             busy = busy,
             onClick = viewModel::exportFavoritesToTelegram,
         )
@@ -1495,7 +1600,7 @@ private fun TelegramFavoritesBackupActions(viewModel: ImportExportViewModel) {
             Icons.Filled.FileDownload,
             R.string.telegram_backup_import,
             R.string.telegram_backup_import_desc,
-            enabled = ready && !busy,
+            enabled = !busy,
             onClick = viewModel::loadTelegramBackups,
         )
     }

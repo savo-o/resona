@@ -122,11 +122,6 @@ class WebViewApiBridge @Inject constructor(
     // Returns the real HTTP status code (0 if the request never completed at all - timeout/JS
     // error/no page) so callers can tell "404, already in the desired state" apart from a real
     // failure, rather than collapsing everything into a single success/failure bit.
-    suspend fun setFollowing(targetId: Long, following: Boolean): BridgeResponse = executeRequest(
-        method = if (following) "PUT" else "DELETE",
-        url = "https://api-v2.soundcloud.com/me/followings/$targetId",
-    )
-
     suspend fun likeTrack(userId: Long, trackId: Long): Int = executeFetch(
         method = "PUT",
         url = "https://api-v2.soundcloud.com/users/$userId/track_likes/$trackId"

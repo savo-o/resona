@@ -17,6 +17,7 @@ import javax.inject.Singleton
 @Singleton
 class TelegramUnavailableClient @Inject constructor() : TelegramClient {
     override val authState: StateFlow<TelegramAuthState> = MutableStateFlow(TelegramAuthState.Unavailable)
+    override val awaitingConnection: StateFlow<Boolean> = MutableStateFlow(false)
     override val isAvailable: Boolean = false
 
     override suspend fun sendFavoritesBackup(file: File): Unit = throw IllegalStateException("Telegram is unavailable")
@@ -31,6 +32,7 @@ class TelegramUnavailableClient @Inject constructor() : TelegramClient {
     override suspend fun requestQrSignIn() = Unit
     override suspend fun resendCode() {}
     override suspend fun cancelSignIn() {}
+    override suspend fun sendEmailAddress(address: String) = Unit
     override suspend fun sendCode(code: String) {}
     override suspend fun sendPassword(password: String) {}
     override suspend fun logOut() {}

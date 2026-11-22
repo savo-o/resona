@@ -46,7 +46,7 @@ internal fun TelegramQrCode(link: String) {
             Image(
                 bitmap = qr,
                 contentDescription = stringResource(R.string.telegram_qr_sign_in),
-                modifier = Modifier.size(216.dp).background(Color.White, RoundedCornerShape(16.dp)).padding(12.dp),
+                modifier = Modifier.size(184.dp).background(Color.White, RoundedCornerShape(16.dp)).padding(12.dp),
                 filterQuality = FilterQuality.None,
             )
             Text(

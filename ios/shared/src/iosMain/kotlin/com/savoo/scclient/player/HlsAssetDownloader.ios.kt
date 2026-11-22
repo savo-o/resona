@@ -8,6 +8,7 @@ import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import kotlinx.cinterop.readValue
 import kotlinx.cinterop.sizeOf
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.CancellableContinuation
@@ -22,7 +23,6 @@ import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeRange
 import platform.Foundation.NSHTTPURLResponse
 import platform.Foundation.NSError
-import platform.Foundation.NSObject
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLSession
@@ -30,6 +30,7 @@ import platform.Foundation.NSURLSessionConfiguration
 import platform.Foundation.NSURLSessionTask
 import platform.Foundation.NSUUID
 import platform.Foundation.NSValue
+import platform.darwin.NSObject
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 import kotlin.coroutines.resume
@@ -88,13 +89,13 @@ private class AssetDownloadDelegate(
         totalTimeRangesLoaded: List<*>,
         timeRangeExpectedToLoad: CValue<CMTimeRange>,
     ) {
-        val expected = timeRangeExpectedToLoad.useContents { CMTimeGetSeconds(duration) }
+        val expected = timeRangeExpectedToLoad.useContents { CMTimeGetSeconds(duration.readValue()) }
         if (!expected.isFinite() || expected <= 0.0) return
         val loaded = totalTimeRangesLoaded.filterIsInstance<NSValue>().sumOf { value ->
             memScoped {
                 val range = alloc<CMTimeRange>()
                 value.getValue(range.ptr, sizeOf<CMTimeRange>().toULong())
-                CMTimeGetSeconds(range.duration).takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+                CMTimeGetSeconds(range.duration.readValue()).takeIf { it.isFinite() && it > 0.0 } ?: 0.0
             }
         }
         onProgress?.invoke((loaded / expected).toFloat().coerceIn(0f, 1f))

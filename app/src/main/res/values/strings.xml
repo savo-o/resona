@@ -1055,10 +1055,18 @@
     <string name="debug_telegram_qr_title">Telegram experiment</string>
     <string name="debug_telegram_qr_description">Show test QR sign-in in Import / Export</string>
     <string name="telegram_qr_sign_in">Sign in with Telegram QR</string>
+    <string name="telegram_auth_use_phone">Sign in with phone number</string>
     <string name="telegram_qr_instructions">On a device already signed in to Telegram, go to Settings → Devices → Link Desktop Device and scan this code.</string>
     <string name="telegram_qr_error">Could not display the QR code. Cancel and try again.</string>
     <string name="telegram_backup_export_desc">Save a JSON backup in your Telegram chat.</string>
     <string name="telegram_backup_import_desc">Choose a JSON backup from your Telegram chat.</string>
     <string name="offline_audio_export_all">Save all</string>
     <string name="offline_audio_export_selected">Save selected (%1$d)</string>
+    <string name="login_page_load_failed">Could not load the SoundCloud sign-in page (%1$s).</string>
+    <string name="login_retry_page">Reload page</string>
+    <string name="telegram_auth_email_required">Telegram asks you to provide an email address for sign-in.</string>
+    <string name="telegram_auth_email_sent">Telegram sent a login code to %1$s.</string>
+    <string name="telegram_auth_send_email">Send code to email</string>
+    <string name="telegram_qr_waiting_network">Reconnecting to Telegram…</string>
+    <string name="telegram_qr_waiting_confirmation">Waiting for Telegram to confirm sign-in…</string>
 </resources>

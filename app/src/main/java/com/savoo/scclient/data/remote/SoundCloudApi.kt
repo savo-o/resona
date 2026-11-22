@@ -60,6 +60,12 @@ interface SoundCloudApi {
     @GET
     suspend fun getNextFollowingIds(@Url url: String): okhttp3.ResponseBody
 
+    @PUT("https://api.soundcloud.com/me/followings/{userUrn}")
+    suspend fun followUser(@Path("userUrn") userUrn: String): Response<Unit>
+
+    @DELETE("https://api.soundcloud.com/me/followings/{userUrn}")
+    suspend fun unfollowUser(@Path("userUrn") userUrn: String): Response<Unit>
+
     @GET("me")
     suspend fun getMe(): User
 

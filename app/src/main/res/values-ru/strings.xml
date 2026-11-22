@@ -1081,10 +1081,18 @@
     <string name="debug_telegram_qr_title">Эксперимент Telegram</string>
     <string name="debug_telegram_qr_description">Показывать тестовый вход по QR в разделе «Импорт / Экспорт»</string>
     <string name="telegram_qr_sign_in">Войти в Telegram по QR</string>
+    <string name="telegram_auth_use_phone">Войти по номеру телефона</string>
     <string name="telegram_qr_instructions">На устройстве, где уже открыт Telegram, перейдите в «Настройки → Устройства → Подключить устройство» и отсканируйте код.</string>
     <string name="telegram_qr_error">Не удалось показать QR. Отмените вход и попробуйте снова.</string>
     <string name="telegram_backup_export_desc">Сохранить резервную копию JSON в Telegram.</string>
     <string name="telegram_backup_import_desc">Выбрать резервную копию JSON из Telegram.</string>
     <string name="offline_audio_export_all">Сохранить все</string>
     <string name="offline_audio_export_selected">Сохранить выбранные (%1$d)</string>
+    <string name="login_page_load_failed">Не удалось загрузить страницу входа SoundCloud (%1$s).</string>
+    <string name="login_retry_page">Перезагрузить страницу</string>
+    <string name="telegram_auth_email_required">Telegram просит указать адрес электронной почты для входа.</string>
+    <string name="telegram_auth_email_sent">Telegram отправил код для входа на %1$s.</string>
+    <string name="telegram_auth_send_email">Отправить код на почту</string>
+    <string name="telegram_qr_waiting_network">Восстанавливаем соединение с Telegram…</string>
+    <string name="telegram_qr_waiting_confirmation">Ждём подтверждения входа от Telegram…</string>
 </resources>

@@ -68,9 +68,14 @@ class TrackRepository @Inject constructor(
     }
 
     suspend fun setFollowing(userId: Long, targetId: Long, following: Boolean) {
-        require(userId != targetId)
-        val response = webBridge.setFollowing(targetId, following)
-        if (!response.isSuccess && !(response.code == 404 && !following)) error("Follow failed: HTTP ${response.code}")
+        require(targetId > 0 && userId != targetId)
+        val urn = "soundcloud:users:$targetId"
+        val response = if (following) api.followUser(urn) else api.unfollowUser(urn)
+        response.errorBody()?.close()
+        if (response.isSuccessful) return
+        if (!following && response.code() == 404 && !isFollowing(userId, targetId)) return
+        DebugLog.log("TrackRepository", "Follow update for $targetId failed: HTTP ${response.code()}")
+        error("Follow update failed: HTTP ${response.code()}")
     }
 
     suspend fun getProfileFeed(userId: Long, likes: Boolean, next: String? = null): SearchPage<com.savoo.scclient.data.model.ProfileFeedItem> =

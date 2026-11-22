@@ -2,7 +2,7 @@ package com.savoo.scclient.ui.screens.account
 
 import com.savoo.scclient.ui.navigation.aboveDock
 import android.annotation.SuppressLint
-import android.util.Log
+import android.net.Uri
 import android.webkit.WebView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -263,13 +263,16 @@ private fun HiddenAutoLoginWebView(
     onCredentialsRejected: (String) -> Unit,
 ) {
     var succeeded by remember { mutableStateOf(false) }
+    val cancelled = remember { booleanArrayOf(false) }
     val capture = remember {
         WebViewTokenCapture(
             onTokenCaptured = { token ->
-                succeeded = true
-                onTokenReceived(token)
+                if (!cancelled[0] && !succeeded) {
+                    succeeded = true
+                    onTokenReceived(token)
+                }
             },
-            onCookiesCaptured = onCookiesReceived,
+            onCookiesCaptured = { cookies -> if (!cancelled[0] && !succeeded) onCookiesReceived(cookies) },
         )
     }
 
@@ -278,19 +281,20 @@ private fun HiddenAutoLoginWebView(
         if (!succeeded) onFailed()
     }
 
-    val cancelled = remember { booleanArrayOf(false) }
     DisposableEffect(Unit) { onDispose { cancelled[0] = true } }
 
     AndroidView(
         modifier = Modifier.fillMaxSize().background(Color.Transparent),
         factory = { context ->
             WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.userAgentString =
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                configureSoundCloudLogin()
                 alpha = 0f
-                webViewClient = capture.newClient()
+                webViewClient = capture.newClient {
+                    if (!cancelled[0] && !succeeded) {
+                        succeeded = true
+                        onFailed()
+                    }
+                }
                 loadUrl(SIGN_IN_URL)
                 schedulePolledFill(
                     email = email,
@@ -308,6 +312,7 @@ private fun HiddenAutoLoginWebView(
                 )
             }
         },
+        onRelease = { it.destroy() },
     )
 }
 
@@ -321,9 +326,14 @@ private fun WebView.schedulePolledFill(
 ) {
     val fillJs = buildFillScript(email, password)
     lateinit var tick: () -> Unit
-    tick = {
+    tick = letTick@{
         if (!cancelled[0] && !isDone()) {
+            if (!isSoundCloudWebPage(url?.let(Uri::parse))) {
+                postDelayed({ tick() }, FILL_POLL_INTERVAL_MS)
+                return@letTick
+            }
             evaluateJavascript(fillJs) { rawResult ->
+                if (cancelled[0] || isDone()) return@evaluateJavascript
                 val result = rawResult?.removeSurrounding("\"")?.replace("\\\"", "\"").orEmpty()
                 com.savoo.scclient.debug.DebugLog.log(LOG_TAG, "fill attempt result: $result")
                 when {

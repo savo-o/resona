@@ -58,7 +58,7 @@ class OfflineAudioExporter @Inject constructor(
         }
     }
 
-    suspend fun export(trackId: Long, tree: Uri) = withContext(Dispatchers.IO) {
+    suspend fun export(trackId: Long, tree: Uri, onCopyProgress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
         val file = prepare(trackId)
         var destination: Uri? = null
         try {
@@ -72,11 +72,20 @@ class OfflineAudioExporter @Inject constructor(
             context.contentResolver.openOutputStream(destination, "w")?.use { output ->
                 file.inputStream().use { input ->
                     val buffer = ByteArray(65536)
+                    val total = file.length().coerceAtLeast(1L)
+                    var copied = 0L
+                    var lastPercent = -1
                     while (true) {
                         currentCoroutineContext().ensureActive()
                         val size = input.read(buffer)
                         if (size < 0) break
                         output.write(buffer, 0, size)
+                        copied += size
+                        val percent = (copied * 100 / total).toInt().coerceIn(0, 100)
+                        if (percent != lastPercent) {
+                            lastPercent = percent
+                            onCopyProgress(percent / 100f)
+                        }
                     }
                 }
             } ?: throw IOException("Cannot open destination")

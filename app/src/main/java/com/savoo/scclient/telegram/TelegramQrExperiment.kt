@@ -12,7 +12,7 @@ class TelegramQrExperiment @Inject constructor(
     @ApplicationContext context: Context,
 ) {
     private val preferences = context.getSharedPreferences("debug_experiments", Context.MODE_PRIVATE)
-    private val _enabled = MutableStateFlow(preferences.getBoolean("telegram_qr_sign_in", false))
+    private val _enabled = MutableStateFlow(preferences.getBoolean("telegram_qr_sign_in", true))
     val enabled = _enabled.asStateFlow()
 
     fun setEnabled(enabled: Boolean) {

@@ -11,6 +11,7 @@ import java.io.File
  */
 interface TelegramClient {
     val authState: StateFlow<TelegramAuthState>
+    val awaitingConnection: StateFlow<Boolean>
 
     /** True once this binding is backed by a real Telegram connection (as opposed to the stub). */
     val isAvailable: Boolean
@@ -26,6 +27,7 @@ interface TelegramClient {
     suspend fun requestQrSignIn()
     suspend fun resendCode()
     suspend fun cancelSignIn()
+    suspend fun sendEmailAddress(address: String)
     suspend fun sendCode(code: String)
     suspend fun sendPassword(password: String)
     suspend fun logOut()

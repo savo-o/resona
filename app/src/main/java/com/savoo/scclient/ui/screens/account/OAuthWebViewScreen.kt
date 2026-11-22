@@ -3,20 +3,28 @@ package com.savoo.scclient.ui.screens.account
 import android.annotation.SuppressLint
 import android.webkit.WebChromeClient
 import android.webkit.WebView
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -30,9 +38,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.savoo.scclient.R
 import kotlinx.coroutines.launch
 
-private const val OAUTH_USER_AGENT =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun OAuthWebViewScreen(
@@ -41,67 +46,93 @@ fun OAuthWebViewScreen(
     onCookiesReceived: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
-    val capture = remember { WebViewTokenCapture() }
+    var attempt by remember { mutableStateOf(0) }
+    var pageError by remember { mutableStateOf<String?>(null) }
+    val capture = remember(attempt) { WebViewTokenCapture() }
     var popupWebView by remember { mutableStateOf<WebView?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    fun retry() {
+        popupWebView = null
+        pageError = null
+        attempt++
+    }
+
     Box(Modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { context ->
-                WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.javaScriptCanOpenWindowsAutomatically = true
-                    settings.setSupportMultipleWindows(true)
-                    settings.userAgentString = OAUTH_USER_AGENT
-                    webViewClient = capture.newClient()
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onCreateWindow(
-                            view: WebView,
-                            isDialog: Boolean,
-                            isUserGesture: Boolean,
-                            resultMsg: android.os.Message,
-                        ): Boolean {
-                            val popup = WebView(context).apply {
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                settings.javaScriptCanOpenWindowsAutomatically = true
-                                settings.setSupportMultipleWindows(true)
-                                settings.userAgentString = OAUTH_USER_AGENT
-                                webViewClient = capture.newClient()
-                                webChromeClient = object : WebChromeClient() {
-                                    override fun onCloseWindow(window: WebView) {
-                                        popupWebView = null
-                                        window.destroy()
+        key(attempt) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { context ->
+                    WebView(context).apply {
+                        configureSoundCloudLogin()
+                        settings.javaScriptCanOpenWindowsAutomatically = true
+                        settings.setSupportMultipleWindows(true)
+                        webViewClient = capture.newClient { pageError = it }
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onCreateWindow(
+                                view: WebView,
+                                isDialog: Boolean,
+                                isUserGesture: Boolean,
+                                resultMsg: android.os.Message,
+                            ): Boolean {
+                                if (popupWebView != null) return false
+                                val popup = WebView(context).apply {
+                                    configureSoundCloudLogin()
+                                    settings.javaScriptCanOpenWindowsAutomatically = true
+                                    settings.setSupportMultipleWindows(true)
+                                    webViewClient = capture.newClient { pageError = it }
+                                    webChromeClient = object : WebChromeClient() {
+                                        override fun onCloseWindow(window: WebView) {
+                                            popupWebView = null
+                                        }
                                     }
                                 }
+                                popupWebView = popup
+                                val transport = resultMsg.obj as WebView.WebViewTransport
+                                transport.webView = popup
+                                resultMsg.sendToTarget()
+                                return true
                             }
-                            popupWebView = popup
-                            val transport = resultMsg.obj as WebView.WebViewTransport
-                            transport.webView = popup
-                            resultMsg.sendToTarget()
-                            return true
                         }
+                        loadUrl(startUrl)
                     }
-                    loadUrl(startUrl)
-                }
-            }
-        )
+                },
+                onRelease = { it.destroy() },
+            )
+        }
 
         popupWebView?.let { popup ->
-            AndroidView(modifier = Modifier.fillMaxSize(), factory = { popup })
+            AndroidView(modifier = Modifier.fillMaxSize(), factory = { popup }, onRelease = { it.destroy() })
 
             IconButton(
                 onClick = {
-                    popup.destroy()
                     popupWebView = null
+                    pageError = null
                 },
                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
             ) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
+            }
+        }
+
+        if (popupWebView == null) {
+            IconButton(onClick = { retry() }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.login_retry_page))
+            }
+        }
+
+        pageError?.let { error ->
+            Surface(
+                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 24.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.login_page_load_failed, error), style = MaterialTheme.typography.bodyLarge)
+                    TextButton(onClick = { retry() }) { Text(stringResource(R.string.login_retry_page)) }
+                }
             }
         }
 
@@ -117,8 +148,8 @@ fun OAuthWebViewScreen(
                 val cookies = capture.currentCookies ?: capture.cookiesFromManager()
                 val token = capture.currentToken ?: oauthTokenFromCookies(cookies)
                 if (token != null) {
-                    onTokenReceived(token)
                     cookies?.takeIf { it.isNotEmpty() }?.let(onCookiesReceived)
+                    onTokenReceived(token)
                 } else {
                     val message = context.getString(R.string.login_browser_not_signed_in)
                     scope.launch { snackbarHostState.showSnackbar(message) }
