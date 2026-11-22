@@ -858,7 +858,6 @@ fun SettingsScreen(
             SettingsSectionCard {
                 SwitchItem(
                     title = stringResource(R.string.settings_autoplay),
-                    subtitle = stringResource(R.string.autoplay_description),
                     checked = autoplay,
                     onCheckedChange = { viewModel.setAutoplayNext(it) }
                 )

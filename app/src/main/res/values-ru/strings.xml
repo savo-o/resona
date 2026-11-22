@@ -418,7 +418,7 @@
     <string name="settings_dark_dark">Тёмная</string>
     <string name="settings_dynamic_color">Динамический цвет из трека</string>
     <string name="settings_dynamic_color_desc">Акцентный цвет меняется в зависимости от текущего трека</string>
-    <string name="settings_autoplay">Бесконечное воспроизведение</string>
+    <string name="settings_autoplay">Автовоспроизведение следующего трека</string>
     <string name="settings_crossfade">Кроссфейд</string>
     <string name="settings_crossfade_desc">Плавно менять громкость между треками вместо резкого переключения</string>
     <string name="settings_pause_for_other_apps">Пауза при звуке других приложений</string>

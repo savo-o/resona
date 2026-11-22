@@ -1,12 +1,13 @@
 package com.savoo.scclient.ui.screens.player
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,14 +49,19 @@ fun MoreLikeThisSheet(controller: PlayerController, track: Track, onDismiss: () 
                         enabled = !infinite && !loading,
                     )
                     Row(
-                        Modifier.fillMaxWidth().clickable(enabled = !loading) { infinite = !infinite },
+                        Modifier.fillMaxWidth().toggleable(
+                            value = infinite,
+                            enabled = !loading,
+                            role = Role.Switch,
+                            onValueChange = { infinite = it },
+                        ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(checked = infinite, onCheckedChange = { infinite = it }, enabled = !loading)
-                        Column {
+                        Column(Modifier.weight(1f).padding(end = 16.dp)) {
                             Text("Infinite", style = MaterialTheme.typography.titleMedium)
                             Text(stringResource(R.string.similar_infinite_description), style = MaterialTheme.typography.bodySmall)
                         }
+                        Switch(checked = infinite, onCheckedChange = null, enabled = !loading)
                     }
                 }
             }
