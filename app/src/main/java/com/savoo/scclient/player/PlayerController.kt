@@ -110,6 +110,7 @@ data class SkippedTrack(val track: Track, val reason: UnavailableReason?)
 class PlayerController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val trackRepository: TrackRepository,
+    private val telegramMusic: com.savoo.scclient.telegram.TelegramMusicStorage,
     private val trackCache: TrackCache,
     val offlineTrackManager: OfflineTrackManager,
     private val playHistoryDao: PlayHistoryDao,
@@ -1134,6 +1135,10 @@ class PlayerController @Inject constructor(
                 }
             }
         }
+    }
+
+    suspend fun saveToTelegram(track: Track) {
+        telegramMusic.save(track)
     }
 
     fun skipToNext() {

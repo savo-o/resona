@@ -2,6 +2,18 @@ package com.savoo.scclient.ui.screens.offline
 
 import com.savoo.scclient.ui.navigation.aboveDock
 import com.savoo.scclient.ui.navigation.withDock
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.savoo.scclient.ui.haptics.rememberHapticTick
+import com.savoo.scclient.ui.screens.playlist.PickTrackRow
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,6 +33,7 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,6 +59,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -83,6 +97,7 @@ import androidx.compose.ui.text.style.TextOverflow
 @HiltViewModel
 class OfflineTracksViewModel @Inject constructor(
     private val offlineTrackManager: OfflineTrackManager,
+    private val audioExporter: com.savoo.scclient.player.OfflineAudioExporter,
     private val favoritesDao: FavoritesDao,
     private val favoritesRepository: FavoritesRepository,
     val playerController: PlayerController,
@@ -102,6 +117,38 @@ class OfflineTracksViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoriteTrackIds = favoritesDao.observeTrackIds().map { it.toSet() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    private val _exportProgress = MutableStateFlow<Pair<Int, Int>?>(null)
+    val exportProgress = _exportProgress.asStateFlow()
+    private val _exportResult = MutableStateFlow<Pair<Int, Int>?>(null)
+    val exportResult = _exportResult.asStateFlow()
+
+    fun exportTracks(ids: List<Long>, destination: Uri) {
+        if (_exportProgress.value != null) return
+        viewModelScope.launch {
+            var saved = 0
+            var failed = 0
+            try {
+                ids.forEachIndexed { index, id ->
+                    _exportProgress.value = index to ids.size
+                    try {
+                        audioExporter.export(id, destination)
+                        saved++
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        com.savoo.scclient.debug.DebugLog.log("AudioExport", "Export $id failed: $e")
+                        failed++
+                    }
+                }
+                _exportResult.value = saved to failed
+            } finally {
+                _exportProgress.value = null
+            }
+        }
+    }
+
+    fun consumeExportResult() { _exportResult.value = null }
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting = _isImporting.asStateFlow()
@@ -189,6 +236,11 @@ fun OfflineTracksScreen(
     onBack: () -> Unit = {},
 ) {
     val tracks by viewModel.tracks.collectAsState()
+    val exportProgress by viewModel.exportProgress.collectAsState()
+    val exportResult by viewModel.exportResult.collectAsState()
+    var showExportSheet by rememberSaveable { mutableStateOf(false) }
+    var selectedExportIds by rememberSaveable { mutableStateOf(longArrayOf()) }
+    var pendingExportIds by rememberSaveable { mutableStateOf(longArrayOf()) }
     val favoriteTrackIds by viewModel.favoriteTrackIds.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
@@ -202,6 +254,34 @@ fun OfflineTracksScreen(
     val selection = rememberTrackSelection()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null && pendingExportIds.isNotEmpty()) viewModel.exportTracks(pendingExportIds.toList(), uri)
+        pendingExportIds = longArrayOf()
+    }
+    val exportResultFormat = stringResource(R.string.offline_audio_export_result)
+    LaunchedEffect(exportResult) {
+        exportResult?.let { (saved, failed) ->
+            snackbarHostState.showSnackbar(exportResultFormat.format(saved, failed))
+            viewModel.consumeExportResult()
+        }
+    }
+    if (showExportSheet) {
+        OfflineExportSheet(
+            tracks = tracks.applySortOption(sort),
+            selectedIds = selectedExportIds.toSet(),
+            onToggleTrack = { id ->
+                val selected = selectedExportIds.toSet()
+                selectedExportIds = (if (id in selected) selected - id else selected + id).toLongArray()
+            },
+            onDismiss = { showExportSheet = false },
+            onExport = { ids ->
+                pendingExportIds = ids.toLongArray()
+                showExportSheet = false
+                exportPicker.launch(null)
+            },
+        )
+    }
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) viewModel.importLocalFolder(uri)
@@ -237,6 +317,16 @@ fun OfflineTracksScreen(
                     }
                 },
                 actions = {
+                    if (exportProgress != null) {
+                        LoadingIndicator(modifier = Modifier.size(24.dp))
+                    } else if (tracks.isNotEmpty()) {
+                        IconButton(onClick = {
+                            selectedExportIds = selection.selectedIds.toLongArray()
+                            showExportSheet = true
+                        }) {
+                            Icon(Icons.Filled.SaveAlt, contentDescription = stringResource(R.string.offline_audio_export))
+                        }
+                    }
                     if (isImporting) {
                         LoadingIndicator(modifier = Modifier.size(24.dp))
                     } else {
@@ -277,6 +367,11 @@ fun OfflineTracksScreen(
         snackbarHost = { SnackbarHost(snackbarHostState, Modifier.aboveDock()) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
+            exportProgress?.let { (done, total) ->
+                Text(stringResource(R.string.offline_audio_export_progress, done + 1, total),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.primary)
+            }
             if (tracks.isNotEmpty()) {
                 SearchBarDefaults.InputField(
                     query = searchQuery,
@@ -373,5 +468,101 @@ fun OfflineTracksScreen(
                 }
             },
         )
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun OfflineExportSheet(
+    tracks: List<Track>,
+    selectedIds: Set<Long>,
+    onToggleTrack: (Long) -> Unit,
+    onDismiss: () -> Unit,
+    onExport: (List<Long>) -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val haptic = rememberHapticTick()
+    val selectedTracks = remember(tracks, selectedIds) { tracks.filter { it.id in selectedIds } }
+    val visibleTracks = remember(tracks, query) {
+        val filter = query.trim()
+        tracks.filter { it.title.contains(filter, ignoreCase = true) || it.user.username.contains(filter, ignoreCase = true) }
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(0.92f).imePadding().padding(horizontal = 20.dp).padding(bottom = 16.dp)) {
+            Text(
+                stringResource(R.string.offline_audio_export),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+            Spacer(Modifier.height(14.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text(stringResource(R.string.playlist_pick_filter_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(R.string.search_clear))
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                stringResource(R.string.selection_count, selectedTracks.size),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
+            )
+            if (visibleTracks.isEmpty()) {
+                Text(
+                    stringResource(if (query.isBlank()) R.string.offline_empty else R.string.search_nothing_found),
+                    modifier = Modifier.weight(1f).align(Alignment.CenterHorizontally).padding(24.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(bottom = 8.dp),
+                ) {
+                    items(visibleTracks, key = { it.id }) { track ->
+                        PickTrackRow(
+                            track = track,
+                            selected = track.id in selectedIds,
+                            alreadyAdded = false,
+                            onClick = { haptic(); onToggleTrack(track.id) },
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = { onExport(selectedTracks.map { it.id }) },
+                enabled = selectedTracks.isNotEmpty(),
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+            ) {
+                Text(
+                    if (selectedTracks.isEmpty()) stringResource(R.string.offline_audio_export)
+                    else stringResource(R.string.offline_audio_export_selected, selectedTracks.size),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            TextButton(
+                onClick = { onExport(tracks.map { it.id }) },
+                enabled = tracks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.offline_audio_export_all))
+            }
+        }
     }
 }

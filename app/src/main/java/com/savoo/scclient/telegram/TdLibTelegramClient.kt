@@ -31,6 +31,7 @@ import kotlin.coroutines.resumeWithException
 class TdLibTelegramClient @Inject constructor(
     @ApplicationContext private val context: Context,
     private val sessionKeyStore: TelegramSessionKeyStore,
+    private val qrExperiment: TelegramQrExperiment,
 ) : TelegramClient {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -44,6 +45,8 @@ class TdLibTelegramClient @Inject constructor(
     private val updates = MutableSharedFlow<TdApi.Object>(extraBufferCapacity = 256)
 
     private var lastPhoneNumber: String = ""
+    @Volatile private var changingPhoneNumber = false
+    @Volatile private var qrRequested = false
 
     private val _chatFolders = MutableStateFlow<List<TelegramChatFolder>>(emptyList())
     override val chatFolders: StateFlow<List<TelegramChatFolder>> = _chatFolders
@@ -51,15 +54,96 @@ class TdLibTelegramClient @Inject constructor(
     /** fileId -> chatId for avatar downloads kicked off but not yet finished. */
     private val pendingChatAvatars = ConcurrentHashMap<Int, Long>()
 
-    private val client: Client by lazy {
-        Client.create(this::onUpdate, null, null)
+    @Volatile private var activeClient: Client? = null
+    private val client: Client
+        get() = synchronized(this) {
+            activeClient ?: Client.create(this::onUpdate, null, null).also { activeClient = it }
+        }
+
+    override suspend fun addProfileAudio(file: File, title: String, artist: String, durationSeconds: Int) {
+        check(authState.value is TelegramAuthState.Ready) { "Sign in to Telegram first" }
+        val audio = TdApi.InputAudio(TdApi.InputFileLocal(file.absolutePath), null, durationSeconds, title, artist)
+        send(TdApi.AddProfileAudio(audio))
     }
+
+    override suspend fun sendFavoritesBackup(file: File) {
+        check(authState.value is TelegramAuthState.Ready) { "Sign in to Telegram first" }
+        val chat = savedMessagesChat()
+        val message = send(TdApi.SendMessage().apply {
+            chatId = chat.id
+            inputMessageContent = TdApi.InputMessageDocument(
+                TdApi.InputDocument(TdApi.InputFileLocal(file.absolutePath), null, false),
+                TdApi.FormattedText("resona_favorites", emptyArray()),
+            )
+        }) as TdApi.Message
+        awaitSent(chat.id, message)
+    }
+
+    override suspend fun listFavoritesBackups(): List<TelegramFavoritesBackup> {
+        check(authState.value is TelegramAuthState.Ready) { "Sign in to Telegram first" }
+        val chat = savedMessagesChat()
+        val found = send(TdApi.SearchChatMessages(
+            chat.id, null, "resona_favorites", null, 0, 0, 50, TdApi.SearchMessagesFilterDocument(),
+        )) as TdApi.FoundChatMessages
+        return found.messages.mapNotNull { message ->
+            val document = (message.content as? TdApi.MessageDocument)?.document ?: return@mapNotNull null
+            if (!document.fileName.startsWith("resona_favorites") || !document.fileName.endsWith(".json")) return@mapNotNull null
+            TelegramFavoritesBackup(message.id, document.document.id, document.fileName, document.document.size, message.date)
+        }
+    }
+
+    override suspend fun downloadFavoritesBackup(fileId: Int): File = kotlinx.coroutines.withTimeout(120000) {
+        check(authState.value is TelegramAuthState.Ready) { "Sign in to Telegram first" }
+        val result = send(TdApi.DownloadFile(fileId, 16, 0, 0, true)) as TdApi.File
+        check(result.local.isDownloadingCompleted) { "Backup download did not complete" }
+        File(result.local.path).also { check(it.isFile) { "Backup file is missing" } }
+    }
+
+    private suspend fun savedMessagesChat(): TdApi.Chat {
+        val me = send(TdApi.GetMe()) as TdApi.User
+        return send(TdApi.CreatePrivateChat(me.id, false)) as TdApi.Chat
+    }
+
+    private suspend fun awaitSent(chatId: Long, message: TdApi.Message): Long {
+        var current = message
+        try {
+            return kotlinx.coroutines.withTimeout(10 * 60 * 1000L) {
+                while (current.sendingState != null) {
+                    if (current.sendingState is TdApi.MessageSendingStateFailed) {
+                        error("Telegram backup upload failed")
+                    }
+                    kotlinx.coroutines.delay(500)
+                    sentMessages.remove(message.id)?.let { current = it }
+                }
+                current.id
+            }
+        } finally {
+            if (current.sendingState != null) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    kotlinx.coroutines.withTimeoutOrNull(5000) {
+                        runCatching { send(TdApi.DeleteMessages(chatId, longArrayOf(message.id), true)) }
+                    }
+                }
+            }
+            sentMessages.remove(message.id)
+        }
+    }
+
+    private val sentMessages = ConcurrentHashMap<Long, TdApi.Message>()
 
     override suspend fun start() {
         client // lazily creates the Client and starts its event loop
     }
 
     private fun onUpdate(obj: TdApi.Object) {
+        if (obj is TdApi.UpdateMessageSendSucceeded) {
+            if (sentMessages.size > 128) sentMessages.clear()
+            sentMessages[obj.oldMessageId] = obj.message
+        }
+        if (obj is TdApi.UpdateMessageSendFailed) {
+            if (sentMessages.size > 128) sentMessages.clear()
+            sentMessages[obj.oldMessageId] = obj.message
+        }
         if (obj is TdApi.UpdateAuthorizationState) handleAuthState(obj.authorizationState)
         if (obj is TdApi.UpdateChatFolders) {
             _chatFolders.value = obj.chatFolders.map { TelegramChatFolder(it.id, it.name.text.text) }
@@ -90,20 +174,77 @@ class TdLibTelegramClient @Inject constructor(
                 }
             }
             is TdApi.AuthorizationStateWaitPhoneNumber -> _authState.value = TelegramAuthState.WaitPhoneNumber
-            is TdApi.AuthorizationStateWaitCode -> _authState.value =
-                TelegramAuthState.WaitCode(lastPhoneNumber, state.codeInfo?.type?.let { it::class.simpleName })
+            is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> {
+                _authState.value = TelegramAuthState.WaitQrConfirmation(state.link)
+            }
+            is TdApi.AuthorizationStateWaitCode -> {
+                if (changingPhoneNumber) {
+                    _authState.value = TelegramAuthState.WaitPhoneNumber
+                    return
+                }
+                val info = state.codeInfo
+                _authState.value = TelegramAuthState.WaitCode(
+                    info.phoneNumber ?: lastPhoneNumber,
+                    info.type?.let { it::class.simpleName },
+                    info.nextType?.let { it::class.simpleName },
+                    android.os.SystemClock.elapsedRealtime() + info.timeout.coerceAtLeast(0) * 1000L,
+                )
+            }
             is TdApi.AuthorizationStateWaitPassword -> _authState.value =
-                TelegramAuthState.WaitPassword(state.passwordHint.takeIf { it.isNotBlank() })
-            is TdApi.AuthorizationStateReady -> _authState.value = TelegramAuthState.Ready
+                if (changingPhoneNumber) TelegramAuthState.WaitPhoneNumber
+                else TelegramAuthState.WaitPassword(state.passwordHint.takeIf { it.isNotBlank() })
+            is TdApi.AuthorizationStateReady -> {
+                qrRequested = false
+                _authState.value = TelegramAuthState.Ready
+            }
             is TdApi.AuthorizationStateLoggingOut, is TdApi.AuthorizationStateClosing -> _authState.value = TelegramAuthState.Connecting
-            is TdApi.AuthorizationStateClosed -> _authState.value = TelegramAuthState.LoggedOut
+            is TdApi.AuthorizationStateClosed -> {
+                qrRequested = false
+                activeClient = null
+                _authState.value = TelegramAuthState.LoggedOut
+            }
             else -> _authState.value = TelegramAuthState.Connecting
         }
     }
 
     override suspend fun sendPhoneNumber(phoneNumber: String) {
+        changingPhoneNumber = false
         lastPhoneNumber = phoneNumber
         send(TdApi.SetAuthenticationPhoneNumber(phoneNumber, null))
+    }
+
+    override suspend fun requestQrSignIn() {
+        check(qrExperiment.enabled.value) { "Experimental Telegram QR login is disabled" }
+        changingPhoneNumber = false
+        qrRequested = true
+        try {
+            Client.execute(TdApi.SetLogVerbosityLevel(0))
+            send(TdApi.RequestQrCodeAuthentication(longArrayOf()))
+        } catch (e: Exception) {
+            if (authState.value !is TelegramAuthState.WaitQrConfirmation && e !is kotlinx.coroutines.CancellationException) {
+                qrRequested = false
+            }
+            throw e
+        }
+    }
+
+    override suspend fun resendCode() {
+        val state = authState.value as? TelegramAuthState.WaitCode ?: error("Not waiting for a code")
+        check(state.nextCodeHint != null && android.os.SystemClock.elapsedRealtime() >= state.resendAtElapsedMs) {
+            "Telegram has not enabled resending yet"
+        }
+        send(TdApi.ResendAuthenticationCode(TdApi.ResendCodeReasonUserRequest()))
+    }
+
+    override suspend fun cancelSignIn() {
+        check(authState.value !is TelegramAuthState.Ready) { "Already signed in" }
+        if (qrRequested || authState.value is TelegramAuthState.WaitQrConfirmation) {
+            send(TdApi.Close())
+            return
+        }
+        changingPhoneNumber = true
+        lastPhoneNumber = ""
+        _authState.value = TelegramAuthState.WaitPhoneNumber
     }
 
     override suspend fun sendCode(code: String) {

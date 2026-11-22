@@ -166,6 +166,7 @@ dependencies {
     implementation(libs.paging.compose)
 
     implementation(libs.coil.compose)
+    implementation("com.google.zxing:core:3.5.3")
     implementation(libs.haze)
 
     implementation("androidx.palette:palette-ktx:1.0.0")

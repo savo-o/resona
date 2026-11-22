@@ -15,8 +15,17 @@ interface TelegramClient {
     /** True once this binding is backed by a real Telegram connection (as opposed to the stub). */
     val isAvailable: Boolean
 
+    suspend fun sendFavoritesBackup(file: File)
+    suspend fun listFavoritesBackups(): List<TelegramFavoritesBackup>
+    suspend fun downloadFavoritesBackup(fileId: Int): File
+
+    suspend fun addProfileAudio(file: File, title: String, artist: String, durationSeconds: Int)
+
     suspend fun start()
     suspend fun sendPhoneNumber(phoneNumber: String)
+    suspend fun requestQrSignIn()
+    suspend fun resendCode()
+    suspend fun cancelSignIn()
     suspend fun sendCode(code: String)
     suspend fun sendPassword(password: String)
     suspend fun logOut()
@@ -39,3 +48,5 @@ interface TelegramClient {
      */
     fun downloadFile(fileId: Int, expectedSizeBytes: Long, limitBytes: Long = 0L): Flow<Pair<Float, File?>>
 }
+
+data class TelegramFavoritesBackup(val messageId: Long, val fileId: Int, val fileName: String, val size: Long, val date: Int)

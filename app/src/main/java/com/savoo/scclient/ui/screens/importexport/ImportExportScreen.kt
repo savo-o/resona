@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -63,6 +65,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -111,6 +114,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 import androidx.compose.ui.text.style.TextOverflow
 
@@ -126,6 +130,7 @@ class ImportExportViewModel @Inject constructor(
     private val scImportRepo: SoundCloudImportRepository,
     private val favoritesDao: FavoritesDao,
     private val telegramClient: TelegramClient,
+    val telegramQrExperiment: com.savoo.scclient.telegram.TelegramQrExperiment,
     private val telegramImportRepo: TelegramImportRepository,
     private val settingsRepository: SettingsRepository,
     private val autoExportManager: AutoExportManager,
@@ -162,20 +167,46 @@ class ImportExportViewModel @Inject constructor(
         }
     }
 
-    fun telegramStart() {
-        viewModelScope.launch { telegramClient.start() }
+    private val _telegramAuthBusy = MutableStateFlow(false)
+    val telegramAuthBusy = _telegramAuthBusy.asStateFlow()
+    private val _telegramAuthError = MutableStateFlow<String?>(null)
+    val telegramAuthError = _telegramAuthError.asStateFlow()
+    private var telegramAuthJob: kotlinx.coroutines.Job? = null
+    private var telegramAuthGeneration = 0
+
+    private fun telegramAuthAction(action: suspend () -> Unit) {
+        if (_telegramAuthBusy.value) return
+        _telegramAuthBusy.value = true
+        _telegramAuthError.value = null
+        val generation = ++telegramAuthGeneration
+        telegramAuthJob = viewModelScope.launch {
+            try {
+                kotlinx.coroutines.withTimeout(30000) { action() }
+            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+                _telegramAuthError.value = context.getString(R.string.telegram_auth_timeout)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _telegramAuthError.value = e.message.orEmpty()
+            } finally {
+                if (generation == telegramAuthGeneration) _telegramAuthBusy.value = false
+            }
+        }
     }
 
-    fun telegramSendPhone(phoneNumber: String) {
-        viewModelScope.launch { runCatching { telegramClient.sendPhoneNumber(phoneNumber) } }
-    }
+    fun telegramStart() = telegramAuthAction { telegramClient.start() }
+    fun telegramSendPhone(phoneNumber: String) = telegramAuthAction { telegramClient.sendPhoneNumber(phoneNumber.trim()) }
+    fun telegramSendCode(code: String) = telegramAuthAction { telegramClient.sendCode(code.trim()) }
+    fun telegramSendPassword(password: String) = telegramAuthAction { telegramClient.sendPassword(password) }
+    fun telegramRequestQr() = telegramAuthAction { telegramClient.requestQrSignIn() }
+    fun telegramResendCode() = telegramAuthAction { telegramClient.resendCode() }
 
-    fun telegramSendCode(code: String) {
-        viewModelScope.launch { runCatching { telegramClient.sendCode(code) } }
-    }
-
-    fun telegramSendPassword(password: String) {
-        viewModelScope.launch { runCatching { telegramClient.sendPassword(password) } }
+    fun telegramCancelSignIn() {
+        telegramAuthGeneration++
+        telegramAuthJob?.cancel()
+        _telegramAuthBusy.value = false
+        _telegramAuthError.value = null
+        telegramAuthAction { telegramClient.cancelSignIn() }
     }
 
     /** Step 1 of picking a chat: show "find a chat" - which folder (or all chats) to look in. */
@@ -219,6 +250,68 @@ class ImportExportViewModel @Inject constructor(
         viewModelScope.launch {
             telegramClient.logOut()
             _telegramUiState.value = TelegramImportUiState.SignedOut
+        }
+    }
+
+    private val _telegramBackupBusy = MutableStateFlow(false)
+    val telegramBackupBusy = _telegramBackupBusy.asStateFlow()
+    private val _telegramBackups = MutableStateFlow<List<com.savoo.scclient.telegram.TelegramFavoritesBackup>?>(null)
+    val telegramBackups = _telegramBackups.asStateFlow()
+
+    fun dismissTelegramBackups() { _telegramBackups.value = null }
+
+    fun exportFavoritesToTelegram() {
+        if (_telegramBackupBusy.value) return
+        _telegramBackupBusy.value = true
+        viewModelScope.launch {
+            var file: File? = null
+            try {
+                check(telegramClient.authState.value is TelegramAuthState.Ready) { context.getString(R.string.telegram_backup_sign_in) }
+                file = exporter.createBackupFile()
+                telegramClient.sendFavoritesBackup(file)
+                _message.value = context.getString(R.string.msg_export_success)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _message.value = context.getString(R.string.msg_export_failed, e.message.orEmpty())
+            } finally {
+                file?.delete()
+                _telegramBackupBusy.value = false
+            }
+        }
+    }
+
+    fun loadTelegramBackups() {
+        if (_telegramBackupBusy.value) return
+        _telegramBackupBusy.value = true
+        viewModelScope.launch {
+            try {
+                _telegramBackups.value = telegramClient.listFavoritesBackups()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _message.value = context.getString(R.string.msg_import_failed, e.message.orEmpty())
+            } finally {
+                _telegramBackupBusy.value = false
+            }
+        }
+    }
+
+    fun importTelegramBackup(backup: com.savoo.scclient.telegram.TelegramFavoritesBackup) {
+        if (_telegramBackupBusy.value) return
+        _telegramBackups.value = null
+        _telegramBackupBusy.value = true
+        viewModelScope.launch {
+            try {
+                val file = telegramClient.downloadFavoritesBackup(backup.fileId)
+                importFromFile(Uri.fromFile(file))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _message.value = context.getString(R.string.msg_import_failed, e.message.orEmpty())
+            } finally {
+                _telegramBackupBusy.value = false
+            }
         }
     }
 
@@ -450,56 +543,16 @@ fun ImportExportScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             ImportExportSectionCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { exportLauncher.launch(DEFAULT_EXPORT_FILE_NAME) }
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Filled.FileUpload,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.export_favorites), style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            stringResource(R.string.export_favorites_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                BackupActionRow(Icons.Filled.FileUpload, R.string.export_favorites, R.string.export_favorites_desc) {
+                    exportLauncher.launch(DEFAULT_EXPORT_FILE_NAME)
                 }
-
                 ImportExportDivider()
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { importLauncher.launch(arrayOf("application/json")) }
-                        .padding(horizontal = 20.dp, vertical = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Filled.FileDownload,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.import_favorites), style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            stringResource(R.string.import_favorites_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                BackupActionRow(Icons.Filled.FileDownload, R.string.import_favorites, R.string.import_favorites_desc) {
+                    importLauncher.launch(arrayOf("application/json"))
                 }
             }
+
+            TelegramFavoritesBackupActions(viewModel)
 
             ImportExportSectionCard {
                 val settings by viewModel.settings.collectAsState()
@@ -661,6 +714,12 @@ fun ImportExportScreen(
             ImportExportSectionCard {
                 TelegramImportSection(
                     available = viewModel.telegramAvailable,
+                    qrEnabled = viewModel.telegramQrExperiment.enabled.collectAsState().value,
+                    onRequestQr = viewModel::telegramRequestQr,
+                    authBusy = viewModel.telegramAuthBusy.collectAsState().value,
+                    authError = viewModel.telegramAuthError.collectAsState().value,
+                    onResendCode = viewModel::telegramResendCode,
+                    onCancelSignIn = viewModel::telegramCancelSignIn,
                     authState = viewModel.telegramAuthState.collectAsState().value,
                     uiState = viewModel.telegramUiState.collectAsState().value,
                     folders = viewModel.telegramChatFolders.collectAsState().value,
@@ -961,6 +1020,12 @@ private fun SoundCloudImportSection(
 @Composable
 private fun TelegramImportSection(
     available: Boolean,
+    qrEnabled: Boolean,
+    onRequestQr: () -> Unit,
+    authBusy: Boolean,
+    authError: String?,
+    onResendCode: () -> Unit,
+    onCancelSignIn: () -> Unit,
     authState: TelegramAuthState,
     uiState: TelegramImportUiState,
     folders: List<TelegramChatFolder>,
@@ -1053,6 +1118,20 @@ private fun TelegramImportSection(
             return
         }
 
+        authError?.let {
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+        }
+        if (qrEnabled && (authState is TelegramAuthState.WaitPhoneNumber || authState is TelegramAuthState.WaitCode)) {
+            FilledTonalButton(
+                onClick = onRequestQr,
+                enabled = !authBusy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.telegram_qr_sign_in))
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         when (authState) {
             is TelegramAuthState.Unavailable -> Text(
                 stringResource(R.string.import_tg_unavailable),
@@ -1065,6 +1144,13 @@ private fun TelegramImportSection(
 
             is TelegramAuthState.Connecting -> LoadingRow(stringResource(R.string.import_tg_connecting))
 
+            is TelegramAuthState.WaitQrConfirmation -> {
+                if (qrEnabled) TelegramQrCode(authState.link)
+                TextButton(onClick = onCancelSignIn, enabled = !authBusy, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+
             is TelegramAuthState.WaitPhoneNumber -> {
                 var phone by remember { mutableStateOf("") }
                 OutlinedTextField(
@@ -1076,13 +1162,29 @@ private fun TelegramImportSection(
                     shape = RoundedCornerShape(16.dp),
                 )
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { onSendPhone(phone) }, enabled = phone.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSendPhone(phone) }, enabled = phone.isNotBlank() && !authBusy, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.import_tg_send_phone))
                 }
             }
 
             is TelegramAuthState.WaitCode -> {
-                var code by remember { mutableStateOf("") }
+                var code by remember(authState.phoneNumber) { mutableStateOf("") }
+                var resendSeconds by remember(authState) {
+                    mutableStateOf(((authState.resendAtElapsedMs - android.os.SystemClock.elapsedRealtime() + 999) / 1000)
+                        .coerceAtLeast(0).toInt())
+                }
+                LaunchedEffect(authState) {
+                    do {
+                        resendSeconds = ((authState.resendAtElapsedMs - android.os.SystemClock.elapsedRealtime() + 999) / 1000)
+                            .coerceAtLeast(0).toInt()
+                        if (resendSeconds > 0) kotlinx.coroutines.delay(1000)
+                    } while (resendSeconds > 0)
+                }
+                Text(
+                    stringResource(telegramCodeHintResource(authState.codeHint)),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(8.dp))
                 Text(
                     stringResource(R.string.import_tg_code_sent, authState.phoneNumber),
                     style = MaterialTheme.typography.bodySmall,
@@ -1098,8 +1200,25 @@ private fun TelegramImportSection(
                     shape = RoundedCornerShape(16.dp),
                 )
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { onSendCode(code) }, enabled = code.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSendCode(code) }, enabled = code.isNotBlank() && !authBusy, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.import_tg_send_code))
+                }
+                Spacer(Modifier.height(8.dp))
+                if (authState.nextCodeHint != null) {
+                    TextButton(
+                        onClick = onResendCode,
+                        enabled = !authBusy && resendSeconds == 0,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (resendSeconds > 0) stringResource(R.string.telegram_auth_resend_wait, resendSeconds)
+                            else stringResource(R.string.telegram_auth_resend))
+                    }
+                } else {
+                    Text(stringResource(R.string.telegram_auth_no_resend),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = onCancelSignIn, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.telegram_auth_cancel))
                 }
             }
 
@@ -1114,8 +1233,11 @@ private fun TelegramImportSection(
                     shape = RoundedCornerShape(16.dp),
                 )
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { onSendPassword(password) }, enabled = password.isNotBlank(), modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSendPassword(password) }, enabled = password.isNotBlank() && !authBusy, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.import_tg_send_password))
+                }
+                TextButton(onClick = onCancelSignIn, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.telegram_auth_cancel))
                 }
             }
 
@@ -1319,4 +1441,95 @@ private fun ImportResultRow(item: ImportItemResult) {
             modifier = Modifier.weight(1f),
         )
     }
+}
+
+
+@Composable
+private fun BackupActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: Int,
+    description: Int,
+    enabled: Boolean = true,
+    busy: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (busy) {
+            Spacer(Modifier.width(12.dp))
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        }
+    }
+}
+
+@Composable
+private fun TelegramFavoritesBackupActions(viewModel: ImportExportViewModel) {
+    val auth by viewModel.telegramAuthState.collectAsState()
+    val busy by viewModel.telegramBackupBusy.collectAsState()
+    val backups by viewModel.telegramBackups.collectAsState()
+    val ready = auth is TelegramAuthState.Ready
+    ImportExportSectionCard {
+        BackupActionRow(
+            Icons.Filled.FileUpload,
+            R.string.telegram_backup_export,
+            if (ready) R.string.telegram_backup_export_desc else R.string.telegram_backup_sign_in,
+            enabled = ready && !busy,
+            busy = busy,
+            onClick = viewModel::exportFavoritesToTelegram,
+        )
+        ImportExportDivider()
+        BackupActionRow(
+            Icons.Filled.FileDownload,
+            R.string.telegram_backup_import,
+            R.string.telegram_backup_import_desc,
+            enabled = ready && !busy,
+            onClick = viewModel::loadTelegramBackups,
+        )
+    }
+    backups?.let { files ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissTelegramBackups,
+            title = { Text(stringResource(R.string.telegram_backup_import)) },
+            text = {
+                Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                    if (files.isEmpty()) Text(stringResource(R.string.telegram_backup_empty))
+                    files.forEach { backup ->
+                        Column(Modifier.fillMaxWidth().clickable { viewModel.importTelegramBackup(backup) }
+                            .padding(vertical = 12.dp)) {
+                            Text(java.time.Instant.ofEpochSecond(backup.date.toLong())
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .format(java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM)),
+                                style = MaterialTheme.typography.titleSmall)
+                            Text(backup.fileName, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissTelegramBackups) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
+    }
+}
+
+
+private fun telegramCodeHintResource(type: String?): Int = when {
+    type?.contains("TelegramMessage") == true -> R.string.telegram_auth_delivery_telegram
+    type?.contains("Sms") == true || type?.contains("Firebase") == true -> R.string.telegram_auth_delivery_sms
+    type?.contains("Call") == true -> R.string.telegram_auth_delivery_call
+    type?.contains("Fragment") == true -> R.string.telegram_auth_delivery_fragment
+    else -> R.string.telegram_auth_delivery_other
 }

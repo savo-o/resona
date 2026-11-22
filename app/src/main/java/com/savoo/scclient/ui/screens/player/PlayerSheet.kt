@@ -59,6 +59,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -88,6 +89,7 @@ import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Tune
@@ -998,8 +1000,13 @@ private fun PixelPlayerContent(
 ) {
     val context = LocalContext.current
     val accent = palette.accent
+    val menuMaxHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp - 140).coerceAtLeast(160).dp
     val activeControlInk = if (accent.luminance() > 0.179f) Color.Black else Color.White
     val haptics = rememberHaptics()
+    var telegramTrack by remember { mutableStateOf<Track?>(null) }
+    telegramTrack?.let { track ->
+        TelegramMusicSheet(controller, track, onDismiss = { telegramTrack = null })
+    }
     var moreLikeTrack by remember { mutableStateOf<Track?>(null) }
     moreLikeTrack?.let { seed ->
         MoreLikeThisSheet(controller, seed, onDismiss = { moreLikeTrack = null })
@@ -1671,7 +1678,7 @@ private fun PixelPlayerContent(
                     .liquidGlass(RoundedCornerShape(28.dp), tint = palette.background, density = 0.72f, blurRadius = 24.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(6.dp),
+                    modifier = Modifier.heightIn(max = menuMaxHeight).verticalScroll(rememberScrollState()).padding(6.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     PixelMenuItem(
@@ -1695,6 +1702,15 @@ private fun PixelPlayerContent(
                             onClick = { showOverflowMenu = false; showComments = true },
                         )
                     }
+                    PixelMenuItem(
+                        icon = Icons.Filled.Person,
+                        label = stringResource(R.string.telegram_music_profile),
+                        palette = palette,
+                        onClick = {
+                            showOverflowMenu = false
+                            state.currentTrack?.let { telegramTrack = it }
+                        },
+                    )
                     PixelMenuItem(
                         icon = Icons.Filled.AutoAwesome,
                         label = stringResource(R.string.player_more_like_this),
@@ -2491,6 +2507,10 @@ private fun ClassicPlayerContent(
     val context = LocalContext.current
     val palette = rememberPlayerPalette()
     val haptics = rememberHaptics()
+    var telegramTrack by remember { mutableStateOf<Track?>(null) }
+    telegramTrack?.let { track ->
+        TelegramMusicSheet(controller, track, onDismiss = { telegramTrack = null })
+    }
     var moreLikeTrack by remember { mutableStateOf<Track?>(null) }
     moreLikeTrack?.let { seed ->
         MoreLikeThisSheet(controller, seed, onDismiss = { moreLikeTrack = null })
@@ -2765,6 +2785,14 @@ private fun ClassicPlayerContent(
                                     onClick = { showOverflowMenu = false; showComments = true },
                                 )
                             }
+                            ExpressiveMenuItem(
+                                icon = Icons.Filled.Person,
+                                label = stringResource(R.string.telegram_music_profile),
+                                onClick = {
+                                    showOverflowMenu = false
+                                    state.currentTrack?.let { telegramTrack = it }
+                                },
+                            )
                             ExpressiveMenuItem(
                                 icon = Icons.Filled.AutoAwesome,
                                 label = stringResource(R.string.player_more_like_this),

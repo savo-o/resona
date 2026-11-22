@@ -44,6 +44,17 @@ class FavoritesExporter @Inject constructor(
     private val localPlaylistDao: LocalPlaylistDao,
     @ApplicationContext private val context: Context,
 ) {
+    suspend fun createBackupFile(): File = withContext(Dispatchers.IO) {
+        val file = File.createTempFile("resona_favorites_", ".json", context.cacheDir)
+        try {
+            file.outputStream().buffered().use { writeExport(it) }
+            file
+        } catch (e: Exception) {
+            file.delete()
+            throw e
+        }
+    }
+
     suspend fun exportToFile(uri: Uri, protectExistingBackup: Boolean = false): Result<Unit> = withContext(Dispatchers.IO) {
         val temp = File.createTempFile("favorites_export", ".json", context.cacheDir)
         try {
@@ -88,6 +99,7 @@ class FavoritesExporter @Inject constructor(
                     writer.name("userId").value(t.userId)
                     writer.name("userAvatarUrl").value(t.userAvatarUrl)
                     writer.name("addedAt").value(t.addedAt)
+                    writer.name("genre").value(t.genre)
                     writer.endObject()
                 }
                 if (page.size < EXPORT_PAGE_SIZE) break

@@ -113,6 +113,7 @@ class DebugMenuViewModel @Inject constructor(
     private val recapRepository: RecapRepository,
     private val waveformRepository: com.savoo.scclient.data.repository.WaveformRepository,
     @ApplicationContext private val context: Context,
+    val telegramQrExperiment: com.savoo.scclient.telegram.TelegramQrExperiment,
 ) : ViewModel() {
 
     private val _waveformCacheCount = MutableStateFlow(0)
@@ -366,6 +367,7 @@ fun DebugMenuScreen(
     val lyricsSyncCount by viewModel.lyricsSyncCount.collectAsState()
     val traceEntries by viewModel.traceEntries.collectAsState()
     val verboseNetworkLogging by viewModel.verboseNetworkLogging.collectAsState()
+    val telegramQrEnabled by viewModel.telegramQrExperiment.enabled.collectAsState()
     val screenshotModeEnabled by viewModel.screenshotModeEnabled.collectAsState()
     val playerStateSnapshot by viewModel.playerStateSnapshot.collectAsState()
     val greetingOverridePeriod by viewModel.greetingOverridePeriod.collectAsState()
@@ -665,6 +667,15 @@ fun DebugMenuScreen(
                     }
                     Switch(checked = verboseNetworkLogging, onCheckedChange = { viewModel.setVerboseNetworkLogging(it) })
                 }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.debug_telegram_qr_title)) {
+                com.savoo.scclient.ui.components.SwitchItem(
+                    title = stringResource(R.string.telegram_qr_sign_in),
+                    subtitle = stringResource(R.string.debug_telegram_qr_description),
+                    checked = telegramQrEnabled,
+                    onCheckedChange = viewModel.telegramQrExperiment::setEnabled,
+                )
             }
 
             DebugSectionCard(title = stringResource(R.string.debug_menu_screenshot_mode)) {

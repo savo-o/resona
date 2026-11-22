@@ -5,8 +5,14 @@ sealed class TelegramAuthState {
     data object Unavailable : TelegramAuthState()
     data object LoggedOut : TelegramAuthState()
     data object Connecting : TelegramAuthState()
+    class WaitQrConfirmation(val link: String) : TelegramAuthState()
     data object WaitPhoneNumber : TelegramAuthState()
-    data class WaitCode(val phoneNumber: String, val codeHint: String?) : TelegramAuthState()
+    data class WaitCode(
+        val phoneNumber: String,
+        val codeHint: String?,
+        val nextCodeHint: String? = null,
+        val resendAtElapsedMs: Long = 0L,
+    ) : TelegramAuthState()
     data class WaitPassword(val passwordHint: String?) : TelegramAuthState()
     data object Ready : TelegramAuthState()
     data class Error(val message: String) : TelegramAuthState()

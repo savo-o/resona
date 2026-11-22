@@ -19,8 +19,18 @@ class TelegramUnavailableClient @Inject constructor() : TelegramClient {
     override val authState: StateFlow<TelegramAuthState> = MutableStateFlow(TelegramAuthState.Unavailable)
     override val isAvailable: Boolean = false
 
+    override suspend fun sendFavoritesBackup(file: File): Unit = throw IllegalStateException("Telegram is unavailable")
+    override suspend fun downloadFavoritesBackup(fileId: Int): File = throw IllegalStateException("Telegram is unavailable")
+    override suspend fun listFavoritesBackups(): List<TelegramFavoritesBackup> = throw IllegalStateException("Telegram is unavailable")
+
+    override suspend fun addProfileAudio(file: File, title: String, artist: String, durationSeconds: Int): Unit =
+        throw IllegalStateException("Telegram is unavailable")
+
     override suspend fun start() {}
     override suspend fun sendPhoneNumber(phoneNumber: String) {}
+    override suspend fun requestQrSignIn() = Unit
+    override suspend fun resendCode() {}
+    override suspend fun cancelSignIn() {}
     override suspend fun sendCode(code: String) {}
     override suspend fun sendPassword(password: String) {}
     override suspend fun logOut() {}

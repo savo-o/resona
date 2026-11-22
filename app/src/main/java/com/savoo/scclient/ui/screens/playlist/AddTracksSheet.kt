@@ -492,7 +492,7 @@ private fun SourceButton(
 }
 
 @Composable
-private fun PickTrackRow(
+internal fun PickTrackRow(
     track: Track,
     selected: Boolean,
     alreadyAdded: Boolean,
