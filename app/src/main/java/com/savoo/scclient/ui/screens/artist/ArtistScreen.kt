@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
@@ -147,6 +149,9 @@ class ArtistViewModel @Inject constructor(
     val drmTrackHiding = settingsRepository.settings.map { it.drmTrackHiding }
 
     private var loadedUserId: Long? = null
+    private var profileSection = ProfileTab.OVERVIEW
+
+    fun selectSection(section: ProfileTab) { profileSection = section }
 
     fun loadArtist(userId: Long) {
         if (loadedUserId == userId && _uiState.value.user != null) return
@@ -200,7 +205,7 @@ class ArtistViewModel @Inject constructor(
         playerController.playQueue(tracks, idx.coerceAtLeast(0), tag = artistQueueTag())
     }
 
-    private fun artistQueueTag(): String? = _uiState.value.user?.username?.let { "artist:$it" }
+    private fun artistQueueTag(): String? = _uiState.value.user?.username?.let { "artist:$it:${profileSection.name.lowercase()}" }
 
     fun isFavoriteFlow(trackId: Long) = favoritesDao.isTrackFavorite(trackId)
 
@@ -280,8 +285,12 @@ fun ArtistScreen(
     onBack: () -> Unit = {},
     onArtistClick: (Long) -> Unit = {},
     onPlaylistClick: (Long) -> Unit = {},
+    library: ProfileLibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val libraryState by library.state.collectAsState()
+    val relationship by library.relationship.collectAsState()
+    LaunchedEffect(userId) { library.select(userId, ProfileTab.OVERVIEW) }
     val playerState by viewModel.playerController.state.collectAsState()
     val unavailableReasons by viewModel.playerController.unavailableReasons.collectAsState()
     val downloadingIds by viewModel.downloadingTrackIds.collectAsState()
@@ -301,7 +310,10 @@ fun ArtistScreen(
     val context = LocalContext.current
     val drmHiding by viewModel.drmTrackHiding.collectAsState(initial = DrmTrackHiding.FULL)
     val visibleTracks = remember(state.tracks, drmHiding) { state.tracks.applyDrmHiding(drmHiding) }
-    val sortedTracks = remember(visibleTracks, sort) { visibleTracks.applySortOption(sort) }
+    val profileTracks = remember(libraryState.feed, drmHiding) { libraryState.feed.mapNotNull { it.track }.applyDrmHiding(drmHiding) }
+    val sortedTracks = remember(visibleTracks, profileTracks, libraryState.tab, sort) {
+        (if (libraryState.tab == ProfileTab.OVERVIEW) visibleTracks else profileTracks).applySortOption(sort)
+    }
     val popularTracks = remember(state.topTracks, visibleTracks, drmHiding) {
         val source = state.topTracks.ifEmpty { visibleTracks.sortedByDescending { it.playbackCount ?: 0L } }
         source.applyDrmHiding(drmHiding).filter { it.restrictionReason() == null }.take(10)
@@ -370,11 +382,11 @@ fun ArtistScreen(
                 },
                 onSelectAll = { selection.selectAll(sortedTracks.map { it.id }) },
                 onFavoriteAll = {
-                    viewModel.toggleFavoriteForSelected(selection.selectedIds)
+                    sortedTracks.filter { it.id in selection.selectedIds }.forEach { viewModel.toggleFavorite(it) }
                     selection.clear()
                 },
                 onDownloadAll = {
-                    viewModel.toggleDownloadForSelected(selection.selectedIds)
+                    sortedTracks.filter { it.id in selection.selectedIds }.forEach { viewModel.toggleDownload(it) }
                     selection.clear()
                 },
                 onAddToPlaylist = {
@@ -415,13 +427,17 @@ fun ArtistScreen(
                         item(key = "meta") {
                             ArtistMeta(user = user, trackCount = user.trackCount ?: visibleTracks.size)
                         }
+                        item(key = "profile_stats") {
+                            ProfileStats(user.copy(followersCount = user.followersCount?.let { (it + relationship.followersDelta).coerceAtLeast(0L) })) { tab -> selection.clear(); viewModel.selectSection(tab); library.select(userId, tab) }
+                        }
+                        item(key = "profile_follow") { ProfileFollowButton(relationship, userId, library::toggleFollow) }
                         item(key = "actions") {
                             val isArtistFav by viewModel.isArtistFavoriteFlow(userId).collectAsState(initial = false)
                             DetailActionRow(
                                 isFavorite = isArtistFav,
                                 onToggleFavorite = { viewModel.toggleArtistFavorite(user) },
                                 isPlayingThis = isPlayingThis,
-                                playEnabled = sortedTracks.isNotEmpty() || popularTracks.isNotEmpty(),
+                                playEnabled = sortedTracks.isNotEmpty() || (libraryState.tab == ProfileTab.OVERVIEW && popularTracks.isNotEmpty()),
                                 onPlay = {
                                     if (viewModel.isPlayingFromArtist(playerState.queueTag)) viewModel.playerController.togglePlayPause()
                                     else viewModel.playAll(sortedTracks.ifEmpty { popularTracks })
@@ -432,6 +448,15 @@ fun ArtistScreen(
                             )
                         }
 
+                        item(key = "profile_tabs") {
+                            ProfileTabs(libraryState.tab) { tab ->
+                                selection.clear()
+                                viewModel.selectSection(tab)
+                                library.select(userId, tab)
+                            }
+                        }
+
+                        if (libraryState.tab == ProfileTab.OVERVIEW) {
                         if (popularTracks.isNotEmpty()) {
                             item(key = "popular_title") { DetailSectionTitle(stringResource(R.string.detail_popular)) }
                             val shown = if (popularExpanded) popularTracks else popularTracks.take(5)
@@ -529,6 +554,43 @@ fun ArtistScreen(
                         if (!user.description.isNullOrBlank() || !user.city.isNullOrBlank()) {
                             item(key = "about") { ArtistAbout(user) }
                         }
+                        } else {
+                            items(libraryState.people, key = { "person_${it.id}" }) { person ->
+                                com.savoo.scclient.ui.components.ArtistRow(person, onClick = { onArtistClick(person.id) }, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                            }
+                            items(libraryState.feed, key = { it.track?.let { t -> "feed_track_${t.id}" } ?: "feed_playlist_${it.playlist?.id}" }) { entry ->
+                                entry.track?.takeIf { track -> profileTracks.any { it.id == track.id } }?.let { track ->
+                                    ArtistTrack(track, sortedTracks, null, Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                                }
+                                entry.playlist?.let { playlist ->
+                                    ProfilePlaylistRow(playlist, onClick = { onPlaylistClick(playlist.id) })
+                                }
+                            }
+                            if (libraryState.loading) {
+                                item(key = "profile_loading") {
+                                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { LoadingIndicator() }
+                                }
+                            } else if (libraryState.failed) {
+                                item(key = "profile_error") {
+                                    Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(stringResource(R.string.profile_load_failed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        TextButton(onClick = { library.load() }) { Text(stringResource(R.string.profile_retry)) }
+                                    }
+                                }
+                            } else if (libraryState.feed.isEmpty() && libraryState.people.isEmpty()) {
+                                item(key = "profile_empty") {
+                                    Surface(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                        Text(stringResource(R.string.profile_empty), modifier = Modifier.padding(32.dp), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                            if (libraryState.next != null && !libraryState.loading && !libraryState.failed) {
+                                item(key = "profile_more") {
+                                    LaunchedEffect(libraryState.next) { library.load() }
+                                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { TextButton(onClick = { library.load() }) { Text(stringResource(R.string.detail_show_more)) } }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -587,7 +649,7 @@ private fun ArtistHero(
             .clipToBounds(),
     ) {
         AsyncImage(
-            model = hiResArtwork(user.avatarUrl),
+            model = user.visuals?.visuals?.firstNotNullOfOrNull { it.visualUrl } ?: hiResArtwork(user.avatarUrl),
             contentDescription = user.username,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -616,6 +678,10 @@ private fun ArtistHero(
                 .align(Alignment.BottomStart)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
+            if (user.visuals?.visuals?.any { it.visualUrl != null } == true) {
+                com.savoo.scclient.ui.components.ArtistAvatar(user.avatarUrl, user.username, 76.dp)
+                Spacer(Modifier.height(12.dp))
+            }
             if (user.verified == true) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(

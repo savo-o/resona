@@ -218,6 +218,7 @@ class AccountViewModel @Inject constructor(
 fun AccountScreen(
     viewModel: AccountViewModel = hiltViewModel(),
     onOpenSettings: () -> Unit = {},
+    onOpenProfile: (Long) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -273,6 +274,7 @@ fun AccountScreen(
                         onLogout = { viewModel.logout() },
                         onSettings = onOpenSettings,
                         onEditProfile = { editingProfile = true },
+                        onOpenProfile = { state.user?.id?.let(onOpenProfile) },
                     )
                     val editUser = state.user
                     if (editingProfile && editUser != null) {
@@ -314,6 +316,7 @@ private fun LoggedInContent(
     onLogout: () -> Unit,
     onSettings: () -> Unit,
     onEditProfile: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var selectedBadge by remember { mutableStateOf<String?>(null) }
@@ -485,6 +488,19 @@ private fun LoggedInContent(
                     }
                 }
             }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        FilledTonalButton(
+            onClick = onOpenProfile,
+            enabled = user != null,
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            shapes = ButtonDefaults.shapes(),
+        ) {
+            Icon(Icons.Filled.Person, contentDescription = null)
+            Spacer(Modifier.width(10.dp))
+            Text(stringResource(R.string.profile_open), modifier = Modifier.weight(1f))
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
         }
 
         Spacer(Modifier.height(24.dp))

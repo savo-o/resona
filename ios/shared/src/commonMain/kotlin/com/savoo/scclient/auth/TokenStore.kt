@@ -21,16 +21,31 @@ class TokenStore(
 
     var refreshToken: String?
         get() = prefs.getString(KEY_REFRESH, null)
+            ?: webCookies?.split(';')?.map { it.trim() }
+                ?.firstOrNull { it.startsWith("oauth_refresh_token=") }
+                ?.substringAfter('=')?.takeIf { it.isNotBlank() }
         private set(value) { prefs.edit().putString(KEY_REFRESH, value).apply() }
 
     fun save(token: TokenResponse) {
         accessToken = token.accessToken
         refreshToken = token.refreshToken
+        if (webCookies.orEmpty().split(';').any { it.trim().startsWith("oauth_token=") }) {
+            replaceCookie("oauth_token=${token.accessToken}")
+        }
+        token.refreshToken?.let { refreshed ->
+            if (webCookies.orEmpty().split(';').any { it.trim().startsWith("oauth_refresh_token=") }) {
+                replaceCookie("oauth_refresh_token=$refreshed")
+            }
+        }
         _isLoggedIn.value = true
     }
 
     fun saveWebToken(accessTokenValue: String) {
         accessToken = accessTokenValue
+        refreshToken = null
+        if (webCookies.orEmpty().split(';').any { it.trim().startsWith("oauth_token=") }) {
+            replaceCookie("oauth_token=$accessTokenValue")
+        }
         _isLoggedIn.value = true
     }
 

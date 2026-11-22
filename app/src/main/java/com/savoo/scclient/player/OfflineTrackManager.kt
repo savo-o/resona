@@ -13,6 +13,7 @@ import com.savoo.scclient.data.repository.TrackRepository
 import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.di.PlainHttpClient
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -60,8 +61,6 @@ data class BulkDownloadProgress(
     val inProgress: Int get() = (completed + active.size.coerceAtLeast(1)).coerceAtMost(total)
     val fraction: Float get() = if (total <= 0) 1f else ((completed + active.values.sumOf { it.fraction.toDouble() }.toFloat()) / total).coerceIn(0f, 1f)
 }
-
-private val HLS_URI = Regex("URI=\"([^\"]+)\"")
 
 @Singleton
 class OfflineTrackManager @Inject constructor(
@@ -237,8 +236,18 @@ class OfflineTrackManager @Inject constructor(
     suspend fun getTrackCount(): Int = offlineDao.getTrackCount()
 
     suspend fun saveForOffline(track: Track, onProgress: ((Float) -> Unit)? = null): Result<Unit> = withContext(Dispatchers.IO) {
-        _downloadingTrackIds.update { it + track.id }
+        while (true) {
+            val active = _downloadingTrackIds.value
+            if (track.id in active) return@withContext Result.failure(IllegalStateException("Track download already in progress"))
+            if (_downloadingTrackIds.compareAndSet(active, active + track.id)) break
+        }
+        var publishedHlsDirectory: File? = null
         try {
+            offlineDao.getOfflineTrack(track.id)?.let { saved ->
+                if (saved.localPath.endsWith(".m3u8") && File(saved.localPath).length() > 0) {
+                    return@withContext Result.success(Unit)
+                }
+            }
             val audioFile = listOf("mp3", "m4a").map { File(offlineDir, "${track.id}.$it") }
                 .firstOrNull { it.exists() } ?: File(offlineDir, "${track.id}.mp3")
             if (audioFile.exists() && audioFile.length() > 0 && looksLikeAudioFile(audioFile)) {
@@ -281,10 +290,20 @@ class OfflineTrackManager @Inject constructor(
                 ?: return@withContext Result.failure(Exception("Track has no downloadable stream"))
 
             val tmpAudioFile = File(offlineDir, "${track.id}.mp3.tmp")
-            val targetFile = File(offlineDir, "${track.id}." + if (stream.isMp4) "m4a" else "mp3")
+            val hlsDirectory = File(offlineDir, "${track.id}.hls")
+            val targetFile: File
             if (stream.isHls) {
-                downloadHls(stream.url, tmpAudioFile, onProgress)?.let { return@withContext Result.failure(it) }
+                val staging = File(offlineDir, "${track.id}.hls.tmp")
+                staging.deleteRecursively()
+                HlsOfflineDownloader(httpClient).download(stream.url, staging, onProgress)
+                ensureActive()
+                hlsDirectory.deleteRecursively()
+                if (!staging.renameTo(hlsDirectory)) throw java.io.IOException("Cannot save HLS download")
+                publishedHlsDirectory = hlsDirectory
+                targetFile = File(hlsDirectory, "index.m3u8")
             } else {
+                targetFile = File(offlineDir, "${track.id}." + if (stream.isMp4) "m4a" else "mp3")
+                tmpAudioFile.delete()
                 val request = Request.Builder().url(stream.url).build()
                 httpClient.newCall(request).execute().use { response ->
                     if (response.code == 429) {
@@ -318,15 +337,15 @@ class OfflineTrackManager @Inject constructor(
                         }
                     }
                 }
-            }
-            targetFile.delete()
-            if (tmpAudioFile.length() <= 0 || !looksLikeAudioFile(tmpAudioFile) || !tmpAudioFile.renameTo(targetFile)) {
-                tmpAudioFile.delete()
-                return@withContext Result.failure(Exception("Downloaded file is empty or invalid"))
+                if (tmpAudioFile.length() <= 0 || !looksLikeAudioFile(tmpAudioFile)) {
+                    throw java.io.IOException("Downloaded file is empty or invalid")
+                }
+                targetFile.delete()
+                if (!tmpAudioFile.renameTo(targetFile)) throw java.io.IOException("Cannot save audio download")
             }
 
             val artwork = downloadArtwork(track.id, track.artworkUrl)
-                ?: extractEmbeddedArtwork(track.id, targetFile)
+                ?: if (stream.isHls) null else extractEmbeddedArtwork(track.id, targetFile)
 
             offlineDao.saveTrack(
                 OfflineTrack(
@@ -339,60 +358,24 @@ class OfflineTrackManager @Inject constructor(
                     userId = track.user.id,
                     userAvatarUrl = track.user.avatarUrl,
                     localPath = targetFile.absolutePath,
-                    fileSizeBytes = targetFile.length(),
+                    fileSizeBytes = if (stream.isHls) hlsDirectory.walkTopDown().filter { it.isFile }.sumOf { it.length() } else targetFile.length(),
                     genre = track.genre,
                 )
             )
+            publishedHlsDirectory = null
             DebugLog.log("OfflineTrack", "Saved ${track.title} (${targetFile.length()} bytes)")
             repairScope.launch { runCatching { waveformRepository.getWaveform(track) } }
             Result.success(Unit)
         } catch (e: Exception) {
             DebugLog.log("OfflineTrack", "Failed to save: ${e.message}")
             File(offlineDir, "${track.id}.mp3.tmp").delete()
+            File(offlineDir, "${track.id}.hls.tmp").deleteRecursively()
+            publishedHlsDirectory?.deleteRecursively()
+            if (e is CancellationException) throw e
             Result.failure(e)
         } finally {
             _downloadingTrackIds.update { it - track.id }
         }
-    }
-
-    private fun downloadHls(url: String, target: File, onProgress: ((Float) -> Unit)?): Exception? {
-        var playlistUrl = url
-        var playlist = fetchBytes(playlistUrl)?.decodeToString() ?: return Exception("Cannot load HLS playlist")
-        if ("#EXT-X-STREAM-INF" in playlist) {
-            val variant = playlist.lines().map { it.trim() }.firstOrNull { it.isNotEmpty() && !it.startsWith("#") }
-                ?: return Exception("Empty HLS master playlist")
-            playlistUrl = resolveUrl(playlistUrl, variant)
-            playlist = fetchBytes(playlistUrl)?.decodeToString() ?: return Exception("Cannot load HLS playlist")
-        }
-        val lines = playlist.lines().map { it.trim() }
-        if (lines.any { it.startsWith("#EXT-X-KEY") && !it.contains("METHOD=NONE") }) {
-            return Exception("Track is encrypted")
-        }
-        val init = lines.firstOrNull { it.startsWith("#EXT-X-MAP") }
-            ?.let { HLS_URI.find(it)?.groupValues?.get(1) }
-        val segments = listOfNotNull(init) + lines.filter { it.isNotEmpty() && !it.startsWith("#") }
-        if (segments.isEmpty()) return Exception("Empty HLS playlist")
-        target.delete()
-        target.outputStream().use { out ->
-            segments.forEachIndexed { index, segment ->
-                val bytes = fetchBytes(resolveUrl(playlistUrl, segment)) ?: return Exception("Segment download failed")
-                out.write(bytes)
-                onProgress?.invoke((index + 1).toFloat() / segments.size)
-            }
-        }
-        return null
-    }
-
-    private fun fetchBytes(url: String): ByteArray? =
-        httpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
-            if (response.code == 429) throw RateLimitedException("Download rate limited: 429")
-            if (response.isSuccessful) response.body?.bytes() else null
-        }
-
-    private fun resolveUrl(base: String, ref: String): String = when {
-        ref.startsWith("http://") || ref.startsWith("https://") -> ref
-        ref.startsWith("/") -> base.substringBefore("://") + "://" + base.substringAfter("://").substringBefore('/') + ref
-        else -> base.substringBefore('?').substringBeforeLast('/') + "/" + ref
     }
 
     private fun Throwable.isRateLimit(): Boolean =
@@ -404,6 +387,7 @@ class OfflineTrackManager @Inject constructor(
             if (track != null) {
                 val audioFile = File(track.localPath)
                 if (audioFile.exists()) audioFile.delete()
+                File(offlineDir, "${trackId}.hls").deleteRecursively()
                 val artworkFile = File(offlineDir, "${trackId}.jpg")
                 if (artworkFile.exists()) artworkFile.delete()
                 File(offlineDir, "$trackId.wave").delete()
@@ -422,6 +406,7 @@ class OfflineTrackManager @Inject constructor(
             tracks.forEach { track ->
                 val audioFile = File(track.localPath)
                 if (audioFile.exists()) audioFile.delete()
+                File(offlineDir, "${track.trackId}.hls").deleteRecursively()
                 val artworkFile = File(offlineDir, "${track.trackId}.jpg")
                 if (artworkFile.exists()) artworkFile.delete()
                 File(offlineDir, "${track.trackId}.wave").delete()

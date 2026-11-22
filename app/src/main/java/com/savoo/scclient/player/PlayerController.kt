@@ -117,8 +117,19 @@ class PlayerController @Inject constructor(
     private val unavailableTrackDao: UnavailableTrackDao,
     private val favoritesDao: FavoritesDao,
     private val soundEffects: SoundEffects,
+    private val excludedArtistDao: com.savoo.scclient.data.local.ExcludedArtistDao,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val _autoplayEnabled = MutableStateFlow(false)
+    val autoplayEnabled = _autoplayEnabled.asStateFlow()
+    private val _loadingRecommendations = MutableStateFlow(false)
+    val loadingRecommendations = _loadingRecommendations.asStateFlow()
+    private var recommendationJob: kotlinx.coroutines.Job? = null
+    private val recommendationSeeds = mutableSetOf<Long>()
+    private var recommendationRetryAt = 0L
+    private val excludedRecommendationArtists = excludedArtistDao.excludedArtists()
+        .map { rows -> rows.mapTo(HashSet()) { it.artistId } }
+        .stateIn(scope, SharingStarted.Eagerly, emptySet())
     private var controller: MediaController? = null
     private var positionJob: kotlinx.coroutines.Job? = null
     private var loopJob: kotlinx.coroutines.Job? = null
@@ -260,6 +271,12 @@ class PlayerController @Inject constructor(
     init {
         primeFromSavedState()
         scope.launch {
+            settingsRepository.autoplayNext.distinctUntilChanged().collect { enabled ->
+                _autoplayEnabled.value = enabled
+                if (recommendationsEnabled()) maybeAutoplay() else recommendationJob?.cancel()
+            }
+        }
+        scope.launch {
             settingsRepository.settings.map { it.crossfadeEnabled }.distinctUntilChanged().collect { enabled ->
                 crossfadeEnabled = enabled
                 if (!enabled) {
@@ -278,6 +295,11 @@ class PlayerController @Inject constructor(
         scope.launch {
             withContext(Dispatchers.IO) {
                 unavailableTrackDao.clearExpired(System.currentTimeMillis() - UNAVAILABLE_MARK_TTL_MS)
+            }
+        }
+        scope.launch {
+            ConnectivityEventBus.isUnreachable.collect { unreachable ->
+                if (!unreachable) maybeAutoplay()
             }
         }
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -308,6 +330,7 @@ class PlayerController @Inject constructor(
                 controller?.currentMediaItem?.mediaId?.toLongOrNull()?.let { errorRetryCount.remove(it) }
                 resumeListenSegment()
                 startPositionPolling()
+                maybeAutoplay()
             } else {
                 _state.update { it.copy(isPlaying = false) }
                 stopPositionPolling()
@@ -319,7 +342,14 @@ class PlayerController @Inject constructor(
         override fun onPlaybackStateChanged(playbackState: Int) {
             DebugLog.log(TAG, "onPlaybackStateChanged: $playbackState currentId=${controller?.currentMediaItem?.mediaId} pos=${controller?.currentPosition} dur=${controller?.duration}")
             _state.update { it.copy(isBuffering = playbackState == Player.STATE_BUFFERING) }
-            if (playbackState == Player.STATE_ENDED) _sleepAfterCurrentTrack.value = false
+            if (playbackState == Player.STATE_ENDED) {
+                if (_sleepAfterCurrentTrack.value) {
+                    _sleepAfterCurrentTrack.value = false
+                    controller?.pause()
+                } else {
+                    maybeAutoplay()
+                }
+            }
             if (playbackState == Player.STATE_READY) updatePosition()
         }
 
@@ -392,6 +422,7 @@ class PlayerController @Inject constructor(
             _state.update { it.copy(repeatMode = repeatMode) }
             updateQueueState()
             maybeExtendQueue()
+            maybeAutoplay()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -404,6 +435,7 @@ class PlayerController @Inject constructor(
                     queueIndex = idx
                     updateQueueState()
                     maybeExtendQueue()
+                    maybeAutoplay()
                 }
 
                 // replaceMediaItem() (used to swap a resolved "pending" placeholder for the real URL) fires this same
@@ -527,7 +559,7 @@ class PlayerController @Inject constructor(
     // Single source of truth for turning a queue entry into a playable URL: offline file, then disk cache, then network -
     // retrying the network step a couple of times before giving up, so a transient hiccup doesn't silently skip the track.
     private suspend fun resolveTrack(track: Track, attempts: Int = 3, reportProgress: Boolean = true): ResolvedTrack? {
-        offlineTrackManager.getLocalPath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
+        offlineTrackManager.getLocalPath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false, isHls = it.endsWith(".m3u8")) }
         trackCache.getCachedFilePath(track.id)?.let { return ResolvedTrack(track, it, needsCaching = false) }
 
         withContext(Dispatchers.IO) { unavailableTrackDao.get(track.id) }?.let {
@@ -549,7 +581,10 @@ class PlayerController @Inject constructor(
                 val fullTrack = if (attempt == 0 && track.media != null) track
                     else withContext(Dispatchers.IO) {
                         runCatching { trackRepository.getTrack(track.id) }
-                            .onFailure { if (it is HttpException && it.code() == 404) deleted = true }
+                            .onFailure {
+                                DebugLog.log(TAG, "getTrack(${track.id}) failed: $it")
+                                if (it is HttpException && it.code() == 404) deleted = true
+                            }
                             .getOrNull()
                     } ?: track
                 if (deleted) {
@@ -727,6 +762,7 @@ class PlayerController @Inject constructor(
             while (true) {
                 updatePosition()
                 tick++
+                if (tick % 10 == 0) maybeAutoplay()
                 if (tick % 6 == 0) saveState()
                 delay(500L)
             }
@@ -883,6 +919,9 @@ class PlayerController @Inject constructor(
             return
         }
         val clampedStart = tracks.indexOfFirst { it.id == requested.id }.coerceAtLeast(0).coerceAtMost(tracks.lastIndex)
+        recommendationJob?.cancel()
+        recommendationSeeds.clear()
+        recommendationRetryAt = 0L
         currentQueueTag = tag
         favoritesContinuation = null
 
@@ -988,6 +1027,7 @@ class PlayerController @Inject constructor(
                 DebugLog.log(TAG, "maybeExtendQueue: appended ${rows.size} favorites, queue=${queue.size}, next=$favoritesContinuation")
             } finally {
                 extendingQueue = false
+                if (favoritesContinuation == null) maybeAutoplay()
             }
             if (favoritesContinuation != null) maybeExtendQueue()
         }
@@ -996,7 +1036,7 @@ class PlayerController @Inject constructor(
     private fun appendToQueue(sourceTracks: List<Track>) {
         if (queue.isEmpty()) return
         val known = queue.mapTo(HashSet()) { it.track.id }
-        val tracks = sourceTracks.filter { knownReason(it) == null && it.id !in known }
+        val tracks = sourceTracks.filter { knownReason(it) == null && known.add(it.id) }
         if (tracks.isEmpty()) return
         val entries = wrapAll(tracks)
         val insertIndex = queue.size
@@ -1010,6 +1050,90 @@ class PlayerController @Inject constructor(
             controller?.addMediaItems(insertIndex, entries.map { buildPendingMediaItem(it.track) })
         }
         updateQueueState()
+    }
+
+    fun setAutoplayEnabled(enabled: Boolean) {
+        scope.launch { settingsRepository.setAutoplayNext(enabled) }
+    }
+
+    private fun recommendationsEnabled(): Boolean =
+        currentQueueTag?.startsWith("radio:") == true ||
+            (_autoplayEnabled.value && currentQueueTag?.startsWith("similar:") != true)
+
+    suspend fun startSimilarQueue(track: Track, count: Int, infinite: Boolean): Int {
+        val related = trackRepository.getRelatedTracksPage(track.id, limit = 50)
+            .distinctBy { it.id }
+            .filter {
+                it.id != track.id && it.id > 0 && it.user.id !in excludedRecommendationArtists.value &&
+                    knownReason(it) == null && it.restrictionReason() == null
+            }
+            .take(if (infinite) 12 else count.coerceIn(1, 50))
+        if (related.isEmpty()) return 0
+        controller?.repeatMode = Player.REPEAT_MODE_OFF
+        playQueue(related, tag = if (infinite) "radio:${track.id}" else "similar:${track.id}", startExact = false)
+        return related.size
+    }
+
+    private fun maybeAutoplay() {
+        val player = controller ?: return
+        if (!recommendationsEnabled() || _sleepAfterCurrentTrack.value) return
+        if (player.repeatMode != Player.REPEAT_MODE_OFF || queueIndex !in queue.indices) return
+        if (!player.playWhenReady || queue.size - queueIndex > 4 || recommendationJob?.isActive == true) return
+        if (favoritesContinuation?.wrapping == false || extendingQueue) {
+            maybeExtendQueue()
+            return
+        }
+        if (System.currentTimeMillis() < recommendationRetryAt) return
+        val request = playRequestId
+        val candidates = (listOfNotNull(queue.lastOrNull()?.track, _state.value.currentTrack) + queue.asReversed().map { it.track })
+            .distinctBy { it.id }.filter { it.id > 0 && it.id !in recommendationSeeds }.take(4)
+        if (candidates.isEmpty()) return
+        recommendationJob = scope.launch {
+            _loadingRecommendations.value = true
+            try {
+                val known = queue.mapTo(HashSet()) { it.track.id }
+                val fresh = mutableListOf<Track>()
+                for (seed in candidates) {
+                    val related = try {
+                        trackRepository.getRelatedTracksPage(seed.id, limit = 30)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        DebugLog.log(TAG, "Autoplay failed for ${seed.id}: $e")
+                        recommendationRetryAt = System.currentTimeMillis() + 30000L
+                        break
+                    }
+                    if (request != playRequestId || !recommendationsEnabled() || queue.isEmpty()) return@launch
+                    recommendationSeeds.add(seed.id)
+                    fresh += related.filter {
+                        it.id > 0 && it.user.id !in excludedRecommendationArtists.value &&
+                            knownReason(it) == null && it.restrictionReason() == null && known.add(it.id)
+                    }
+                    if (fresh.size >= 12) break
+                }
+                if (request != playRequestId || !recommendationsEnabled() || player.repeatMode != Player.REPEAT_MODE_OFF || _sleepAfterCurrentTrack.value) return@launch
+                val start = queue.size
+                val resume = player.playbackState == Player.STATE_ENDED && player.playWhenReady
+                appendToQueue(fresh.take(12))
+                if (queue.size > start) {
+                    preloadAdjacent()
+                    if (resume) {
+                        player.seekTo(start, 0L)
+                        player.prepare()
+                        player.play()
+                    }
+                }
+            } finally {
+                _loadingRecommendations.value = false
+                val retryDelay = recommendationRetryAt - System.currentTimeMillis()
+                if (retryDelay > 0 && request == playRequestId && recommendationsEnabled()) {
+                    scope.launch {
+                        delay(retryDelay)
+                        if (request == playRequestId) maybeAutoplay()
+                    }
+                }
+            }
+        }
     }
 
     fun skipToNext() {
@@ -1356,6 +1480,7 @@ class PlayerController @Inject constructor(
                 }
                 updateQueueState()
                 preloadAdjacent()
+                maybeAutoplay()
             }
 
             if (needsCaching) {
@@ -1545,6 +1670,7 @@ class PlayerController @Inject constructor(
                     updateQueueState()
                     preloadAdjacent()
                     maybeExtendQueue()
+                    maybeAutoplay()
                 }
                 if (needsCaching) {
                     trackCache.cacheAudioFile(fullTrack, url)

@@ -119,6 +119,8 @@ import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.compat.BuildConfig
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.SystemUpdate
+import kotlinx.coroutines.CancellationException
+import org.jetbrains.compose.resources.StringResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -161,6 +163,8 @@ class SettingsViewModel(
 
     private val _isRefreshingClientId = MutableStateFlow(false)
     val isRefreshingClientId = _isRefreshingClientId.asStateFlow()
+    private val _clientId = MutableStateFlow(clientIdProvider.cachedOrFallback())
+    val clientId = _clientId.asStateFlow()
 
     init {
         calculateCacheSize()
@@ -348,12 +352,41 @@ class SettingsViewModel(
         }
     }
 
-    fun refreshClientId(onDone: () -> Unit) {
+    fun loadClientId() {
+        _clientId.value = clientIdProvider.cachedOrFallback()
+    }
+
+    fun refreshClientId(onDone: (StringResource) -> Unit) = performClientIdAction(onDone) {
+        clientIdProvider.refresh(force = true, failOnError = true)
+        Res.string.settings_client_id_refreshed
+    }
+
+    fun clearClientId(onDone: (StringResource) -> Unit) = performClientIdAction(onDone) {
+        clientIdProvider.clear()
+        Res.string.settings_client_id_cleared
+    }
+
+    fun saveClientId(value: String, onDone: (StringResource) -> Unit) = performClientIdAction(onDone) {
+        require(value.matches(Regex("[a-zA-Z0-9]{32}")))
+        clientIdProvider.setManualOverride(value)
+        Res.string.settings_client_id_saved
+    }
+
+    private fun performClientIdAction(onDone: (StringResource) -> Unit, action: suspend () -> StringResource) {
+        if (_isRefreshingClientId.value) return
+        _isRefreshingClientId.value = true
         viewModelScope.launch {
-            _isRefreshingClientId.value = true
-            withContext(Dispatchers.IO) { clientIdProvider.refresh(force = true) }
-            _isRefreshingClientId.value = false
-            onDone()
+            val message = try {
+                withContext(Dispatchers.IO) { action() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                Res.string.settings_client_id_failed
+            } finally {
+                _clientId.value = clientIdProvider.cachedOrFallback()
+                _isRefreshingClientId.value = false
+            }
+            onDone(message)
         }
     }
 
@@ -436,6 +469,8 @@ fun SettingsScreen(
     val offlineSize by viewModel.offlineSize.collectAsState()
     val updateCheckState by viewModel.updateCheckState.collectAsState()
     val isRefreshingClientId by viewModel.isRefreshingClientId.collectAsState()
+    val clientId by viewModel.clientId.collectAsState()
+    var showClientIdActions by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showKeepAndroidOpen by remember { mutableStateOf(false) }
     var showEula by remember { mutableStateOf(false) }
@@ -1225,13 +1260,7 @@ fun SettingsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = !isRefreshingClientId) {
-                            viewModel.refreshClientId {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(context.getString(Res.string.settings_client_id_refreshed))
-                                }
-                            }
-                        }
+                        .clickable { viewModel.loadClientId(); showClientIdActions = true }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1243,13 +1272,18 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(Res.string.settings_client_id), style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(Res.string.settings_client_id_advanced), style = MaterialTheme.typography.bodyLarge)
                         Text(
-                            stringResource(Res.string.settings_client_id_desc),
+                            stringResource(Res.string.settings_client_id_advanced_desc),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
@@ -1353,6 +1387,20 @@ fun SettingsScreen(
 
     if (showEula) {
         EulaBottomSheet(onDismiss = { showEula = false })
+    }
+
+    if (showClientIdActions) {
+        val onClientIdDone: (StringResource) -> Unit = { message ->
+            scope.launch { snackbarHostState.showSnackbar(context.getString(message)) }
+        }
+        ClientIdActionsDialog(
+            clientId = clientId,
+            busy = isRefreshingClientId,
+            onRefresh = { viewModel.refreshClientId(onClientIdDone) },
+            onClear = { viewModel.clearClientId(onClientIdDone) },
+            onSave = { viewModel.saveClientId(it, onClientIdDone) },
+            onDismiss = { showClientIdActions = false },
+        )
     }
 
     if (showKeepAndroidOpen) {

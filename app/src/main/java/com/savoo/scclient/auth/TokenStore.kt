@@ -11,10 +11,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class TokenStore @Inject constructor(
-    @ApplicationContext context: Context
-) {
-    private val prefs: SharedPreferences = createSecurePrefs(context, "sc_auth_secure_prefs")
+class TokenStore internal constructor(private val prefs: SharedPreferences) {
+    @Inject constructor(@ApplicationContext context: Context) :
+        this(createSecurePrefs(context, "sc_auth_secure_prefs"))
 
     private val _isLoggedIn = MutableStateFlow(accessToken != null)
     val isLoggedIn = _isLoggedIn.asStateFlow()
@@ -25,16 +24,31 @@ class TokenStore @Inject constructor(
 
     var refreshToken: String?
         get() = prefs.getString(KEY_REFRESH, null)
+            ?: webCookies?.split(';')?.map { it.trim() }
+                ?.firstOrNull { it.startsWith("oauth_refresh_token=") }
+                ?.substringAfter('=')?.takeIf { it.isNotBlank() }
         private set(value) { prefs.edit().putString(KEY_REFRESH, value).apply() }
 
     fun save(token: TokenResponse) {
         accessToken = token.accessToken
         refreshToken = token.refreshToken
+        if (webCookies.orEmpty().split(';').any { it.trim().startsWith("oauth_token=") }) {
+            replaceCookie("oauth_token=${token.accessToken}")
+        }
+        token.refreshToken?.let { refreshed ->
+            if (webCookies.orEmpty().split(';').any { it.trim().startsWith("oauth_refresh_token=") }) {
+                replaceCookie("oauth_refresh_token=$refreshed")
+            }
+        }
         _isLoggedIn.value = true
     }
 
     fun saveWebToken(accessTokenValue: String) {
         accessToken = accessTokenValue
+        refreshToken = null
+        if (webCookies.orEmpty().split(';').any { it.trim().startsWith("oauth_token=") }) {
+            replaceCookie("oauth_token=$accessTokenValue")
+        }
         _isLoggedIn.value = true
     }
 

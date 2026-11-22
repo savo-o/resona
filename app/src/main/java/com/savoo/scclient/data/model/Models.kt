@@ -14,6 +14,7 @@ data class Track(
     @Json(name = "likes_count") val likesCount: Long? = null,
     @Json(name = "genre") val genre: String? = null,
     @Json(name = "media") val media: Media? = null,
+    @Json(name = "track_authorization") val trackAuthorization: String? = null,
     @Json(name = "permalink_url") val permalinkUrl: String? = null,
     @Json(name = "policy") val policy: String? = null,
     @Json(name = "waveform_url") val waveformUrl: String? = null,
@@ -57,6 +58,10 @@ data class User(
     @Json(name = "last_name") val lastName: String? = null,
     @Json(name = "track_count") val trackCount: Int? = null,
     @Json(name = "verified") val verified: Boolean? = null,
+    @Json(name = "followings_count") val followingsCount: Long? = null,
+    @Json(name = "likes_count") val likesCount: Long? = null,
+    @Json(name = "country_code") val countryCode: String? = null,
+    val visuals: ProfileVisuals? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -120,3 +125,16 @@ val Playlist.displayArtworkUrl: String?
 
 val Playlist.releaseYear: String?
     get() = (releaseDate ?: createdAt)?.take(4)?.takeIf { it.length == 4 && it.all(Char::isDigit) }
+
+@JsonClass(generateAdapter = true)
+data class ProfileVisuals(val visuals: List<ProfileVisual> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class ProfileVisual(@Json(name = "visual_url") val visualUrl: String? = null)
+
+@JsonClass(generateAdapter = true)
+data class ProfileFeedItem(
+    val type: String = "",
+    val track: Track? = null,
+    val playlist: Playlist? = null,
+)

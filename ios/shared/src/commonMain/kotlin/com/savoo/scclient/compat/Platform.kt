@@ -33,6 +33,16 @@ object BuildConfig {
 }
 
 expect class SharedPreferencesImpl : SharedPreferences {
+    override fun getString(key: String, defValue: String?): String?
+    override fun getStringSet(key: String, defValues: Set<String>?): Set<String>?
+    override fun getInt(key: String, defValue: Int): Int
+    override fun getLong(key: String, defValue: Long): Long
+    override fun getFloat(key: String, defValue: Float): Float
+    override fun getBoolean(key: String, defValue: Boolean): Boolean
+    override fun contains(key: String): Boolean
+    override fun getAll(): Map<String, *>
+    override fun edit(): SharedPreferences.Editor
+
     companion object {
         fun get(name: String): SharedPreferences
     }

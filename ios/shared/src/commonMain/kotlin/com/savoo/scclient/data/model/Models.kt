@@ -15,6 +15,7 @@ data class Track(
     @SerialName("likes_count") val likesCount: Long? = null,
     @SerialName("genre") val genre: String? = null,
     @SerialName("media") val media: Media? = null,
+    @SerialName("track_authorization") val trackAuthorization: String? = null,
     @SerialName("permalink_url") val permalinkUrl: String? = null,
     @SerialName("policy") val policy: String? = null,
     @SerialName("waveform_url") val waveformUrl: String? = null,

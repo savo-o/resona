@@ -1,6 +1,7 @@
 package com.savoo.scclient.data.remote
 
 import com.savoo.scclient.auth.TokenStore
+import com.savoo.scclient.auth.SessionRefresher
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl
 import okhttp3.Interceptor
@@ -15,32 +16,31 @@ class AuthInterceptor @Inject constructor(
     private val clientIdProvider: ClientIdProvider,
     private val tokenStore: TokenStore,
     private val challenge: DataDomeChallenge,
+    private val sessionRefresher: SessionRefresher,
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
         if (!isSoundCloudHost(original.url.host)) return chain.proceed(original)
 
-        val clientId = clientIdProvider.cachedOrFallback()
+        var clientId = clientIdProvider.cachedOrFallback().ifBlank {
+            runBlocking { clientIdProvider.refresh() }
+        }
+        var token = tokenStore.accessToken
 
-        val urlWithClientId: HttpUrl = original.url.newBuilder()
-            .apply {
-                if (original.url.queryParameter("client_id") == null) {
-                    addQueryParameter("client_id", clientId)
+        fun request(id: String, accessToken: String?, includeCookies: Boolean = true): okhttp3.Request =
+            original.newBuilder()
+                .url(original.url.newBuilder().setQueryParameter("client_id", id).build())
+                .removeHeader("Authorization")
+                .removeHeader("Cookie")
+                .apply {
+                    applyCommonHeaders(this, id)
+                    accessToken?.let { header("Authorization", "OAuth $it") }
+                    if (includeCookies) tokenStore.webCookies?.let { header("Cookie", it) }
                 }
-            }
-            .build()
+                .build()
 
-        val requestBuilder = original.newBuilder().url(urlWithClientId)
-        applyCommonHeaders(requestBuilder, clientId)
-        tokenStore.accessToken?.let { token ->
-            requestBuilder.addHeader("Authorization", "OAuth $token")
-        }
-        tokenStore.webCookies?.let { cookies ->
-            requestBuilder.addHeader("Cookie", cookies)
-        }
-
-        var response = chain.proceed(requestBuilder.build())
+        var response = chain.proceed(request(clientId, token))
         val isWrite = original.method != "GET"
         if (isWrite && response.isSuccessful) challenge.recordWrite(response.code, null, afterSolve = false)
 
@@ -51,15 +51,7 @@ class AuthInterceptor @Inject constructor(
         if (challengeUrl != null) {
             if (!runBlocking { challenge.solve(challengeUrl) }) return response
             response.close()
-            val retried = original.newBuilder()
-                .url(urlWithClientId)
-                .apply {
-                    applyCommonHeaders(this, clientId)
-                    tokenStore.accessToken?.let { addHeader("Authorization", "OAuth $it") }
-                    tokenStore.webCookies?.let { addHeader("Cookie", it) }
-                }
-                .build()
-            val retriedResponse = chain.proceed(retried)
+            val retriedResponse = chain.proceed(request(clientId, tokenStore.accessToken))
             if (isWrite) {
                 challenge.recordWrite(
                     retriedResponse.code,
@@ -72,26 +64,32 @@ class AuthInterceptor @Inject constructor(
 
         if (response.code == 401 || response.code == 403) {
             val freshClientId = runBlocking { clientIdProvider.refresh() }
-            if (freshClientId == clientId) return response
-            response.close()
-            val retried = original.newBuilder()
-                .url(
-                    original.url.newBuilder()
-                        .removeAllQueryParameters("client_id")
-                        .addQueryParameter("client_id", freshClientId)
-                        .build()
-                )
-                .apply {
-                    applyCommonHeaders(this, freshClientId)
-                    tokenStore.accessToken?.let { addHeader("Authorization", "OAuth $it") }
-                    tokenStore.webCookies?.let { addHeader("Cookie", it) }
-                }
-                .build()
-            response = chain.proceed(retried)
+            if (freshClientId != clientId) {
+                response.close()
+                clientId = freshClientId
+                response = chain.proceed(request(clientId, token))
+            }
+        }
+        if (response.code == 401 && token != null) {
+            val freshToken = runBlocking { sessionRefresher.refresh(token, clientId) }
+            if (freshToken != null && freshToken != token) {
+                response.close()
+                token = freshToken
+                response = chain.proceed(request(clientId, token))
+            }
+            if (response.code == 401 && original.method == "GET" && isPublicRead(original.url)) {
+                response.close()
+                response = chain.proceed(request(clientId, null, includeCookies = false))
+            }
         }
 
         return response
     }
+
+    private fun isPublicRead(url: HttpUrl): Boolean =
+        url.encodedPath.startsWith("/search/") || url.encodedPath.startsWith("/tracks/") ||
+            url.encodedPath.startsWith("/media/") || url.encodedPath == "/resolve" ||
+            url.encodedPath == "/charts"
 
     private fun applyCommonHeaders(builder: okhttp3.Request.Builder, clientId: String) {
         builder.header("User-Agent", BROWSER_USER_AGENT)

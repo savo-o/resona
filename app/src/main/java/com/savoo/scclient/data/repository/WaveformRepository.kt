@@ -78,7 +78,7 @@ class WaveformRepository @Inject constructor(
 
     private suspend fun localAudio(trackId: Long): File? {
         val offline = offlineDao.getOfflineTrack(trackId) ?: return null
-        return File(offline.localPath).takeIf { it.exists() && it.length() > 0 }
+        return File(offline.localPath).takeIf { it.extension != "m3u8" && it.exists() && it.length() > 0 }
     }
 
     private suspend fun FlowCollector<FloatArray>.decodeProgressively(trackId: Long, audio: File): FloatArray? {

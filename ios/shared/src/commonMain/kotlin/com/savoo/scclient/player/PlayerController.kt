@@ -541,7 +541,10 @@ class PlayerController(
                 val fullTrack = if (attempt == 0 && track.media != null) track
                     else withContext(Dispatchers.IO) {
                         runCatching { trackRepository.getTrack(track.id) }
-                            .onFailure { if (it is HttpException && it.code() == 404) deleted = true }
+                            .onFailure {
+                                DebugLog.log(TAG, "getTrack(${track.id}) failed: $it")
+                                if (it is HttpException && it.code() == 404) deleted = true
+                            }
                             .getOrNull()
                     } ?: track
                 if (deleted) {

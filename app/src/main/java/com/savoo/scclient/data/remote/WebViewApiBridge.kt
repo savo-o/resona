@@ -40,6 +40,7 @@ class WebViewApiBridge @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var nextCallId = 0
     private var staleSessionChecked = false
+    private var loginObserver: kotlinx.coroutines.Job? = null
 
     @Volatile
     var lastResponseBody: String? = null
@@ -61,6 +62,9 @@ class WebViewApiBridge @Inject constructor(
         wv.settings.setSupportMultipleWindows(false)
         wv.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         webView = wv
+        pageReady = CompletableDeferred()
+        cachedAppVersion = null
+        loginObserver?.cancel()
         if (!staleSessionChecked) {
             staleSessionChecked = true
             if (!tokenStore.isLoggedIn.value) {
@@ -92,7 +96,7 @@ class WebViewApiBridge @Inject constructor(
         // (with freshly-synced cookies) whenever login state changes to true, so the bridge's
         // fetches run in an authenticated page context instead of being stuck on the pre-login
         // session for the rest of the process's lifetime.
-        tokenStore.isLoggedIn
+        loginObserver = tokenStore.isLoggedIn
             .onEach { loggedIn ->
                 if (loggedIn) {
                     pageReady = CompletableDeferred()
@@ -118,6 +122,11 @@ class WebViewApiBridge @Inject constructor(
     // Returns the real HTTP status code (0 if the request never completed at all - timeout/JS
     // error/no page) so callers can tell "404, already in the desired state" apart from a real
     // failure, rather than collapsing everything into a single success/failure bit.
+    suspend fun setFollowing(targetId: Long, following: Boolean): BridgeResponse = executeRequest(
+        method = if (following) "PUT" else "DELETE",
+        url = "https://api-v2.soundcloud.com/me/followings/$targetId",
+    )
+
     suspend fun likeTrack(userId: Long, trackId: Long): Int = executeFetch(
         method = "PUT",
         url = "https://api-v2.soundcloud.com/users/$userId/track_likes/$trackId"
@@ -254,24 +263,31 @@ class WebViewApiBridge @Inject constructor(
             } else {
                 "{ 'Authorization': ${org.json.JSONObject.quote("OAuth $token")}, 'Content-Type': ${org.json.JSONObject.quote(contentType)} }"
             }
-            val bodyJs = if (jsonBody == null) "" else ", body: ${org.json.JSONObject.quote(jsonBody)}"
 
             val js = """
                 (function() {
                     window.$slot = { done: false, result: null };
-                    fetch(${org.json.JSONObject.quote(fullUrl)}, {
-                        method: ${org.json.JSONObject.quote(method)},
-                        credentials: 'include',
-                        headers: $headersJs$bodyJs
-                    }).then(function(resp) {
-                        return resp.text().then(function(body) {
-                            window.$slot.result = JSON.stringify({code: resp.status, ok: resp.ok, body: body});
+                    try {
+                        var xhr = new XMLHttpRequest();
+                        xhr.open(${org.json.JSONObject.quote(method)}, ${org.json.JSONObject.quote(fullUrl)}, true);
+                        xhr.withCredentials = true;
+                        xhr.timeout = ${timeoutMs};
+                        var headers = $headersJs;
+                        Object.keys(headers).forEach(function(key) { xhr.setRequestHeader(key, headers[key]); });
+                        function finish(code, body, error) {
+                            if (!window.$slot) return;
+                            window.$slot.result = JSON.stringify({code: code, body: body, error: error});
                             window.$slot.done = true;
-                        });
-                    }).catch(function(e) {
-                        window.$slot.result = JSON.stringify({code: 0, ok: false, error: e.message});
+                        }
+                        xhr.onload = function() { finish(xhr.status, xhr.responseText, null); };
+                        xhr.onerror = function() { finish(0, null, 'network_or_cors'); };
+                        xhr.ontimeout = function() { finish(0, null, 'request_timeout'); };
+                        xhr.onabort = function() { finish(0, null, 'request_aborted'); };
+                        xhr.send(${if (jsonBody == null) "null" else org.json.JSONObject.quote(jsonBody)});
+                    } catch (e) {
+                        window.$slot.result = JSON.stringify({code: 0, error: String(e)});
                         window.$slot.done = true;
-                    });
+                    }
                 })()
             """.trimIndent()
 
@@ -303,6 +319,11 @@ class WebViewApiBridge @Inject constructor(
                 TAG,
                 "$method ${url.substringAfter("soundcloud.com")} -> $code, queue ${lockedAt - queuedAt} ms, page ${readyAt - lockedAt} ms, fetch ${finishedAt - readyAt} ms",
             )
+            if (code == 0) {
+                val error = runCatching { org.json.JSONObject(decoded.orEmpty()).optString("error") }
+                    .getOrNull()?.takeIf { it.isNotBlank() } ?: "javascript_callback_timeout_or_page_reloaded"
+                DebugLog.log(TAG, "$method ${url.substringAfter("soundcloud.com")} transport failure: $error")
+            }
             BridgeResponse(code, body)
         }
     }
@@ -320,7 +341,7 @@ class WebViewApiBridge @Inject constructor(
     private suspend fun evalOnMain(wv: WebView, js: String): String? = withContext(Dispatchers.Main) {
         val deferred = CompletableDeferred<String?>()
         wv.evaluateJavascript(js) { result -> deferred.complete(result?.takeIf { it != "null" }) }
-        deferred.await()
+        withTimeoutOrNull(3000) { deferred.await() }
     }
 }
 

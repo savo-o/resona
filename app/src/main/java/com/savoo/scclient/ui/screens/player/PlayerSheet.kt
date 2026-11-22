@@ -146,6 +146,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
@@ -996,7 +998,12 @@ private fun PixelPlayerContent(
 ) {
     val context = LocalContext.current
     val accent = palette.accent
+    val activeControlInk = if (accent.luminance() > 0.179f) Color.Black else Color.White
     val haptics = rememberHaptics()
+    var moreLikeTrack by remember { mutableStateOf<Track?>(null) }
+    moreLikeTrack?.let { seed ->
+        MoreLikeThisSheet(controller, seed, onDismiss = { moreLikeTrack = null })
+    }
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showComments by remember { mutableStateOf(false) }
     var showLyricsSourceMenu by remember { mutableStateOf(false) }
@@ -1590,8 +1597,9 @@ private fun PixelPlayerContent(
                         icon = Icons.Filled.Shuffle,
                         contentDescription = stringResource(R.string.player_shuffle),
                         onClick = { onToggleShuffle() },
-                        tint = if (state.shuffleEnabled) accent else palette.onBackgroundMuted,
-                        background = Color.Transparent,
+                        tint = if (state.shuffleEnabled) activeControlInk else palette.onBackgroundMuted,
+                        background = if (state.shuffleEnabled) accent else Color.Transparent,
+                        modifier = Modifier.semantics { selected = state.shuffleEnabled },
                         size = 48.dp,
                         iconSize = 22.dp,
                     )
@@ -1599,8 +1607,9 @@ private fun PixelPlayerContent(
                         icon = if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                         contentDescription = stringResource(R.string.player_repeat),
                         onClick = { onCycleRepeat() },
-                        tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else palette.onBackgroundMuted,
-                        background = Color.Transparent,
+                        tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) activeControlInk else palette.onBackgroundMuted,
+                        background = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else Color.Transparent,
+                        modifier = Modifier.semantics { selected = state.repeatMode != Player.REPEAT_MODE_OFF },
                         size = 48.dp,
                         iconSize = 22.dp,
                     )
@@ -1693,7 +1702,7 @@ private fun PixelPlayerContent(
                         onClick = {
                             showOverflowMenu = false
                             state.currentTrack?.let { track ->
-                                moreLikeThis(scope, context, controller, track) { infoMessage = it }
+                                moreLikeTrack = track
                             }
                         },
                     )
@@ -2387,25 +2396,6 @@ internal fun LyricsSharePill(
 private const val LYRICS_OFFSET_STEP_MS = 500L
 private const val LYRICS_DRIFT_STEP_MS_PER_MIN = 100L
 
-private fun moreLikeThis(
-    scope: kotlinx.coroutines.CoroutineScope,
-    context: android.content.Context,
-    controller: PlayerController,
-    track: Track,
-    onMessage: (String) -> Unit,
-) {
-    scope.launch {
-        val added = controller.queueMoreLikeThis(track)
-        onMessage(
-            if (added > 0) {
-                context.resources.getQuantityString(R.plurals.player_more_like_this_added, added, added)
-            } else {
-                context.getString(R.string.player_more_like_this_empty)
-            }
-        )
-    }
-}
-
 @Composable
 private fun LyricsSourceMenu(
     expanded: Boolean,
@@ -2432,6 +2422,7 @@ private fun LyricsSourceMenu(
 @Composable
 internal fun playingFromSource(queueTag: String?, artistName: String): String = when {
     queueTag == null -> artistName
+    queueTag.startsWith("radio:") || queueTag.startsWith("similar:") -> stringResource(R.string.player_more_like_this)
     queueTag == "home_mix" -> stringResource(R.string.player_source_mix)
     queueTag == "favorites" -> stringResource(R.string.player_source_favorites)
     queueTag == "offline" -> stringResource(R.string.player_source_offline)
@@ -2500,6 +2491,10 @@ private fun ClassicPlayerContent(
     val context = LocalContext.current
     val palette = rememberPlayerPalette()
     val haptics = rememberHaptics()
+    var moreLikeTrack by remember { mutableStateOf<Track?>(null) }
+    moreLikeTrack?.let { seed ->
+        MoreLikeThisSheet(controller, seed, onDismiss = { moreLikeTrack = null })
+    }
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showComments by remember { mutableStateOf(false) }
     var showLyricsSourceMenu by remember { mutableStateOf(false) }
@@ -2541,6 +2536,8 @@ private fun ClassicPlayerContent(
         animationSpec = tween(1400, easing = FastOutSlowInEasing),
         label = "playerAccent",
     )
+
+    val activeControlInk = if (accent.luminance() > 0.179f) Color.Black else Color.White
 
     val commentPositionMs = if (isDragging) dragPosition.toLong() else state.positionMs
     var pinnedComment by remember { mutableStateOf<TrackComment?>(null) }
@@ -2774,7 +2771,7 @@ private fun ClassicPlayerContent(
                                 onClick = {
                                     showOverflowMenu = false
                                     state.currentTrack?.let { track ->
-                                moreLikeThis(scope, context, controller, track) { infoMessage = it }
+                                moreLikeTrack = track
                             }
                                 },
                             )
@@ -3119,7 +3116,9 @@ private fun ClassicPlayerContent(
                     icon = Icons.Filled.Shuffle,
                     contentDescription = stringResource(R.string.player_shuffle),
                     onClick = onToggleShuffle,
-                    tint = if (state.shuffleEnabled) accent else palette.onMuted,
+                    tint = if (state.shuffleEnabled) activeControlInk else palette.onMuted,
+                    background = if (state.shuffleEnabled) accent else null,
+                    modifier = Modifier.semantics { selected = state.shuffleEnabled },
                 )
                 PlayerCircleIconButton(
                     size = if (compact) 48.dp else 52.dp,
@@ -3140,7 +3139,9 @@ private fun ClassicPlayerContent(
                     icon = if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Filled.Repeat,
                     contentDescription = stringResource(R.string.player_repeat),
                     onClick = onCycleRepeat,
-                    tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else palette.onMuted,
+                    tint = if (state.repeatMode != Player.REPEAT_MODE_OFF) activeControlInk else palette.onMuted,
+                    background = if (state.repeatMode != Player.REPEAT_MODE_OFF) accent else null,
+                    modifier = Modifier.semantics { selected = state.repeatMode != Player.REPEAT_MODE_OFF },
                 )
             }
         },
@@ -3175,12 +3176,13 @@ private fun PlayerCircleIconButton(
     modifier: Modifier = Modifier,
     size: Dp = 52.dp,
     iconSize: Dp = 24.dp,
+    background: Color? = null,
 ) {
     val palette = rememberPlayerPalette()
     IconButton(
         onClick = { onClick() },
         modifier = modifier.size(size),
-        colors = IconButtonDefaults.iconButtonColors(containerColor = palette.card, contentColor = tint),
+        colors = IconButtonDefaults.iconButtonColors(containerColor = background ?: palette.card, contentColor = tint),
     ) {
         Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(iconSize))
     }

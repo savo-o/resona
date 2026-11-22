@@ -73,6 +73,8 @@ fun QueueContent(
     val hapticFeedback = LocalHapticFeedback.current
     val entries by controller.queueEntries.collectAsState()
     val state by controller.state.collectAsState()
+    val autoplay by controller.autoplayEnabled.collectAsState()
+    val loadingRecommendations by controller.loadingRecommendations.collectAsState()
     val lazyListState = rememberLazyListState()
     val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
         controller.moveQueueItem(from.index, to.index)
@@ -89,6 +91,15 @@ fun QueueContent(
                 playingFromSource(state.queueTag, current.user.username),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            com.savoo.scclient.ui.components.SwitchItem(
+                title = stringResource(R.string.settings_autoplay),
+                subtitle = stringResource(if (loadingRecommendations) R.string.autoplay_loading else R.string.autoplay_description),
+                checked = autoplay,
+                onCheckedChange = controller::setAutoplayEnabled,
             )
         }
         Spacer(Modifier.height(12.dp))

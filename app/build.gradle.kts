@@ -32,8 +32,8 @@ android {
         targetSdk = 35
         // Canary CI builds override this via -PappVersionCode so each nightly build's
         // BuildConfig.VERSION_CODE keeps increasing without editing this file every run.
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 17
-        versionName = "2.0"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 18
+        versionName = "2.1"
 
         buildConfigField("String", "SC_CLIENT_ID_FALLBACK", "\"\"")
         // BETA Telegram import: get these at https://my.telegram.org/apps and put them in local.properties

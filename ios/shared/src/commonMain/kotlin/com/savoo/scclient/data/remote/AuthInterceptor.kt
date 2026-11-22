@@ -1,6 +1,7 @@
 package com.savoo.scclient.data.remote
 
 import com.savoo.scclient.auth.TokenStore
+import com.savoo.scclient.auth.SessionRefresher
 import io.ktor.client.HttpClient
 import io.ktor.client.call.HttpClientCall
 import io.ktor.client.call.save
@@ -19,6 +20,7 @@ class AuthInterceptor(
     private val clientIdProvider: ClientIdProvider,
     private val tokenStore: TokenStore,
     private val challenge: DataDomeChallenge,
+    private val sessionRefresher: SessionRefresher,
 ) {
 
     fun install(client: HttpClient) {
@@ -37,9 +39,11 @@ class AuthInterceptor(
     private suspend fun Sender.intercept(request: HttpRequestBuilder): HttpClientCall {
         if (!isSoundCloudHost(request.url.host)) return proceed(request)
 
-        val clientId = clientIdProvider.cachedOrFallback()
-        if (request.url.parameters["client_id"] == null) request.url.parameters.append("client_id", clientId)
-        applyCommonHeaders(request, clientId)
+        var clientId = clientIdProvider.cachedOrFallback().ifBlank { clientIdProvider.refresh() }
+        var token = tokenStore.accessToken
+        request.url.parameters.remove("client_id")
+        request.url.parameters.append("client_id", clientId)
+        applyCommonHeaders(request, clientId, token)
 
         var call = proceed(request).save()
         val isWrite = request.method.value != "GET"
@@ -65,19 +69,43 @@ class AuthInterceptor(
             return saved
         }
 
-        val code = call.response.status.value
-        if (code == 401 || code == 403) {
+        if (call.response.status.value == 401 || call.response.status.value == 403) {
             val freshClientId = clientIdProvider.refresh()
-            if (freshClientId == clientId) return call
-            request.url.parameters.remove("client_id")
-            request.url.parameters.append("client_id", freshClientId)
-            applyCommonHeaders(request, freshClientId)
-            call = proceed(request)
+            if (freshClientId != clientId) {
+                clientId = freshClientId
+                request.url.parameters.remove("client_id")
+                request.url.parameters.append("client_id", clientId)
+                applyCommonHeaders(request, clientId, token)
+                call = proceed(request).save()
+            }
+        }
+        val rejectedToken = token
+        if (call.response.status.value == 401 && rejectedToken != null) {
+            val freshToken = sessionRefresher.refresh(rejectedToken, clientId)
+            if (freshToken != null && freshToken != token) {
+                token = freshToken
+                applyCommonHeaders(request, clientId, token)
+                call = proceed(request).save()
+            }
+            val path = request.url.build().encodedPath
+            val publicRead = path.startsWith("/search/") || path.startsWith("/tracks/") ||
+                path.startsWith("/media/") || path == "/resolve" || path == "/charts"
+            if (call.response.status.value == 401 && request.method.value == "GET" && publicRead) {
+                applyCommonHeaders(request, clientId, null, includeCookies = false)
+                call = proceed(request)
+            }
         }
         return call
     }
 
-    private fun applyCommonHeaders(builder: HttpRequestBuilder, clientId: String) {
+    private fun applyCommonHeaders(
+        builder: HttpRequestBuilder,
+        clientId: String,
+        accessToken: String? = tokenStore.accessToken,
+        includeCookies: Boolean = true,
+    ) {
+        builder.headers.remove("Authorization")
+        builder.headers.remove("Cookie")
         val headers = mapOf(
             "User-Agent" to BROWSER_USER_AGENT,
             "Accept" to "application/json, text/javascript, */*; q=0.1",
@@ -86,8 +114,8 @@ class AuthInterceptor(
             "X-SoundCloud-Client" to clientId,
             "X-Client-UUID" to Uuid.random().toString(),
         ) + listOfNotNull(
-            tokenStore.accessToken?.let { "Authorization" to "OAuth $it" },
-            tokenStore.webCookies?.let { "Cookie" to it },
+            accessToken?.let { "Authorization" to "OAuth $it" },
+            tokenStore.webCookies?.takeIf { includeCookies }?.let { "Cookie" to it },
         )
         headers.forEach { (name, value) ->
             builder.headers.remove(name)

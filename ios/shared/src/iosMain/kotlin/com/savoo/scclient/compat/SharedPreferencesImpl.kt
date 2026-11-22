@@ -6,23 +6,23 @@ import platform.Foundation.NSUserDefaults
 actual class SharedPreferencesImpl private constructor(private val name: String) : SharedPreferences {
     private val defaults = NSUserDefaults(suiteName = "prefs.$name")
 
-    override fun getString(key: String, defValue: String?): String? = defaults.stringForKey(key) ?: defValue
+    actual override fun getString(key: String, defValue: String?): String? = defaults.stringForKey(key) ?: defValue
 
-    override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? =
+    actual override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? =
         (defaults.arrayForKey(key) as? List<*>)?.mapNotNull { it as? String }?.toSet() ?: defValues
 
-    override fun getInt(key: String, defValue: Int): Int = number(key)?.intValue ?: defValue
-    override fun getLong(key: String, defValue: Long): Long = number(key)?.longLongValue ?: defValue
-    override fun getFloat(key: String, defValue: Float): Float = number(key)?.floatValue ?: defValue
-    override fun getBoolean(key: String, defValue: Boolean): Boolean = number(key)?.boolValue ?: defValue
-    override fun contains(key: String): Boolean = defaults.objectForKey(key) != null
+    actual override fun getInt(key: String, defValue: Int): Int = number(key)?.intValue ?: defValue
+    actual override fun getLong(key: String, defValue: Long): Long = number(key)?.longLongValue ?: defValue
+    actual override fun getFloat(key: String, defValue: Float): Float = number(key)?.floatValue ?: defValue
+    actual override fun getBoolean(key: String, defValue: Boolean): Boolean = number(key)?.boolValue ?: defValue
+    actual override fun contains(key: String): Boolean = defaults.objectForKey(key) != null
 
-    override fun getAll(): Map<String, *> =
+    actual override fun getAll(): Map<String, *> =
         defaults.dictionaryRepresentation().entries
             .filter { (k, _) -> k is String && keys().contains(k) }
             .associate { (k, v) -> k as String to v }
 
-    override fun edit(): SharedPreferences.Editor = EditorImpl()
+    actual override fun edit(): SharedPreferences.Editor = EditorImpl()
 
     private fun number(key: String): NSNumber? = defaults.objectForKey(key) as? NSNumber
 

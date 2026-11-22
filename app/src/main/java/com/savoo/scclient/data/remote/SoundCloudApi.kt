@@ -39,6 +39,27 @@ interface SoundCloudApi {
         @Query("linked_partitioning") linkedPartitioning: Boolean = true,
     ): SearchResponse<Playlist>
 
+    @GET("stream/users/{id}/reposts")
+    suspend fun getUserReposts(@Path("id") id: Long, @Query("limit") limit: Int = 30): SearchResponse<com.savoo.scclient.data.model.ProfileFeedItem>
+
+    @GET("users/{id}/likes")
+    suspend fun getProfileLikes(@Path("id") id: Long, @Query("limit") limit: Int = 30): SearchResponse<com.savoo.scclient.data.model.ProfileFeedItem>
+
+    @GET
+    suspend fun getNextProfileFeed(@Url url: String): SearchResponse<com.savoo.scclient.data.model.ProfileFeedItem>
+
+    @GET("users/{id}/followers")
+    suspend fun getFollowers(@Path("id") id: Long, @Query("limit") limit: Int = 30): SearchResponse<User>
+
+    @GET("users/{id}/followings")
+    suspend fun getFollowings(@Path("id") id: Long, @Query("limit") limit: Int = 30): SearchResponse<User>
+
+    @GET("users/{userId}/followings/ids")
+    suspend fun getFollowingIds(@Path("userId") userId: Long): okhttp3.ResponseBody
+
+    @GET
+    suspend fun getNextFollowingIds(@Url url: String): okhttp3.ResponseBody
+
     @GET("me")
     suspend fun getMe(): User
 
@@ -71,7 +92,10 @@ interface SoundCloudApi {
     suspend fun getNextPlaylistsPage(@Url url: String): SearchResponse<Playlist>
 
     @GET
-    suspend fun resolveStreamUrl(@Url transcodingUrl: String): StreamUrlResponse
+    suspend fun resolveStreamUrl(
+        @Url transcodingUrl: String,
+        @Query("track_authorization") trackAuthorization: String? = null,
+    ): StreamUrlResponse
 
     @GET("tracks/{id}")
     suspend fun getTrack(@Path("id") id: Long): Track

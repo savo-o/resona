@@ -185,7 +185,7 @@ class TrackRepository(
         var lastNotFound: HttpException? = null
         for (candidate in candidates) {
             try {
-                val url = api.resolveStreamUrl(candidate.url).url
+                val url = api.resolveStreamUrl(candidate.url, track.trackAuthorization).url
                 return PlayableStream(url, isHls = candidate.format.protocol == "hls")
             } catch (e: HttpException) {
                 if (e.code() != 404) throw e
@@ -201,8 +201,9 @@ class TrackRepository(
     suspend fun resolveDownloadStream(track: Track): DownloadStream? {
         fun rank(t: com.savoo.scclient.data.model.Transcoding): Int = when {
             t.format.protocol == "progressive" -> 0
-            t.format.protocol == "hls" && "mpeg" in t.format.mimeType -> 1
+            t.format.protocol == "hls" && t.format.mimeType.substringBefore(';') == "audio/mpeg" -> 1
             t.format.protocol == "hls" && ("mp4" in t.format.mimeType || "aac" in t.format.mimeType) -> 2
+            t.format.protocol == "hls" && "mpegurl" in t.format.mimeType -> 3
             else -> -1
         }
         val candidates = (track.media?.transcodings ?: return null)
@@ -211,7 +212,7 @@ class TrackRepository(
         var lastNotFound: HttpException? = null
         for (candidate in candidates) {
             try {
-                val url = api.resolveStreamUrl(candidate.url).url
+                val url = api.resolveStreamUrl(candidate.url, track.trackAuthorization).url
                 return DownloadStream(
                     url = url,
                     isHls = candidate.format.protocol == "hls",

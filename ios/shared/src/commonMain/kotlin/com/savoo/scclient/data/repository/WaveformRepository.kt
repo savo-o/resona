@@ -57,7 +57,7 @@ class WaveformRepository(
 
     private suspend fun localAudio(trackId: Long): File? {
         val offline = offlineDao.getOfflineTrack(trackId) ?: return null
-        return File(offline.localPath).takeIf { it.exists() && it.length() > 0 }
+        return File(offline.localPath).takeIf { !it.isDirectory && it.exists() && it.length() > 0 }
     }
 
     private suspend fun remoteWaveform(track: Track): FloatArray? {

@@ -27,15 +27,19 @@ class TrackRepository @Inject constructor(
 ) {
     private val TAG = "TrackRepository"
     private var cachedUserId: Long? = null
+    private var cachedUserToken: String? = null
 
     fun resetCurrentUser() {
         cachedUserId = null
+        cachedUserToken = null
     }
 
     suspend fun currentUserId(): Long? {
-        cachedUserId?.let { return it }
+        val token = tokenStore.accessToken ?: return null
+        if (cachedUserToken == token) cachedUserId?.let { return it }
         val id = runCatching { api.getMe().id }.getOrNull()
         cachedUserId = id
+        cachedUserToken = token
         return id
     }
 
@@ -44,6 +48,36 @@ class TrackRepository @Inject constructor(
 
     suspend fun searchUsers(query: String, limit: Int = SEARCH_PAGE_SIZE): SearchPage<User> =
         api.searchUsers(query = query, limit = limit).toPage()
+
+    suspend fun isFollowing(userId: Long, targetId: Long): Boolean {
+        var next: String? = null
+        val visited = HashSet<String>()
+        do {
+            val raw = (next?.let { api.getNextFollowingIds(it) } ?: api.getFollowingIds(userId)).use { it.string() }
+            val payload = org.json.JSONTokener(raw).nextValue()
+            val ids = when (payload) {
+                is org.json.JSONArray -> payload
+                is org.json.JSONObject -> payload.getJSONArray("collection")
+                else -> error("Unexpected following IDs response")
+            }
+            if ((0 until ids.length()).any { ids.optLong(it, -1L) == targetId }) return true
+            next = (payload as? org.json.JSONObject)?.optString("next_href")?.takeIf { it.isNotBlank() && it != "null" }
+            if (next != null && !visited.add(next)) error("Repeated following IDs page")
+        } while (next != null)
+        return false
+    }
+
+    suspend fun setFollowing(userId: Long, targetId: Long, following: Boolean) {
+        require(userId != targetId)
+        val response = webBridge.setFollowing(targetId, following)
+        if (!response.isSuccess && !(response.code == 404 && !following)) error("Follow failed: HTTP ${response.code}")
+    }
+
+    suspend fun getProfileFeed(userId: Long, likes: Boolean, next: String? = null): SearchPage<com.savoo.scclient.data.model.ProfileFeedItem> =
+        (if (next != null) api.getNextProfileFeed(next) else if (likes) api.getProfileLikes(userId) else api.getUserReposts(userId)).toPage()
+
+    suspend fun getProfilePeople(userId: Long, following: Boolean, next: String? = null): SearchPage<User> =
+        (if (next != null) api.getNextUsersPage(next) else if (following) api.getFollowings(userId) else api.getFollowers(userId)).toPage()
 
     suspend fun getMe(): User = api.getMe()
 
@@ -188,7 +222,7 @@ class TrackRepository @Inject constructor(
         var lastNotFound: HttpException? = null
         for (candidate in candidates) {
             try {
-                val url = api.resolveStreamUrl(candidate.url).url
+                val url = api.resolveStreamUrl(candidate.url, track.trackAuthorization).url
                 return PlayableStream(url, isHls = candidate.format.protocol == "hls")
             } catch (e: HttpException) {
                 if (e.code() != 404) throw e
@@ -204,8 +238,9 @@ class TrackRepository @Inject constructor(
     suspend fun resolveDownloadStream(track: Track): DownloadStream? {
         fun rank(t: com.savoo.scclient.data.model.Transcoding): Int = when {
             t.format.protocol == "progressive" -> 0
-            t.format.protocol == "hls" && "mpeg" in t.format.mimeType -> 1
+            t.format.protocol == "hls" && t.format.mimeType.substringBefore(';') == "audio/mpeg" -> 1
             t.format.protocol == "hls" && ("mp4" in t.format.mimeType || "aac" in t.format.mimeType) -> 2
+            t.format.protocol == "hls" && "mpegurl" in t.format.mimeType -> 3
             else -> -1
         }
         val candidates = (track.media?.transcodings ?: return null)
@@ -214,7 +249,7 @@ class TrackRepository @Inject constructor(
         var lastNotFound: HttpException? = null
         for (candidate in candidates) {
             try {
-                val url = api.resolveStreamUrl(candidate.url).url
+                val url = api.resolveStreamUrl(candidate.url, track.trackAuthorization).url
                 return DownloadStream(
                     url = url,
                     isHls = candidate.format.protocol == "hls",

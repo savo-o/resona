@@ -33,7 +33,8 @@ class SoundCloudApi(private val rest: RestClient) {
 
     suspend fun getNextPlaylistsPage(url: String): SearchResponse<Playlist> = rest.get(url)
 
-    suspend fun resolveStreamUrl(transcodingUrl: String): StreamUrlResponse = rest.get(transcodingUrl)
+    suspend fun resolveStreamUrl(transcodingUrl: String, trackAuthorization: String? = null): StreamUrlResponse =
+        rest.get(transcodingUrl, "track_authorization" to trackAuthorization)
 
     suspend fun getTrack(id: Long): Track = rest.get("tracks/$id")
 

@@ -1,6 +1,7 @@
 package com.savoo.scclient.di
 
 import com.savoo.scclient.auth.AuthRepository
+import com.savoo.scclient.auth.SessionRefresher
 import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.compat.AppContext
 import com.savoo.scclient.compat.BuildConfig
@@ -146,6 +147,7 @@ val appModule = module {
     singleOf(::TokenStore)
     singleOf(::ClientIdProvider)
     singleOf(::DataDomeChallenge)
+    singleOf(::SessionRefresher)
     singleOf(::AuthInterceptor)
     singleOf(::WebViewApiBridge)
     singleOf(::AuthRepository)
