@@ -22,6 +22,8 @@ interface TelegramClient {
 
     suspend fun addProfileAudio(file: File, title: String, artist: String, durationSeconds: Int)
 
+    /** Opens an existing local session so TDLib can determine its authorization state. */
+    suspend fun restoreSession()
     suspend fun start()
     suspend fun sendPhoneNumber(phoneNumber: String)
     suspend fun requestQrSignIn()

@@ -351,6 +351,7 @@ fun RootScreen(initialDeepLink: DeepLinkTarget? = null, deepLinkKey: Int = 0) {
                     composable(Screen.Account.route) {
                         AccountScreen(
                             onOpenSettings = { navController.navigate(Screen.Settings.route) },
+                            onOpenProfile = { navController.navigate(Screen.Artist.createRoute(it)) },
                             onBack = { navController.popBackStack() },
                         )
                     }

@@ -1042,4 +1042,21 @@
     <string name="settings_liquid_glass_desc">Полупрозрачное стекло на доке и в плеере. Если выключить, будет как на Android</string>
     <string name="settings_dock_background">Фон под доком</string>
     <string name="settings_dock_background_desc">Сплошной фон за доком. Если выключить, контент будет виден сквозь него</string>
+    <string name="profile_overview">Обзор</string>
+    <string name="profile_reposts">Репосты</string>
+    <string name="profile_likes">Лайки</string>
+    <string name="profile_followers">Подписчики</string>
+    <string name="profile_following">Подписки</string>
+    <string name="profile_empty">Здесь пока ничего нет</string>
+    <string name="profile_load_failed">Не удалось загрузить раздел</string>
+    <string name="profile_retry">Повторить</string>
+    <string name="profile_follow">Подписаться в SoundCloud</string>
+    <string name="profile_following_action">Вы подписаны · Отписаться</string>
+    <string name="profile_follow_failed">Не удалось изменить подписку. Повторите попытку.</string>
+    <string name="profile_open">Профиль SoundCloud</string>
+    <string name="offline_audio_export">Сохранить аудиофайлы</string>
+    <string name="offline_audio_export_result">Сохранено: %1$d. Ошибок: %2$d.</string>
+    <string name="offline_audio_export_progress">Сохранение %1$d из %2$d…</string>
+    <string name="offline_audio_export_all">Сохранить все</string>
+    <string name="offline_audio_export_selected">Сохранить выбранные (%1$d)</string>
 </resources>

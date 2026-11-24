@@ -188,6 +188,11 @@
     <string name="player_comment_send">Send</string>
     <string name="player_comment_sent">Comment posted</string>
     <string name="player_comment_failed">Could not post the comment</string>
+    <string name="player_comment_verification_required">SoundCloud requires verification to post this comment.</string>
+    <string name="player_comment_session_rejected">SoundCloud rejected your session. Sign in again to post.</string>
+    <string name="player_comment_forbidden">SoundCloud blocked this comment request.</string>
+    <string name="player_comment_rate_limited">SoundCloud is limiting requests. Try again later.</string>
+    <string name="player_comment_unconfirmed">Could not confirm publication. Check the comments before sending again.</string>
     <plurals name="player_comments_count">
         <item quantity="one">%d comment</item>
         <item quantity="other">%d comments</item>
@@ -322,6 +327,7 @@
     <string name="login_continue_facebook">Continue with Facebook</string>
     <string name="login_trouble_use_browser">Having trouble? Sign in via browser</string>
     <string name="login_browser_not_signed_in">You are not signed in yet. Finish signing in on the page, then tap Done.</string>
+    <string name="login_browser_session_unavailable">SoundCloud returned from sign-in. The app could not open an account session.</string>
     <string name="favorites_online_toggle_title">Online favorites</string>
     <string name="favorites_online_toggle_desc">Sync likes with your real SoundCloud account</string>
     <string name="favorites_badge_local">Local favorite</string>

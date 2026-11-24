@@ -47,6 +47,7 @@ import com.savoo.scclient.ui.components.UndoController
 import com.savoo.scclient.ui.screens.account.AccountViewModel
 import com.savoo.scclient.ui.screens.account.ProfileEditViewModel
 import com.savoo.scclient.ui.screens.artist.ArtistViewModel
+import com.savoo.scclient.ui.screens.artist.ProfileLibraryViewModel
 import com.savoo.scclient.ui.screens.charts.ChartsViewModel
 import com.savoo.scclient.ui.screens.debug.CrashReportViewModel
 import com.savoo.scclient.ui.screens.debug.DebugMenuViewModel
@@ -182,6 +183,7 @@ val appModule = module {
     viewModelOf(::AddTracksViewModel)
     viewModelOf(::AppLockViewModel)
     viewModelOf(::ArtistViewModel)
+    viewModelOf(::ProfileLibraryViewModel)
     viewModelOf(::ChartsViewModel)
     viewModelOf(::CrashReportViewModel)
     viewModelOf(::DebugMenuViewModel)

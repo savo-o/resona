@@ -59,7 +59,20 @@ data class User(
     @SerialName("last_name") val lastName: String? = null,
     @SerialName("track_count") val trackCount: Int? = null,
     @SerialName("verified") val verified: Boolean? = null,
+    @SerialName("followings_count") val followingsCount: Long? = null,
+    @SerialName("likes_count") val likesCount: Long? = null,
+    @SerialName("country_code") val countryCode: String? = null,
+    val visuals: ProfileVisuals? = null,
 )
+
+@Serializable
+data class ProfileVisuals(val visuals: List<ProfileVisual> = emptyList())
+
+@Serializable
+data class ProfileVisual(@SerialName("visual_url") val visualUrl: String? = null)
+
+@Serializable
+data class ProfileFeedItem(val track: Track? = null, val playlist: Playlist? = null)
 
 @Serializable
 data class TrackComment(

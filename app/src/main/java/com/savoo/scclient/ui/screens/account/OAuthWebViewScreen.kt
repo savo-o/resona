@@ -3,6 +3,7 @@ package com.savoo.scclient.ui.screens.account
 import android.annotation.SuppressLint
 import android.webkit.WebChromeClient
 import android.webkit.WebView
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,15 @@ fun OAuthWebViewScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    fun closePopup() {
+        popupWebView = null
+        pageError = null
+    }
+
+    BackHandler {
+        if (popupWebView != null) closePopup() else onCancel()
+    }
 
     fun retry() {
         popupWebView = null
@@ -107,10 +117,7 @@ fun OAuthWebViewScreen(
             AndroidView(modifier = Modifier.fillMaxSize(), factory = { popup }, onRelease = { it.destroy() })
 
             IconButton(
-                onClick = {
-                    popupWebView = null
-                    pageError = null
-                },
+                onClick = { closePopup() },
                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
             ) {
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.close))
@@ -145,13 +152,18 @@ fun OAuthWebViewScreen(
 
         ExtendedFloatingActionButton(
             onClick = {
-                val cookies = capture.currentCookies ?: capture.cookiesFromManager()
-                val token = capture.currentToken ?: oauthTokenFromCookies(cookies)
+                val cookies = capture.cookiesFromManager() ?: capture.currentCookies
+                // Discover can redirect to m.soundcloud.com. Check that page's OAuth
+                // cookie without copying its other host-specific cookies into the app.
+                val token = capture.mobilePageToken() ?: oauthTokenFromCookies(cookies) ?: capture.currentToken
                 if (token != null) {
                     cookies?.takeIf { it.isNotEmpty() }?.let(onCookiesReceived)
                     onTokenReceived(token)
                 } else {
-                    val message = context.getString(R.string.login_browser_not_signed_in)
+                    val message = context.getString(
+                        if (capture.returnedFromSignIn) R.string.login_browser_session_unavailable
+                        else R.string.login_browser_not_signed_in,
+                    )
                     scope.launch { snackbarHostState.showSnackbar(message) }
                 }
             },
@@ -168,7 +180,7 @@ fun OAuthWebViewScreen(
     }
 }
 
-private fun oauthTokenFromCookies(cookies: String?): String? =
+internal fun oauthTokenFromCookies(cookies: String?): String? =
     cookies?.split(";")
         ?.map { it.trim() }
         ?.firstOrNull { it.startsWith("oauth_token=") }

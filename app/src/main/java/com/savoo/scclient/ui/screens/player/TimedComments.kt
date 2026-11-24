@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.savoo.scclient.R
 import com.savoo.scclient.data.model.TrackComment
+import com.savoo.scclient.data.repository.CommentPostException
 import com.savoo.scclient.data.repository.TimedCommentsRate
 import com.savoo.scclient.ui.components.PlayerInfoBanner
 import com.savoo.scclient.ui.components.hiResArtwork
@@ -234,7 +235,7 @@ fun TimedCommentsSheet(
     canComment: Boolean,
     currentUserId: Long?,
     initialHighlightId: Long?,
-    onSubmit: suspend (String, Long) -> TrackComment?,
+    onSubmit: suspend (String, Long) -> Result<TrackComment>,
     onSelect: (TrackComment) -> Unit,
     onPosted: (TrackComment) -> Unit,
     onDelete: (TrackComment) -> Unit,
@@ -245,6 +246,7 @@ fun TimedCommentsSheet(
     val scope = rememberCoroutineScope()
     var draft by rememberSaveable { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
+    var submissionError by remember { mutableStateOf<Int?>(null) }
     var banner by remember { mutableStateOf<String?>(null) }
     var highlightedId by remember { mutableStateOf(initialHighlightId) }
     val draftPositionMs = remember { positionMs }
@@ -360,6 +362,14 @@ fun TimedCommentsSheet(
                 }
 
                 if (canComment) {
+                    submissionError?.let { message ->
+                        Text(
+                            text = stringResource(message),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 24.dp),
+                        )
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -368,7 +378,10 @@ fun TimedCommentsSheet(
                     ) {
                         OutlinedTextField(
                             value = draft,
-                            onValueChange = { draft = it },
+                            onValueChange = {
+                                draft = it
+                                submissionError = null
+                            },
                             enabled = !sending,
                             singleLine = true,
                             shape = RoundedCornerShape(50),
@@ -381,20 +394,29 @@ fun TimedCommentsSheet(
                         IconButton(
                             onClick = {
                                 sending = true
+                                submissionError = null
                                 scope.launch {
-                                    val posted = onSubmit(draft, draftPositionMs)
-                                    sending = false
-                                    if (posted != null) {
-                                        draft = ""
-                                        highlightedId = posted.id
-                                        banner = context.getString(R.string.player_comment_sent)
-                                        onPosted(posted)
-                                    } else {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            context.getString(R.string.player_comment_failed),
-                                            android.widget.Toast.LENGTH_SHORT,
-                                        ).show()
+                                    try {
+                                        onSubmit(draft, draftPositionMs)
+                                            .onSuccess { posted ->
+                                                draft = ""
+                                                highlightedId = posted.id
+                                                banner = context.getString(R.string.player_comment_sent)
+                                                onPosted(posted)
+                                            }
+                                            .onFailure { failure ->
+                                                val response = failure as? CommentPostException
+                                                submissionError = when {
+                                                    response?.verificationRequired == true -> R.string.player_comment_verification_required
+                                                    response?.status == 401 -> R.string.player_comment_session_rejected
+                                                    response?.status == 403 -> R.string.player_comment_forbidden
+                                                    response?.status == 429 -> R.string.player_comment_rate_limited
+                                                    response?.status == 0 -> R.string.player_comment_unconfirmed
+                                                    else -> R.string.player_comment_failed
+                                                }
+                                            }
+                                    } finally {
+                                        sending = false
                                     }
                                 }
                             },

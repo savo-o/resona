@@ -26,6 +26,7 @@ import com.savoo.scclient.data.repository.LanguageOption
 import com.savoo.scclient.data.repository.SettingsRepository
 import com.savoo.scclient.data.repository.systemDefaultLanguage
 import com.savoo.scclient.debug.CrashReporter
+import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.i18n.CustomStrings
 import com.savoo.scclient.i18n.CustomStringsDisableReason
 import com.savoo.scclient.i18n.withCustomStrings
@@ -33,6 +34,7 @@ import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.player.PlayerController
 import com.savoo.scclient.security.AppLockStore
 import com.savoo.scclient.security.DuressWipe
+import com.savoo.scclient.telegram.TelegramClient
 import com.savoo.scclient.ui.navigation.DeepLinkTarget
 import com.savoo.scclient.ui.navigation.RootScreen
 import com.savoo.scclient.ui.screens.lock.LockScreen
@@ -41,6 +43,7 @@ import com.savoo.scclient.ui.screens.onboarding.OnboardingScreen
 import com.savoo.scclient.ui.theme.AppColorTheme
 import com.savoo.scclient.ui.theme.ResonaTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.util.Locale
 import javax.inject.Inject
@@ -53,6 +56,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var playerController: PlayerController
     @Inject lateinit var webBridge: WebViewApiBridge
     @Inject lateinit var appLockStore: AppLockStore
+    @Inject lateinit var telegramClient: TelegramClient
     @Inject lateinit var dataDomeChallenge: com.savoo.scclient.data.remote.DataDomeChallenge
 
     private var deepLinkTarget by mutableStateOf<DeepLinkTarget>(DeepLinkTarget.None)
@@ -110,16 +114,6 @@ class MainActivity : FragmentActivity() {
             CrashReporter.EARLY_CRASH_WINDOW_MS,
         )
 
-        apiWebView = WebView(this).apply {
-            // Must be attached to a real window (not just held in a field) - Android throttles
-            // JS timers/rendering ticks on WebViews that are never added to the view hierarchy,
-            // which otherwise makes the WebViewApiBridge's fetch calls succeed inconsistently.
-            // 1x1 + alpha 0 keeps it invisible without making it inactive (unlike GONE/detached).
-            alpha = 0f
-            addContentView(this, android.view.ViewGroup.LayoutParams(1, 1))
-            webBridge.setWebView(this)
-        }
-
         deepLinkTarget = DeepLinkTarget.fromIntent(intent)
 
         val currentLang = run {
@@ -156,6 +150,16 @@ class MainActivity : FragmentActivity() {
         }
 
         setContent {
+            LaunchedEffect(locked) {
+                if (locked) return@LaunchedEffect
+                try {
+                    telegramClient.restoreSession()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    DebugLog.log("TelegramAuth", "Session restore failed: ${failure.javaClass.simpleName}")
+                }
+            }
             val settings = settingsRepository.settings.collectAsState(initial = null).value
             val trackSeedColor by playerController.seedColor.collectAsState()
             val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -263,6 +267,13 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+        // Compose installs the window content in setContent. Attach the WebView afterwards
+        // so it stays in the view hierarchy and Android can deliver its JavaScript callbacks.
+        apiWebView = WebView(this).apply {
+            alpha = 0f
+            addContentView(this, android.view.ViewGroup.LayoutParams(1, 1))
+            webBridge.setWebView(this)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -274,7 +285,11 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onDestroy() {
-        apiWebView?.destroy()
+        apiWebView?.let { view ->
+            webBridge.clearWebView(view)
+            (view.parent as? android.view.ViewGroup)?.removeView(view)
+            view.destroy()
+        }
         apiWebView = null
         playerController.saveState()
         super.onDestroy()

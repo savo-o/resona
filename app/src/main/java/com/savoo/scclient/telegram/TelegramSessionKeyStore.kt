@@ -21,6 +21,14 @@ class TelegramSessionKeyStore @Inject constructor(
 ) {
     private val prefs: SharedPreferences = createSecurePrefs(context, "telegram_import_secure_prefs")
 
+    // Older installs have the database key but no authorization flag yet.
+    fun hasSessionToRestore(): Boolean =
+        prefs.getBoolean(KEY_RESTORE_SESSION, prefs.contains(KEY_DB_ENC))
+
+    fun setSessionRestorable(restorable: Boolean) {
+        prefs.edit().putBoolean(KEY_RESTORE_SESSION, restorable).apply()
+    }
+
     /** Returns the existing key, generating and persisting a fresh 32-byte one on first use. */
     fun getOrCreateDatabaseEncryptionKey(): ByteArray {
         prefs.getString(KEY_DB_ENC, null)?.let { return Base64.decode(it, Base64.NO_WRAP) }
@@ -35,5 +43,6 @@ class TelegramSessionKeyStore @Inject constructor(
 
     companion object {
         private const val KEY_DB_ENC = "db_encryption_key"
+        private const val KEY_RESTORE_SESSION = "restore_session"
     }
 }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
 import java.io.File
@@ -59,7 +60,15 @@ class TdLibTelegramClient @Inject constructor(
     @Volatile private var activeClient: Client? = null
     private val client: Client
         get() = synchronized(this) {
-            activeClient ?: Client.create(this::onUpdate, null, null).also { activeClient = it }
+            activeClient ?: run {
+                _authState.value = TelegramAuthState.Connecting
+                try {
+                    Client.create(this::onUpdate, null, null).also { activeClient = it }
+                } catch (failure: Exception) {
+                    _authState.value = TelegramAuthState.Error(failure.message ?: "Failed to start Telegram")
+                    throw failure
+                }
+            }
         }
 
     override suspend fun addProfileAudio(file: File, title: String, artist: String, durationSeconds: Int) {
@@ -133,6 +142,10 @@ class TdLibTelegramClient @Inject constructor(
 
     private val sentMessages = ConcurrentHashMap<Long, TdApi.Message>()
 
+    override suspend fun restoreSession() = withContext(Dispatchers.IO) {
+        if (sessionKeyStore.hasSessionToRestore()) start()
+    }
+
     override suspend fun start() {
         client // lazily creates the Client and starts its event loop
     }
@@ -166,26 +179,29 @@ class TdLibTelegramClient @Inject constructor(
         }
         when (state) {
             is TdApi.AuthorizationStateWaitTdlibParameters -> scope.launch {
-                val params = TdApi.SetTdlibParameters().apply {
-                    databaseDirectory = File(context.filesDir, "tdlib").absolutePath
-                    useFileDatabase = true
-                    useChatInfoDatabase = true
-                    useMessageDatabase = true
-                    useSecretChats = false
-                    apiId = BuildConfig.TELEGRAM_API_ID.toIntOrNull() ?: 0
-                    apiHash = BuildConfig.TELEGRAM_API_HASH
-                    systemLanguageCode = "en"
-                    deviceModel = "Android"
-                    applicationVersion = "1.0"
-                    databaseEncryptionKey = sessionKeyStore.getOrCreateDatabaseEncryptionKey()
-                }
                 try {
+                    val params = TdApi.SetTdlibParameters().apply {
+                        databaseDirectory = File(context.filesDir, "tdlib").absolutePath
+                        useFileDatabase = true
+                        useChatInfoDatabase = true
+                        useMessageDatabase = true
+                        useSecretChats = false
+                        apiId = BuildConfig.TELEGRAM_API_ID.toIntOrNull() ?: 0
+                        apiHash = BuildConfig.TELEGRAM_API_HASH
+                        systemLanguageCode = "en"
+                        deviceModel = "Android"
+                        applicationVersion = "1.0"
+                        databaseEncryptionKey = sessionKeyStore.getOrCreateDatabaseEncryptionKey()
+                    }
                     send(params)
                 } catch (e: Exception) {
                     _authState.value = TelegramAuthState.Error(e.message ?: "Failed to initialize Telegram client")
                 }
             }
-            is TdApi.AuthorizationStateWaitPhoneNumber -> _authState.value = TelegramAuthState.WaitPhoneNumber
+            is TdApi.AuthorizationStateWaitPhoneNumber -> {
+                sessionKeyStore.setSessionRestorable(false)
+                _authState.value = TelegramAuthState.WaitPhoneNumber
+            }
             is TdApi.AuthorizationStateWaitOtherDeviceConfirmation -> {
                 _authState.value = TelegramAuthState.WaitQrConfirmation(state.link)
             }
@@ -215,9 +231,14 @@ class TdLibTelegramClient @Inject constructor(
                 else TelegramAuthState.WaitPassword(state.passwordHint?.takeIf { it.isNotBlank() })
             is TdApi.AuthorizationStateReady -> {
                 qrRequested = false
+                sessionKeyStore.setSessionRestorable(true)
                 _authState.value = TelegramAuthState.Ready
             }
-            is TdApi.AuthorizationStateLoggingOut, is TdApi.AuthorizationStateClosing -> _authState.value = TelegramAuthState.Connecting
+            is TdApi.AuthorizationStateLoggingOut -> {
+                sessionKeyStore.setSessionRestorable(false)
+                _authState.value = TelegramAuthState.Connecting
+            }
+            is TdApi.AuthorizationStateClosing -> _authState.value = TelegramAuthState.Connecting
             is TdApi.AuthorizationStateClosed -> {
                 qrRequested = false
                 changingPhoneNumber = false

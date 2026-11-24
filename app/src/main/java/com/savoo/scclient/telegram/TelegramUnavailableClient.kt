@@ -27,6 +27,7 @@ class TelegramUnavailableClient @Inject constructor() : TelegramClient {
     override suspend fun addProfileAudio(file: File, title: String, artist: String, durationSeconds: Int): Unit =
         throw IllegalStateException("Telegram is unavailable")
 
+    override suspend fun restoreSession() {}
     override suspend fun start() {}
     override suspend fun sendPhoneNumber(phoneNumber: String) {}
     override suspend fun requestQrSignIn() = Unit

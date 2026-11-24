@@ -1,15 +1,20 @@
 package com.savoo.scclient.data.remote
 
-import com.savoo.scclient.debug.DebugLog
+import android.graphics.Bitmap
+import android.net.Uri
 import android.util.Log
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.savoo.scclient.auth.TokenStore
+import com.savoo.scclient.debug.DebugLog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
@@ -35,22 +40,13 @@ class WebViewApiBridge @Inject constructor(
     private val challenge: DataDomeChallenge,
 ) {
     private var webView: WebView? = null
-    private var pageReady = CompletableDeferred<Unit>()
+    private var pageGeneration = 0
     private val callMutex = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var nextCallId = 0
     private var staleSessionChecked = false
     private var loginObserver: kotlinx.coroutines.Job? = null
 
-    @Volatile
-    var lastResponseBody: String? = null
-        private set
-
-    @Volatile
-    var lastResponsePayload: org.json.JSONObject? = null
-        private set
-
-    @Volatile
     private var cachedAppVersion: String? = null
 
     private val TAG = "WebViewApiBridge"
@@ -62,7 +58,7 @@ class WebViewApiBridge @Inject constructor(
         wv.settings.setSupportMultipleWindows(false)
         wv.settings.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         webView = wv
-        pageReady = CompletableDeferred()
+        pageGeneration++
         cachedAppVersion = null
         loginObserver?.cancel()
         if (!staleSessionChecked) {
@@ -76,9 +72,32 @@ class WebViewApiBridge @Inject constructor(
             }
         }
         wv.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                if (view !== webView) return
+                pageGeneration++
+                cachedAppVersion = null
+            }
+
             override fun onPageFinished(view: WebView, url: String?) {
-                Log.d(TAG, "page loaded: $url")
-                if (!pageReady.isCompleted) pageReady.complete(Unit)
+                if (view === webView) {
+                    DebugLog.log(TAG, "bridge page finished: ${url?.let { Uri.parse(it).host }}")
+                }
+            }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (view === webView && request.isForMainFrame) {
+                    DebugLog.log(TAG, "bridge page error: ${request.url.host}, WebView ${error.errorCode}")
+                }
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView,
+                request: WebResourceRequest,
+                errorResponse: WebResourceResponse,
+            ) {
+                if (view === webView && request.isForMainFrame) {
+                    DebugLog.log(TAG, "bridge page error: ${request.url.host}, HTTP ${errorResponse.statusCode}")
+                }
             }
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
@@ -90,21 +109,35 @@ class WebViewApiBridge @Inject constructor(
             }
         }
         syncCookiesToWebView()
-        wv.loadUrl("https://soundcloud.com/discover")
+        wv.loadUrl(BRIDGE_PAGE_URL)
 
         // This page loads once at cold start, usually before the user has logged in. Reload it
         // (with freshly-synced cookies) whenever login state changes to true, so the bridge's
         // fetches run in an authenticated page context instead of being stuck on the pre-login
         // session for the rest of the process's lifetime.
+        var wasLoggedIn = tokenStore.isLoggedIn.value
         loginObserver = tokenStore.isLoggedIn
             .onEach { loggedIn ->
-                if (loggedIn) {
-                    pageReady = CompletableDeferred()
+                val justLoggedIn = loggedIn && !wasLoggedIn
+                wasLoggedIn = loggedIn
+                if (justLoggedIn) callMutex.withLock {
+                    if (webView !== wv || !tokenStore.isLoggedIn.value) return@withLock
+                    pageGeneration++
+                    cachedAppVersion = null
                     syncCookiesToWebView()
-                    webView?.reload()
+                    wv.loadUrl(BRIDGE_PAGE_URL)
                 }
             }
             .launchIn(scope)
+    }
+
+    fun clearWebView(view: WebView) {
+        if (webView !== view) return
+        webView = null
+        pageGeneration++
+        loginObserver?.cancel()
+        loginObserver = null
+        cachedAppVersion = null
     }
 
     private fun syncCookiesToWebView() {
@@ -148,9 +181,9 @@ class WebViewApiBridge @Inject constructor(
         url = "https://api-v2.soundcloud.com/comments/$commentId",
     )
 
-    suspend fun postComment(trackId: Long, body: String, timestampMs: Long): Int {
+    suspend fun postComment(trackId: Long, body: String, timestampMs: Long): BridgeResponse {
         val query = "body=" + java.net.URLEncoder.encode(body, "UTF-8") + "&timestamp=$timestampMs"
-        return executeFetch(
+        return executeRequest(
             method = "POST",
             url = "https://api-v2.soundcloud.com/tracks/$trackId/comments",
             extraQuery = query,
@@ -229,21 +262,23 @@ class WebViewApiBridge @Inject constructor(
         contentType: String,
         extraQuery: String?,
         timeoutMs: Long,
-    ): BridgeResponse {
+    ): BridgeResponse = withContext(Dispatchers.Main) {
         val queuedAt = android.os.SystemClock.elapsedRealtime()
-        return callMutex.withLock {
+        callMutex.withLock {
             val lockedAt = android.os.SystemClock.elapsedRealtime()
             val wv = webView ?: return@withLock BridgeResponse(0, null)
-            if (withTimeoutOrNull(8000) { pageReady.await() } == null) {
-                Log.w(TAG, "$method $url: page never became ready")
-                DebugLog.log(TAG, "$method $url: page never became ready")
+            val generation = withTimeoutOrNull(8000) { awaitPage(wv) }
+            if (generation == null) {
+                val host = wv.url?.let { Uri.parse(it).host }
+                DebugLog.log(TAG, "$method ${url.substringAfter("soundcloud.com")}: bridge page unavailable, host=$host")
                 return@withLock BridgeResponse(0, null)
             }
             val readyAt = android.os.SystemClock.elapsedRealtime()
 
+            val version = appVersion(wv, generation)
+            if (webView !== wv || pageGeneration != generation) return@withLock BridgeResponse(0, null)
             val clientId = clientIdProvider.cachedOrFallback()
             val token = tokenStore.accessToken.orEmpty()
-            val version = appVersion()
             val fullUrl = buildString {
                 append(url)
                 append("?client_id=").append(clientId)
@@ -262,6 +297,11 @@ class WebViewApiBridge @Inject constructor(
             val js = """
                 (function() {
                     window.$slot = { done: false, result: null };
+                    if (!($PAGE_READY_JS)) {
+                        window.$slot.result = JSON.stringify({code: 0, error: 'page_unavailable'});
+                        window.$slot.done = true;
+                        return;
+                    }
                     try {
                         var xhr = new XMLHttpRequest();
                         xhr.open(${org.json.JSONObject.quote(method)}, ${org.json.JSONObject.quote(fullUrl)}, true);
@@ -286,50 +326,66 @@ class WebViewApiBridge @Inject constructor(
                 })()
             """.trimIndent()
 
-            withContext(Dispatchers.Main) { wv.evaluateJavascript(js, null) }
-
             val readJs = "(function() { var s = window.$slot; return (s && s.done) ? s.result : null; })()"
-            val raw = withTimeoutOrNull(timeoutMs) {
-                var result: String? = null
-                while (result == null) {
-                    result = evalOnMain(wv, readJs)
-                    if (result == null) delay(250)
+            val raw = try {
+                wv.evaluateJavascript(js, null)
+                // Allow the XHR timeout handler and the next poll to deliver the transport error.
+                withTimeoutOrNull(timeoutMs + 3500L) {
+                    var result: String? = null
+                    while (result == null && webView === wv && pageGeneration == generation) {
+                        result = evalOnMain(wv, readJs)
+                        if (result == null) delay(250)
+                    }
+                    result
                 }
-                result
+            } finally {
+                withContext(NonCancellable) {
+                    if (webView === wv && pageGeneration == generation) {
+                        wv.evaluateJavascript("delete window.$slot;", null)
+                    }
+                }
             }
-            // Clean up the per-call slot so it doesn't accumulate on the page's window object.
-            withContext(Dispatchers.Main) { wv.evaluateJavascript("delete window.$slot;", null) }
 
             val decoded = runCatching { org.json.JSONTokener(raw.orEmpty()).nextValue() as? String }.getOrNull()
-                ?: raw?.removeSurrounding("\"")?.replace("\\\"", "\"")
-            lastResponseBody = decoded
-            lastResponsePayload = runCatching {
-                org.json.JSONObject(org.json.JSONObject(decoded.orEmpty()).getString("body"))
-            }.getOrNull()
-            Log.d(TAG, "$method $url -> ${decoded?.take(500)}")
-            val code = Regex("\"code\":(\\d+)").find(decoded.orEmpty())?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            val body = runCatching { org.json.JSONObject(decoded.orEmpty()).optString("body") }.getOrNull()
+            val payload = decoded?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
+            val code = payload?.optInt("code") ?: 0
+            val body = payload?.opt("body") as? String
             val finishedAt = android.os.SystemClock.elapsedRealtime()
             DebugLog.log(
                 TAG,
                 "$method ${url.substringAfter("soundcloud.com")} -> $code, queue ${lockedAt - queuedAt} ms, page ${readyAt - lockedAt} ms, fetch ${finishedAt - readyAt} ms",
             )
             if (code == 0) {
-                val error = runCatching { org.json.JSONObject(decoded.orEmpty()).optString("error") }
-                    .getOrNull()?.takeIf { it.isNotBlank() } ?: "javascript_callback_timeout_or_page_reloaded"
+                val error = payload?.opt("error") as? String ?: when {
+                    webView !== wv -> "webview_replaced"
+                    pageGeneration != generation -> "page_reloaded"
+                    else -> "javascript_callback_timeout"
+                }
                 DebugLog.log(TAG, "$method ${url.substringAfter("soundcloud.com")} transport failure: $error")
             }
             BridgeResponse(code, body)
         }
     }
 
-    private suspend fun appVersion(): String? {
+    // A usable document can be interactive before onPageFinished, and redirects can
+    // leave the completion callback with a URL different from the committed document.
+    private suspend fun awaitPage(wv: WebView): Int? {
+        while (webView === wv) {
+            val generation = pageGeneration
+            if (evalOnMain(wv, PAGE_READY_JS) == "true" && webView === wv && pageGeneration == generation) {
+                return generation
+            }
+            delay(250)
+        }
+        return null
+    }
+
+    private suspend fun appVersion(wv: WebView, generation: Int): String? {
         cachedAppVersion?.let { return it }
-        val wv = webView ?: return null
         val raw = evalOnMain(wv, "(function() { return window.__sc_version || (window.webpackJsonp && window.__sc_version) || null; })()")
         val value = raw?.removeSurrounding("\"")?.takeIf { it.isNotBlank() && it != "null" }
         Log.d(TAG, "app_version from page: $value")
-        cachedAppVersion = value
+        if (webView === wv && pageGeneration == generation) cachedAppVersion = value
         return value
     }
 
@@ -337,6 +393,13 @@ class WebViewApiBridge @Inject constructor(
         val deferred = CompletableDeferred<String?>()
         wv.evaluateJavascript(js) { result -> deferred.complete(result?.takeIf { it != "null" }) }
         withTimeoutOrNull(3000) { deferred.await() }
+    }
+
+    private companion object {
+        const val BRIDGE_PAGE_URL = "https://soundcloud.com/discover"
+        const val PAGE_READY_JS =
+            "(location.origin === 'https://soundcloud.com' || location.origin === 'https://m.soundcloud.com') " +
+                "&& (document.readyState === 'interactive' || document.readyState === 'complete')"
     }
 }
 

@@ -8,6 +8,7 @@ import com.savoo.scclient.data.model.TrackComment
 import com.savoo.scclient.data.model.User
 import com.savoo.scclient.data.remote.SoundCloudApi
 import com.savoo.scclient.data.remote.BridgeResponse
+import com.savoo.scclient.data.remote.DataDomeChallenge
 import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.debug.DebugLog
 import javax.inject.Inject
@@ -15,6 +16,9 @@ import javax.inject.Singleton
 import retrofit2.HttpException
 
 data class SearchPage<T>(val items: List<T>, val nextHref: String?)
+
+internal class CommentPostException(val status: Int, val verificationRequired: Boolean) :
+    IllegalStateException("Comment submission failed: status=$status")
 
 private fun <T> SearchResponse<T>.toPage(): SearchPage<T> =
     SearchPage(collection, nextHref?.takeIf { it.isNotBlank() })
@@ -174,14 +178,20 @@ class TrackRepository @Inject constructor(
     suspend fun getPlaylist(id: Long): Playlist = api.getPlaylist(id)
 
     suspend fun postComment(trackId: Long, body: String, timestampMs: Long): TrackComment? {
-        val code = webBridge.postComment(trackId, body, timestampMs)
-        DebugLog.log(TAG, "postComment($trackId) -> $code")
-        if (code !in 200..299) error("postComment failed: HTTP $code")
+        val response = webBridge.postComment(trackId, body, timestampMs)
+        DebugLog.log(TAG, "postComment($trackId) -> ${response.code}")
+        if (!response.isSuccess) {
+            throw CommentPostException(
+                status = response.code,
+                verificationRequired = DataDomeChallenge.challengeUrl(response.code, response.body) != null,
+            )
+        }
         return runCatching {
-            val payload = webBridge.lastResponsePayload ?: return null
+            val payload = org.json.JSONObject(response.body ?: return null)
+            val id = payload.optLong("id").takeIf { it > 0 } ?: return null
             val author = payload.optJSONObject("user")
             TrackComment(
-                id = payload.optLong("id"),
+                id = id,
                 body = payload.optString("body"),
                 timestampMs = payload.optLong("timestamp"),
                 createdAt = payload.optString("created_at"),

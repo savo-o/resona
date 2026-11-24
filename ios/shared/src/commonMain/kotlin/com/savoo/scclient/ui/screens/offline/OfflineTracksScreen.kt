@@ -75,6 +75,43 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextOverflow
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.savoo.scclient.debug.DebugLog
+import com.savoo.scclient.player.exportOfflineAudio
+import com.savoo.scclient.ui.components.TaskProgressBanner
+import com.savoo.scclient.ui.haptics.rememberHapticTick
+import com.savoo.scclient.ui.screens.playlist.PickTrackRow
+import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlin.random.Random
+
+data class OfflineExportProgress(
+    val done: Int,
+    val total: Int,
+    val title: String?,
+    val currentFraction: Float = 0f,
+) {
+    val fraction: Float get() = (done + currentFraction) / total
+}
+
+data class OfflineExportResult(val saved: Int, val failed: Int)
+
 class OfflineTracksViewModel(
     private val offlineTrackManager: OfflineTrackManager,
     private val favoritesDao: FavoritesDao,
@@ -96,6 +133,66 @@ class OfflineTracksViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoriteTrackIds = favoritesDao.observeTrackIds().map { it.toSet() }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    private val _exportProgress = MutableStateFlow<OfflineExportProgress?>(null)
+    val exportProgress = _exportProgress.asStateFlow()
+    private val _exportResult = MutableStateFlow<OfflineExportResult?>(null)
+    val exportResult = _exportResult.asStateFlow()
+    private var exportJob: Job? = null
+
+    fun cancelExport() { exportJob?.cancel() }
+
+    fun consumeExportResult() { _exportResult.value = null }
+
+    fun exportTracks(ids: List<Long>) {
+        if (ids.isEmpty() || exportJob?.isActive == true) return
+        val titles = tracks.value.associate { it.id to it.title }
+        exportJob = viewModelScope.launch {
+            val folder = File(AppContext.cacheDir, "audio-export-${Random.nextLong().toULong()}")
+            val prepared = mutableListOf<File>()
+            var failed = 0
+            try {
+                withContext(Dispatchers.Default) { folder.mkdirs() }
+                ids.forEachIndexed { index, id ->
+                    val progress = OfflineExportProgress(index, ids.size, titles[id])
+                    _exportProgress.value = progress
+                    try {
+                        val file = withContext(Dispatchers.Default) {
+                            val track = offlineTrackManager.getOfflineTrack(id) ?: throw IOException("Track is not downloaded")
+                            val source = File(track.localPath)
+                            if (!source.exists()) throw IOException("Offline audio file is missing")
+                            val name = "${track.username} - ${track.title}"
+                                .map { if (it in "\\/:*?\"<>|" || it.code < 32) '_' else it }
+                                .take(58).joinToString("")
+                            File(folder, "$name [$id].m4a").also { target ->
+                                exportOfflineAudio(track, source, target) { fraction ->
+                                    _exportProgress.value = progress.copy(currentFraction = fraction)
+                                }
+                            }
+                        }
+                        prepared += file
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        DebugLog.log("AudioExport", "Export $id failed: ${e.message}")
+                        failed++
+                    }
+                }
+                _exportProgress.value = null
+                val saved = prepared.isNotEmpty() && suspendCancellableCoroutine { continuation ->
+                    FilePickers.exportFiles(prepared.map { it.path }) { exported ->
+                        if (continuation.isActive) continuation.resume(exported)
+                    }
+                }
+                if (saved || failed > 0) {
+                    _exportResult.value = OfflineExportResult(if (saved) prepared.size else 0, failed)
+                }
+            } finally {
+                _exportProgress.value = null
+                withContext(NonCancellable + Dispatchers.Default) { folder.deleteRecursively() }
+            }
+        }
+    }
 
     private val _isImporting = MutableStateFlow(false)
     val isImporting = _isImporting.asStateFlow()
@@ -182,6 +279,10 @@ fun OfflineTracksScreen(
     onBack: () -> Unit = {},
 ) {
     val tracks by viewModel.tracks.collectAsState()
+    val exportProgress by viewModel.exportProgress.collectAsState()
+    val exportResult by viewModel.exportResult.collectAsState()
+    var showExportSheet by rememberSaveable { mutableStateOf(false) }
+    var selectedExportIds by rememberSaveable { mutableStateOf(longArrayOf()) }
     val favoriteTrackIds by viewModel.favoriteTrackIds.collectAsState()
     val playerState by viewModel.playerController.state.collectAsState()
     val isImporting by viewModel.isImporting.collectAsState()
@@ -195,6 +296,29 @@ fun OfflineTracksScreen(
     val selection = rememberTrackSelection()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    val exportMessage = exportResult?.let { stringResource(Res.string.offline_audio_export_result, it.saved, it.failed) }
+    LaunchedEffect(exportMessage) {
+        if (exportMessage != null) {
+            snackbarHostState.showSnackbar(exportMessage)
+            viewModel.consumeExportResult()
+        }
+    }
+    if (showExportSheet) {
+        OfflineExportSheet(
+            tracks = tracks.applySortOption(sort),
+            selectedIds = selectedExportIds.toSet(),
+            onToggleTrack = { id ->
+                val selected = selectedExportIds.toSet()
+                selectedExportIds = (if (id in selected) selected - id else selected + id).toLongArray()
+            },
+            onDismiss = { showExportSheet = false },
+            onExport = { ids ->
+                showExportSheet = false
+                viewModel.exportTracks(ids)
+            },
+        )
+    }
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) viewModel.importLocalFolder(uri)
@@ -230,6 +354,14 @@ fun OfflineTracksScreen(
                     }
                 },
                 actions = {
+                    if (tracks.isNotEmpty()) {
+                        IconButton(enabled = exportProgress == null, onClick = {
+                            selectedExportIds = selection.selectedIds.toLongArray()
+                            showExportSheet = true
+                        }) {
+                            Icon(Icons.Filled.SaveAlt, contentDescription = stringResource(Res.string.offline_audio_export))
+                        }
+                    }
                     if (isImporting) {
                         LoadingIndicator(modifier = Modifier.size(24.dp))
                     } else {
@@ -270,6 +402,19 @@ fun OfflineTracksScreen(
         snackbarHost = { SnackbarHost(snackbarHostState, Modifier.aboveDock()) },
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
+            exportProgress?.let { progress ->
+                TaskProgressBanner(
+                    icon = Icons.Filled.SaveAlt,
+                    title = stringResource(Res.string.offline_audio_export_progress, progress.done + 1, progress.total),
+                    subtitle = progress.title,
+                    fraction = progress.fraction,
+                    finished = false,
+                    failed = false,
+                    onCancel = viewModel::cancelExport,
+                    cancelDescription = stringResource(Res.string.cancel),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
             if (tracks.isNotEmpty()) {
                 SearchBarDefaults.InputField(
                     colors = SearchBarDefaults.filledInputFieldColors(),
@@ -367,5 +512,101 @@ fun OfflineTracksScreen(
                 }
             },
         )
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun OfflineExportSheet(
+    tracks: List<Track>,
+    selectedIds: Set<Long>,
+    onToggleTrack: (Long) -> Unit,
+    onDismiss: () -> Unit,
+    onExport: (List<Long>) -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val haptic = rememberHapticTick()
+    val selectedTracks = remember(tracks, selectedIds) { tracks.filter { it.id in selectedIds } }
+    val visibleTracks = remember(tracks, query) {
+        val filter = query.trim()
+        tracks.filter { it.title.contains(filter, ignoreCase = true) || it.user.username.contains(filter, ignoreCase = true) }
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(0.92f).imePadding().padding(horizontal = 20.dp).padding(bottom = 16.dp)) {
+            Text(
+                stringResource(Res.string.offline_audio_export),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+            Spacer(Modifier.height(14.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text(stringResource(Res.string.playlist_pick_filter_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = stringResource(Res.string.search_clear))
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                stringResource(Res.string.selection_count, selectedTracks.size),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
+            )
+            if (visibleTracks.isEmpty()) {
+                Text(
+                    stringResource(if (query.isBlank()) Res.string.offline_empty else Res.string.search_nothing_found),
+                    modifier = Modifier.weight(1f).align(Alignment.CenterHorizontally).padding(24.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(bottom = 8.dp),
+                ) {
+                    items(visibleTracks, key = { it.id }) { track ->
+                        PickTrackRow(
+                            track = track,
+                            selected = track.id in selectedIds,
+                            alreadyAdded = false,
+                            onClick = { haptic(); onToggleTrack(track.id) },
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = { onExport(selectedTracks.map { it.id }) },
+                enabled = selectedTracks.isNotEmpty(),
+                shapes = ButtonDefaults.shapes(),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+            ) {
+                Text(
+                    if (selectedTracks.isEmpty()) stringResource(Res.string.offline_audio_export)
+                    else stringResource(Res.string.offline_audio_export_selected, selectedTracks.size),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            TextButton(
+                onClick = { onExport(tracks.map { it.id }) },
+                enabled = tracks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(Res.string.offline_audio_export_all))
+            }
+        }
     }
 }

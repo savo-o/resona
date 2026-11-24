@@ -12,6 +12,12 @@ import com.savoo.scclient.data.remote.BridgeResponse
 import com.savoo.scclient.data.remote.WebViewApiBridge
 import com.savoo.scclient.debug.DebugLog
 import com.savoo.scclient.compat.http.HttpException
+import com.savoo.scclient.data.model.ProfileFeedItem
+import com.savoo.scclient.data.remote.ApiJson
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 data class SearchPage<T>(val items: List<T>, val nextHref: String?)
 
@@ -24,15 +30,19 @@ class TrackRepository(
 ) {
     private val TAG = "TrackRepository"
     private var cachedUserId: Long? = null
+    private var cachedUserToken: String? = null
 
     fun resetCurrentUser() {
         cachedUserId = null
+        cachedUserToken = null
     }
 
     suspend fun currentUserId(): Long? {
-        cachedUserId?.let { return it }
+        val token = tokenStore.accessToken ?: return null
+        if (cachedUserToken == token) cachedUserId?.let { return it }
         val id = runCatching { api.getMe().id }.getOrNull()
         cachedUserId = id
+        cachedUserToken = token
         return id
     }
 
@@ -41,6 +51,37 @@ class TrackRepository(
 
     suspend fun searchUsers(query: String, limit: Int = SEARCH_PAGE_SIZE): SearchPage<User> =
         api.searchUsers(query = query, limit = limit).toPage()
+
+    suspend fun getProfileFeed(userId: Long, likes: Boolean, next: String?): SearchPage<ProfileFeedItem> =
+        api.getProfileFeed(userId, likes, next).toPage()
+
+    suspend fun getProfilePeople(userId: Long, following: Boolean, next: String?): SearchPage<User> =
+        api.getProfilePeople(userId, following, next).toPage()
+
+    suspend fun isFollowing(userId: Long, targetId: Long): Boolean {
+        var next: String? = null
+        val visited = HashSet<String>()
+        do {
+            val payload = ApiJson.parseToJsonElement(api.getFollowingIds(userId, next))
+            val ids = when (payload) {
+                is JsonArray -> payload
+                is JsonObject -> payload["collection"] as? JsonArray ?: error("Missing following IDs")
+                else -> error("Unexpected following IDs response")
+            }
+            if (ids.any { (it as? JsonPrimitive)?.longOrNull == targetId }) return true
+            next = ((payload as? JsonObject)?.get("next_href") as? JsonPrimitive)?.content
+                ?.takeIf { it.isNotBlank() && it != "null" }
+            if (next != null && !visited.add(next)) error("Repeated following IDs page")
+        } while (next != null)
+        return false
+    }
+
+    suspend fun setFollowing(userId: Long, targetId: Long, following: Boolean) {
+        require(targetId > 0 && userId != targetId)
+        val status = api.setFollowing(targetId, following)
+        if (status in 200..299 || (!following && status == 404 && !isFollowing(userId, targetId))) return
+        error("Follow update failed: HTTP $status")
+    }
 
     suspend fun getMe(): User = api.getMe()
 

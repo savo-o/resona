@@ -30,6 +30,7 @@ expect object FilePickers {
     fun createDocument(fileName: String, mimeType: String, onResult: (Uri?) -> Unit)
     fun openDocument(mimeTypes: List<String>, onResult: (Uri?) -> Unit)
     fun pickImage(onResult: (Uri?) -> Unit)
+    fun exportFiles(paths: List<String>, onResult: (Boolean) -> Unit)
     fun exportFile(path: String)
 }
 

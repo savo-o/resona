@@ -52,13 +52,20 @@ class WebViewTokenCapture(
 
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var mobilePageUrl: String? = null
 
     var currentToken: String? = null
         private set
     var currentCookies: String? = null
         private set
+    var returnedFromSignIn = false
+        private set
 
-    fun cookiesFromManager(): String? = CookieManager.getInstance().getCookie("soundcloud.com")
+    fun cookiesFromManager(): String? = CookieManager.getInstance().getCookie("https://soundcloud.com/")
+
+    fun mobilePageToken(): String? = mobilePageUrl?.let { url ->
+        oauthTokenFromCookies(CookieManager.getInstance().getCookie(url))
+    }
 
     fun newClient(onPageFailed: (String) -> Unit = {}): WebViewClient = object : WebViewClient() {
         private val loggedResourceErrors = mutableSetOf<String>()
@@ -111,7 +118,16 @@ class WebViewTokenCapture(
 
         override fun onPageFinished(view: WebView, url: String?) {
             DebugLog.log(LOG_TAG, "page finished: ${url?.substringBefore('?')?.substringBefore('#')}")
-            if (isSoundCloudWebPage(url?.let(Uri::parse)) && currentToken == null) {
+            val uri = url?.let(Uri::parse)
+            if (uri?.scheme == "https" && uri.host == "m.soundcloud.com") {
+                mobilePageUrl = uri.buildUpon().clearQuery().fragment(null).build().toString()
+            }
+            if ((uri?.host == "soundcloud.com" || uri?.host == "m.soundcloud.com") &&
+                uri.scheme == "https" && uri.path == "/signin/post-signin-redirect"
+            ) {
+                returnedFromSignIn = true
+            }
+            if (isSoundCloudWebPage(uri) && currentToken == null) {
                 extractHydrationToken(view) { t ->
                     DebugLog.log(LOG_TAG, "hydration extraction result: ${if (t != null) "found token" else "none"}")
                     if (t != null) captureToken(t)

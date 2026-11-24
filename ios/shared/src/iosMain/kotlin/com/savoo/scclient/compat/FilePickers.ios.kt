@@ -83,6 +83,32 @@ actual object FilePickers {
         present(picker)
     }
 
+    actual fun exportFiles(paths: List<String>, onResult: (Boolean) -> Unit) {
+        dispatch_async(dispatch_get_main_queue()) {
+            val picker = UIDocumentPickerViewController(
+                forExportingURLs = paths.map { NSURL.fileURLWithPath(it) },
+                asCopy = true,
+            )
+            val delegate = object : NSObject(), UIDocumentPickerDelegateProtocol {
+                override fun documentPicker(controller: UIDocumentPickerViewController, didPickDocumentsAtURLs: List<*>) {
+                    retained.remove(this)
+                    onResult(didPickDocumentsAtURLs.isNotEmpty())
+                }
+
+                override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) {
+                    retained.remove(this)
+                    onResult(false)
+                }
+            }
+            retained += delegate
+            picker.delegate = delegate
+            if (!present(picker)) {
+                retained.remove(delegate)
+                onResult(false)
+            }
+        }
+    }
+
     actual fun exportFile(path: String) {
         dispatch_async(dispatch_get_main_queue()) {
             val picker = UIDocumentPickerViewController(forExportingURLs = listOf(NSURL.fileURLWithPath(path)), asCopy = true)
@@ -98,9 +124,10 @@ actual object FilePickers {
         return if (ok) Uri.parse("file://" + target.path) else null
     }
 
-    private fun present(controller: UIViewController) {
-        var top = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return
+    private fun present(controller: UIViewController): Boolean {
+        var top = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return false
         while (top.presentedViewController != null) top = top.presentedViewController!!
         top.presentViewController(controller, animated = true, completion = null)
+        return true
     }
 }

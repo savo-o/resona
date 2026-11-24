@@ -1016,4 +1016,21 @@
     <string name="settings_liquid_glass_desc">Translucent glass on the dock and player. When off, looks like the Android version</string>
     <string name="settings_dock_background">Background behind the dock</string>
     <string name="settings_dock_background_desc">Solid background behind the dock. When off, content shows through it</string>
+    <string name="profile_overview">Overview</string>
+    <string name="profile_reposts">Reposts</string>
+    <string name="profile_likes">Likes</string>
+    <string name="profile_followers">Followers</string>
+    <string name="profile_following">Following</string>
+    <string name="profile_empty">Nothing here yet</string>
+    <string name="profile_load_failed">Could not load this section</string>
+    <string name="profile_retry">Try again</string>
+    <string name="profile_follow">Follow on SoundCloud</string>
+    <string name="profile_following_action">Following · Unfollow</string>
+    <string name="profile_follow_failed">Could not change following. Try again.</string>
+    <string name="profile_open">SoundCloud profile</string>
+    <string name="offline_audio_export">Export audio files</string>
+    <string name="offline_audio_export_result">Exported: %1$d. Failed: %2$d.</string>
+    <string name="offline_audio_export_progress">Exporting %1$d of %2$d…</string>
+    <string name="offline_audio_export_all">Save all</string>
+    <string name="offline_audio_export_selected">Save selected (%1$d)</string>
 </resources>

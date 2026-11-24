@@ -2,6 +2,7 @@ package com.savoo.scclient.data.remote
 
 import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.auth.SessionRefresher
+import com.savoo.scclient.debug.DebugLog
 import kotlinx.coroutines.runBlocking
 import okhttp3.HttpUrl
 import okhttp3.Interceptor
@@ -77,10 +78,13 @@ class AuthInterceptor @Inject constructor(
                 token = freshToken
                 response = chain.proceed(request(clientId, token))
             }
-            if (response.code == 401 && original.method == "GET" && isPublicRead(original.url)) {
-                response.close()
-                response = chain.proceed(request(clientId, null, includeCookies = false))
-            }
+        }
+        if (response.code == 401 && original.method == "GET" && isPublicRead(original.url) &&
+            (token != null || !tokenStore.webCookies.isNullOrBlank())
+        ) {
+            response.close()
+            response = chain.proceed(request(clientId, null, includeCookies = false))
+            DebugLog.log("SoundCloudAuth", "Public GET ${original.url.encodedPath}: anonymous retry returned ${response.code}")
         }
 
         return response
@@ -89,7 +93,7 @@ class AuthInterceptor @Inject constructor(
     private fun isPublicRead(url: HttpUrl): Boolean =
         url.encodedPath.startsWith("/search/") || url.encodedPath.startsWith("/tracks/") ||
             url.encodedPath.startsWith("/media/") || url.encodedPath == "/resolve" ||
-            url.encodedPath == "/charts"
+            url.encodedPath == "/charts" || PUBLIC_PROFILE_PATH.matches(url.encodedPath)
 
     private fun applyCommonHeaders(builder: okhttp3.Request.Builder, clientId: String) {
         builder.header("User-Agent", BROWSER_USER_AGENT)
@@ -103,3 +107,8 @@ class AuthInterceptor @Inject constructor(
 
 internal fun isSoundCloudHost(host: String): Boolean =
     host == "soundcloud.com" || host.endsWith(".soundcloud.com")
+
+private val PUBLIC_PROFILE_PATH = Regex(
+    "/(?:users/(?:soundcloud:users:)?[0-9]+(?:/(?:tracks|toptracks|albums|playlists_without_albums|relatedartists|followers|followings))?" +
+        "|playlists/(?:soundcloud:playlists:)?[0-9]+(?:/tracks)?|stream/users/[0-9]+/reposts)/?",
+)

@@ -202,20 +202,25 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    suspend fun postComment(body: String, timestampMs: Long): TrackComment? {
-        val trackId = controller.state.value.currentTrack?.id ?: return null
+    suspend fun postComment(body: String, timestampMs: Long): Result<TrackComment> {
+        val trackId = controller.state.value.currentTrack?.id
+            ?: return Result.failure(IllegalStateException("No track selected"))
         val text = body.trim()
-        if (text.isEmpty()) return null
-        val result = runCatching { trackRepository.postComment(trackId, text, timestampMs) }
-        if (result.isFailure) return null
-        val posted = result.getOrNull() ?: TrackComment(
-            id = -System.currentTimeMillis(),
-            body = text,
-            timestampMs = timestampMs,
-        )
+        if (text.isEmpty()) return Result.failure(IllegalArgumentException("Comment is empty"))
+        val posted = try {
+            trackRepository.postComment(trackId, text, timestampMs) ?: TrackComment(
+                id = -System.currentTimeMillis(),
+                body = text,
+                timestampMs = timestampMs,
+            )
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            return Result.failure(failure)
+        }
         optimisticComments.value = optimisticComments.value + posted
         commentsRefresh.value++
-        return posted
+        return Result.success(posted)
     }
 
     private val optimisticComments = MutableStateFlow<List<TrackComment>>(emptyList())

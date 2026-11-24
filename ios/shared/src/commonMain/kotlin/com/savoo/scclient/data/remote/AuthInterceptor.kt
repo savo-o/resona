@@ -2,6 +2,7 @@ package com.savoo.scclient.data.remote
 
 import com.savoo.scclient.auth.TokenStore
 import com.savoo.scclient.auth.SessionRefresher
+import com.savoo.scclient.debug.DebugLog
 import io.ktor.client.HttpClient
 import io.ktor.client.call.HttpClientCall
 import io.ktor.client.call.save
@@ -87,16 +88,21 @@ class AuthInterceptor(
                 applyCommonHeaders(request, clientId, token)
                 call = proceed(request).save()
             }
-            val path = request.url.build().encodedPath
-            val publicRead = path.startsWith("/search/") || path.startsWith("/tracks/") ||
-                path.startsWith("/media/") || path == "/resolve" || path == "/charts"
-            if (call.response.status.value == 401 && request.method.value == "GET" && publicRead) {
-                applyCommonHeaders(request, clientId, null, includeCookies = false)
-                call = proceed(request)
-            }
+        }
+        val path = request.url.build().encodedPath
+        if (call.response.status.value == 401 && request.method.value == "GET" && isPublicRead(path) &&
+            (token != null || !tokenStore.webCookies.isNullOrBlank())
+        ) {
+            applyCommonHeaders(request, clientId, null, includeCookies = false)
+            call = proceed(request)
+            DebugLog.log("SoundCloudAuth", "Public GET $path: anonymous retry returned ${call.response.status.value}")
         }
         return call
     }
+
+    private fun isPublicRead(path: String): Boolean =
+        path.startsWith("/search/") || path.startsWith("/tracks/") ||
+            path.startsWith("/media/") || path == "/resolve" || path == "/charts" || PUBLIC_PROFILE_PATH.matches(path)
 
     private fun applyCommonHeaders(
         builder: HttpRequestBuilder,
@@ -126,3 +132,8 @@ class AuthInterceptor(
 
 internal fun isSoundCloudHost(host: String): Boolean =
     host == "soundcloud.com" || host.endsWith(".soundcloud.com")
+
+private val PUBLIC_PROFILE_PATH = Regex(
+    "/(?:users/(?:soundcloud:users:)?[0-9]+(?:/(?:tracks|toptracks|albums|playlists_without_albums|relatedartists|followers|followings))?" +
+        "|playlists/(?:soundcloud:playlists:)?[0-9]+(?:/tracks)?|stream/users/[0-9]+/reposts)/?",
+)

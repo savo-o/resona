@@ -12,6 +12,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.RawResourceDataSource
 import androidx.palette.graphics.Palette
 import coil.imageLoader
@@ -363,45 +364,59 @@ class PlayerController @Inject constructor(
         }
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-            DebugLog.log(TAG, "Playback error: ${error.message}")
-            val mediaId = controller?.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+            val player = controller ?: return
+            val failedItem = player.currentMediaItem
+            val causes = generateSequence(error.cause) { it.cause }.take(8).joinToString(" <- ") { cause ->
+                if (cause is HttpDataSource.InvalidResponseCodeException) {
+                    "HTTP ${cause.responseCode}"
+                } else {
+                    cause.javaClass.simpleName
+                }
+            }
+            DebugLog.log(TAG, "Playback error: id=${failedItem?.mediaId} ${error.errorCodeName}, causes=[$causes]")
+            val mediaId = failedItem?.mediaId?.toLongOrNull() ?: return
             if (mediaId in resolvingMediaIds) return // an in-flight resolution will prepare()/play() or skip once it finishes
             val attempts = (errorRetryCount[mediaId] ?: 0) + 1
             errorRetryCount[mediaId] = attempts
-            val track = queue.find { it.track.id == mediaId }?.track
+            val entry = queue.getOrNull(player.currentMediaItemIndex)?.takeIf { it.track.id == mediaId }
             if (attempts > 2) {
                 DebugLog.log(TAG, "Giving up on track $mediaId after $attempts failed attempts, skipping")
                 errorRetryCount.remove(mediaId)
-                if (track != null) scope.launch { skipDueToFailure(track) } else controller?.seekToNext()
+                if (entry != null) scope.launch { skipDueToFailure(entry.track) } else player.seekToNext()
                 return
             }
-            if (track == null) {
+            if (entry == null) {
                 scope.launch {
                     delay(400)
-                    controller?.prepare()
+                    if (controller === player && player.currentMediaItem == failedItem) player.prepare()
                 }
                 return
             }
+            val track = entry.track
+            val failedEntryId = entry.id
+            val positionMs = player.currentPosition.coerceAtLeast(0L)
+            val requestId = playRequestId
+            fun isStillCurrent(): Boolean =
+                controller === player && requestId == playRequestId && player.currentMediaItem == failedItem &&
+                    queue.getOrNull(player.currentMediaItemIndex)?.id == failedEntryId
+
             resolvingMediaIds.add(mediaId)
             scope.launch {
                 try {
                     delay(400)
+                    if (!isStillCurrent()) return@launch
                     val resolved = resolveTrack(track.copy(media = null))
                     if (resolved == null) {
-                        skipDueToFailure(track)
+                        if (isStillCurrent()) skipDueToFailure(track)
                         return@launch
                     }
-                    val i = queueIndexOf(mediaId)
-                    if (i < 0) return@launch
                     playerCommandMutex.withLock {
+                        if (!isStillCurrent()) return@launch
+                        val i = player.currentMediaItemIndex
+                        adoptResolvedTrack(i, resolved.track)
                         replaceMediaItemSafely(i, buildMediaItem(resolved.track, resolved.url, resolved.isHls))
-                        controller?.let {
-                            if (it.currentMediaItem?.mediaId?.toLongOrNull() == mediaId) {
-                                it.seekTo(i, 0L)
-                                it.prepare()
-                                if (it.playWhenReady) it.play()
-                            }
-                        }
+                        player.seekTo(i, positionMs)
+                        player.prepare()
                     }
                     if (resolved.needsCaching) {
                         trackCache.cacheAudioFile(resolved.track, resolved.url)
