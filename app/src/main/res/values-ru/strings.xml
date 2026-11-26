@@ -514,6 +514,20 @@
     <string name="crash_dialog_dismiss">Закрыть</string>
     <string name="update_dialog_open_github">Открыть GitHub</string>
 
+    <string name="alice_ble_settings">Алиса по Bluetooth</string>
+    <string name="alice_ble_sent">Отправлено на Алису</string>
+    <string name="alice_ble_setup_required">Настрой Алису в меню отладки</string>
+    <string name="alice_ble_out_of_range">Алиса вне зоны Bluetooth</string>
+    <string name="alice_ble_enable">Включить отправку на Станцию рядом</string>
+    <string name="alice_ble_pair_help">Выполни ysc alice-key на Станции и введи код ниже.</string>
+    <string name="alice_ble_grant_permission">Дать разрешение на поиск по Bluetooth</string>
+    <string name="alice_ble_key">Код Станции</string>
+    <string name="alice_ble_key_error">Введи код из 32 символов со Станции.</string>
+    <string name="alice_ble_paired">Код Станции сохранён</string>
+    <string name="alice_ble_send">Отправить на Алису</string>
+    <string name="alice_ble_sending">Отправка на Алису…</string>
+    <string name="alice_ble_send_failed">Не удалось отправить трек. Поднеси телефон ближе и попробуй снова.</string>
+
     <!-- Debug Menu -->
     <string name="debug_menu_title">Меню отладки</string>
     <string name="debug_menu_build_info">Информация о сборке</string>

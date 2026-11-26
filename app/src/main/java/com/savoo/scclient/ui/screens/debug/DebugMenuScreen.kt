@@ -114,6 +114,7 @@ class DebugMenuViewModel @Inject constructor(
     private val waveformRepository: com.savoo.scclient.data.repository.WaveformRepository,
     @ApplicationContext private val context: Context,
     val telegramQrExperiment: com.savoo.scclient.telegram.TelegramQrExperiment,
+    val aliceBle: com.savoo.scclient.alice.AliceBle,
 ) : ViewModel() {
 
     private val _waveformCacheCount = MutableStateFlow(0)
@@ -442,6 +443,10 @@ fun DebugMenuScreen(
                         Text(stringResource(R.string.debug_menu_client_id_save))
                     }
                 }
+            }
+
+            DebugSectionCard(title = stringResource(R.string.alice_ble_settings)) {
+                AliceDebugSettings(viewModel.aliceBle)
             }
 
             DebugSectionCard(title = stringResource(R.string.debug_menu_database)) {

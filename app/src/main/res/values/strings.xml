@@ -506,6 +506,20 @@
     <string name="crash_dialog_dismiss">Dismiss</string>
     <string name="update_dialog_open_github">Open GitHub</string>
 
+    <string name="alice_ble_settings">Alice Station via Bluetooth</string>
+    <string name="alice_ble_sent">Sent to Alice</string>
+    <string name="alice_ble_setup_required">Set up Alice in the Debug Menu</string>
+    <string name="alice_ble_out_of_range">Alice is out of Bluetooth range</string>
+    <string name="alice_ble_enable">Enable nearby playback transfer</string>
+    <string name="alice_ble_pair_help">Run ysc alice-key on your Station and enter the code below.</string>
+    <string name="alice_ble_grant_permission">Grant Bluetooth scanning permissions</string>
+    <string name="alice_ble_key">Station code</string>
+    <string name="alice_ble_key_error">Enter the 32-character code from the Station.</string>
+    <string name="alice_ble_paired">Station code saved</string>
+    <string name="alice_ble_send">Send to Alice</string>
+    <string name="alice_ble_sending">Sending to Alice…</string>
+    <string name="alice_ble_send_failed">Couldn’t send the track. Bring the phone closer and try again.</string>
+
     <!-- Debug Menu -->
     <string name="debug_menu_title">Debug Menu</string>
     <string name="debug_menu_build_info">Build Info</string>

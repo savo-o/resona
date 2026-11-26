@@ -53,6 +53,7 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     val controller: PlayerController,
+    val aliceBle: com.savoo.scclient.alice.AliceBle,
     val soundEffects: com.savoo.scclient.player.SoundEffects,
     private val favoritesDao: FavoritesDao,
     private val favoritesRepository: FavoritesRepository,

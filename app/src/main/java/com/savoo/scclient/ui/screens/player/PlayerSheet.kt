@@ -241,6 +241,7 @@ fun PlayerSheet(
     val offlineSaveResult by viewModel.offlineSaveResult.collectAsState()
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
     val track = state.currentTrack
+    val aliceOutput = rememberAliceOutput(viewModel, trackId = track?.id?.takeIf { it > 0L })
     val haptics = rememberHaptics()
     val shareContext = LocalContext.current
     val onShare: () -> Unit = {
@@ -447,6 +448,7 @@ fun PlayerSheet(
             isSavingOffline = viewModel.isSavingOffline.collectAsState().value,
             isMixPlaying = viewModel.isMixPlaying.collectAsState().value,
             onShare = onShare,
+            aliceOutput = aliceOutput,
             pulse = rememberBeatPulse(
                 effects = viewModel.soundEffects,
                 enabled = viewModel.beatPulseEnabled.collectAsState().value,
@@ -507,6 +509,7 @@ private fun FullPlayerSheet(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     onShare: () -> Unit,
+    aliceOutput: AliceOutputAction?,
     pulse: () -> Float,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
@@ -573,6 +576,7 @@ private fun FullPlayerSheet(
                 isSavingOffline = isSavingOffline,
                 isMixPlaying = isMixPlaying,
                 onShare = onShare,
+                aliceOutput = aliceOutput,
                 pulse = pulse,
                 glowColor = glowColor,
                 seekBarStyle = seekBarStyle,
@@ -620,6 +624,7 @@ private fun FullPlayerSheet(
             isSavingOffline = isSavingOffline,
             isMixPlaying = isMixPlaying,
             onShare = onShare,
+            aliceOutput = aliceOutput,
             pulse = pulse,
             palette = pixelPalette,
             seekBarStyle = seekBarStyle,
@@ -958,6 +963,7 @@ private fun PixelPlayerContent(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     onShare: () -> Unit,
+    aliceOutput: AliceOutputAction?,
     pulse: () -> Float,
     palette: PixelPalette,
     seekBarStyle: SeekBarStyle,
@@ -1220,6 +1226,15 @@ private fun PixelPlayerContent(
                     tint = if (sleepTimerActive) accent else palette.onBackground,
                     background = palette.surface,
                 )
+                if (aliceOutput != null) {
+                    AliceOutputButton(
+                        action = aliceOutput,
+                        tint = palette.onBackground,
+                        accent = accent,
+                        background = palette.surface,
+                        modifier = Modifier.size(44.dp),
+                    )
+                }
             }
         }
 
@@ -2467,6 +2482,7 @@ private fun ClassicPlayerContent(
     isSavingOffline: Boolean,
     isMixPlaying: Boolean,
     onShare: () -> Unit,
+    aliceOutput: AliceOutputAction?,
     pulse: () -> Float,
     glowColor: Color?,
     seekBarStyle: SeekBarStyle,
@@ -2836,6 +2852,9 @@ private fun ClassicPlayerContent(
                             )
                         }
                     }
+                }
+                if (aliceOutput != null) {
+                    AliceOutputButton(action = aliceOutput, tint = palette.on, accent = accent)
                 }
             }
         }
